@@ -10,7 +10,10 @@ import {
   getAllQuestionsHandler,
   updateQuestionHandler,
   updateQuestionDifficultyHandler,
-  deleteQuestionHandler
+  deleteQuestionHandler,
+  createQuestionHandler,
+  getSummaryByPackHandler,
+  upsertSummaryByPackHandler
 } from '../controllers/questionController.js';
 
 const router = express.Router();
@@ -24,6 +27,9 @@ router.post('/generate-from-file', generateQuestionsFromFileHandler);
 // GET /api/questions - Get all questions
 router.get('/', getAllQuestionsHandler);
 
+// POST /api/questions - Create a single manual question
+router.post('/', createQuestionHandler);
+
 // PATCH /api/questions/:id - Update entire question
 router.patch('/:id', updateQuestionHandler);
 
@@ -32,5 +38,9 @@ router.patch('/:id/difficulty', updateQuestionDifficultyHandler);
 
 // DELETE /api/questions/:id - Delete question
 router.delete('/:id', deleteQuestionHandler);
+
+// Summaries
+router.get('/summaries/:pack_id', getSummaryByPackHandler);
+router.put('/summaries/:pack_id', upsertSummaryByPackHandler);
 
 export default router;

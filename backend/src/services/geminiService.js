@@ -41,6 +41,208 @@ const GRADE_RANGE = {
 };
 
 /**
+ * Generate 5-8 bullet summary from text content
+ */
+export const generateSummaryFromText = async (text, language = 'English') => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\nTASK:\nProduce 5-8 concise bullet points strictly grounded in the provided content. No preface or trailing text.\nCONTENT:\n${text}\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+    const result = await model.generateContent(prompt);
+    const textOut = result.response.text();
+    const match = textOut.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Invalid summary response');
+    const parsed = JSON.parse(match[0]);
+    const bullets = Array.isArray(parsed.bullets) ? parsed.bullets.slice(0, 8) : [];
+    return bullets;
+  } catch (err) {
+    console.error('[Backend Gemini] Summary (text) error:', err);
+    return [];
+  }
+};
+
+/**
+ * Generate 5-8 bullet summary from image/PDF using Vision
+ */
+export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English') => {
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\nTASK:\nProduce 5-8 concise bullet points strictly grounded in this document/image. No preface or trailing text.\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+    const imagePart = { inlineData: { data: base64Data, mimeType } };
+    const result = await model.generateContent([prompt, imagePart]);
+    const textOut = result.response.text();
+    const match = textOut.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Invalid summary response');
+    const parsed = JSON.parse(match[0]);
+    const bullets = Array.isArray(parsed.bullets) ? parsed.bullets.slice(0, 8) : [];
+    return bullets;
+  } catch (err) {
+    console.error('[Backend Gemini] Summary (vision) error:', err);
+    return [];
+  }
+};
+
+/**
+ * Download a file and produce a 5-8 bullet summary in the specified language
+ */
+export const generateSummaryFromFile = async (fileUrl, fileType, language = 'English') => {
+  try {
+    const urlParts = fileUrl.split('/');
+    const bucketIndex = urlParts.indexOf('content-uploads');
+    if (bucketIndex === -1) throw new Error('Invalid file URL format - bucket name not found');
+    const filePath = urlParts.slice(bucketIndex + 1).join('/');
+    const buffer = await downloadFile(filePath);
+    const mimeType = getMimeType(fileType, fileUrl);
+    if (fileType === 'image' || fileType === 'pdf') {
+      const base64Data = buffer.toString('base64');
+      return await generateSummaryFromVision(base64Data, mimeType, language);
+    } else {
+      const text = buffer.toString('utf-8');
+      return await generateSummaryFromText(text, language);
+    }
+  } catch (err) {
+    console.error('[Backend Gemini] Summary (file) error:', err);
+    return [];
+  }
+};
+
+/**
+ * Generate structured study material (summary + sections + subtopics) from an uploaded file
+ * @param {string} fileUrl
+ * @param {string} fileType - 'image' | 'pdf' | 'document'
+ * @returns {Promise<Object>} - Structured material JSON
+ */
+export const generateStructuredMaterialFromFile = async (fileUrl, fileType) => {
+  try {
+    console.log('[Backend Gemini] Generating structured study material:', { fileUrl, fileType });
+
+    // Parse path and download file (reuse logic)
+    const urlParts = fileUrl.split('/');
+    const bucketIndex = urlParts.indexOf('content-uploads');
+    if (bucketIndex === -1) {
+      throw new Error('Invalid file URL format - bucket name not found');
+    }
+    const filePath = urlParts.slice(bucketIndex + 1).join('/');
+
+    const buffer = await downloadFile(filePath);
+    const base64Data = buffer.toString('base64');
+    const mimeType = getMimeType(fileType, fileUrl);
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    const schema = {
+      type: 'OBJECT',
+      properties: {
+        summary: { type: 'STRING' },
+        key_points: { type: 'ARRAY', items: { type: 'STRING' } },
+        sections: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              title: { type: 'STRING' },
+              summary: { type: 'STRING' },
+              subtopics: {
+                type: 'ARRAY',
+                items: {
+                  type: 'OBJECT',
+                  properties: {
+                    title: { type: 'STRING' },
+                    points: { type: 'ARRAY', items: { type: 'STRING' } },
+                  },
+                  required: ['title']
+                }
+              }
+            },
+            required: ['title']
+          }
+        },
+        glossary: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              term: { type: 'STRING' },
+              definition: { type: 'STRING' }
+            },
+            required: ['term', 'definition']
+          }
+        },
+        diagrams: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              caption: { type: 'STRING' },
+              present: { type: 'BOOLEAN' }
+            },
+            required: ['caption']
+          }
+        },
+        study_time_estimate_min: { type: 'NUMBER' }
+      },
+      required: ['summary', 'sections']
+    };
+
+    const prompt = `Create structured study material from this document.
+
+Return JSON that includes:
+- summary: 3-6 sentence overview in clean Unicode
+- key_points: bullet points of critical ideas
+- sections: array of sections with title, 1-3 sentence summary, and subtopics
+  - subtopics: each has title and list of concise bullet points
+- glossary: key terms with simple definitions (if applicable)
+- diagrams: list captions if diagrams are present, else empty array
+- study_time_estimate_min: approximate minutes to study the material (integer)
+
+Keep it concise, accurate, and aligned to Sri Lankan Grades 6-11 context when possible.`;
+
+    const imagePart = { inlineData: { data: base64Data, mimeType } };
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }, imagePart] }],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: schema
+      }
+    });
+
+    const response = await result.response;
+    const text = response.text();
+
+    let material;
+    try {
+      material = JSON.parse(text);
+    } catch (e) {
+      const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) || text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        material = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      } else {
+        throw new Error('Failed to parse structured material JSON');
+      }
+    }
+
+    // Minimal normalization
+    material.key_points = Array.isArray(material.key_points) ? material.key_points : [];
+    material.sections = Array.isArray(material.sections) ? material.sections : [];
+    material.glossary = Array.isArray(material.glossary) ? material.glossary : [];
+    material.diagrams = Array.isArray(material.diagrams) ? material.diagrams : [];
+
+    return material;
+  } catch (error) {
+    console.error('[Backend Gemini] Structured material generation error:', error);
+    return {
+      summary: 'Unable to generate structured material',
+      key_points: [],
+      sections: [],
+      glossary: [],
+      diagrams: [],
+      study_time_estimate_min: 0,
+      error: error.message
+    };
+  }
+};
+
+/**
  * Extract content metadata from file using Gemini Vision API
  * Extracts: language, grade, subject, chapters, clean text
  * @param {string} base64Data - Base64 encoded file data
@@ -51,12 +253,34 @@ export const extractContentMetadata = async (base64Data, mimeType) => {
   try {
     console.log('[Backend Gemini] Extracting content metadata...');
 
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
-      generationConfig: {
-        responseMimeType: "application/json"
-      }
-    });
+    // Define the JSON schema for the response (REQUIRED FOR STRUCTURED OUTPUT)
+    const metadataSchema = {
+      type: "OBJECT",
+      properties: {
+        language: { type: "STRING", enum: ["English", "Sinhala", "Tamil", "Mixed", "Unknown"] },
+        grade: { type: "STRING", enum: ["6", "7", "8", "9", "10", "11", "Unknown"] },
+        subject: { type: "STRING", enum: [...COMPULSORY_SUBJECTS, ...AESTHETIC_SUBJECTS, "Unknown"] },
+        chapters: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              title: { type: "STRING" },
+              content: { type: "STRING" },
+              pageNumbers: { type: "ARRAY", items: { type: "NUMBER" } }
+            },
+            required: ["title", "content"]
+          }
+        },
+        summary: { type: "STRING" },
+        hasDiagrams: { type: "BOOLEAN" },
+        topics: { type: "ARRAY", items: { type: "STRING" } }
+      },
+      required: ["language", "grade", "subject", "chapters", "summary", "hasDiagrams", "topics"]
+    };
+
+    // 1. Initialize model
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
 Analyze this educational document and extract the following metadata in JSON format.
@@ -74,37 +298,22 @@ Context: This is from the Sri Lankan Local Syllabus (Grades 6-11) with these 8 C
 Extract:
 1. **language**: Detect the primary language (English, Sinhala, Tamil, or Mixed)
 2. **grade**: Identify the grade level (6-11 ONLY, or "Unknown" if not in this range)
-3. **subject**: Identify the subject from the 8 compulsory subjects above (match exactly, or "Unknown")
+3. **subject**: Identify the subject from the compulsory/aesthetic subjects above (match exactly, or "Unknown")
 4. **chapters**: Array of chapter/section objects with:
-   - title: Chapter/section title
-   - content: Clean Unicode text content
-   - pageNumbers: Array of page numbers (if visible)
+    - title: Chapter/section title
+    - content: Clean Unicode text content
+    - pageNumbers: Array of page numbers (if visible)
 5. **summary**: Brief 2-3 sentence summary of the document
 6. **hasDiagrams**: Boolean - does it contain diagrams/images?
 7. **topics**: Array of main topics covered
 
 IMPORTANT: 
 - Grade must be between 6-11 (Sri Lankan local syllabus)
-- Subject must match one of the 8 compulsory subjects listed above
+- Subject must match one of the listed subjects.
 - For Social Studies, include History/Geography/Civics content
 - For Language & Literature, specify if Sinhala or Tamil
 
-Return ONLY valid JSON in this exact format:
-{
-  "language": "English",
-  "grade": "10",
-  "subject": "Science",
-  "chapters": [
-    {
-      "title": "Chapter 1: Introduction",
-      "content": "Clean extracted text...",
-      "pageNumbers": [1, 2]
-    }
-  ],
-  "summary": "This document covers...",
-  "hasDiagrams": true,
-  "topics": ["Topic 1", "Topic 2"]
-}
+Return ONLY valid JSON in the format strictly defined by the schema.
 `;
 
     const imagePart = {
@@ -113,8 +322,20 @@ Return ONLY valid JSON in this exact format:
         mimeType: mimeType
       }
     };
+    
+    // 2. CORRECTED API CALL STRUCTURE:
+    // Wrap the prompt and imagePart into the 'parts' array of a 'user' content object.
+    const result = await model.generateContent({
+      contents: [{
+        role: "user",
+        parts: [{ text: prompt }, imagePart] // Combine prompt and image part here
+      }],
+      config: { // Pass configuration as the 'config' property
+        responseMimeType: "application/json",
+        responseSchema: metadataSchema
+      }
+    });
 
-    const result = await model.generateContent([prompt, imagePart]);
     const response = await result.response;
     const text = response.text();
 
@@ -133,6 +354,15 @@ Return ONLY valid JSON in this exact format:
         throw new Error('Failed to parse metadata JSON');
       }
     }
+
+    // Ensure the response has the necessary fields (fallback if schema wasn't fully respected)
+    if (!metadata.chapters) {
+        metadata.chapters = [];
+    }
+    if (!metadata.topics) {
+        metadata.topics = [];
+    }
+
 
     console.log('[Backend Gemini] Extracted metadata:', {
       language: metadata.language,
@@ -179,30 +409,35 @@ export const generateQuestions = async (content, options = {}) => {
     const {
       count = 5,
       difficulty = 'Intermediate',
-      types = ['MCQ', 'FIIB', 'TF', 'HOQ', 'Summary']
+      types = ['MCQ', 'FIIB', 'TF', 'HOQ'],
+      language = 'English',
+      bloom_level = 'Understand'
     } = options;
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
-Generate ${count} educational questions from the following content.
+SYSTEM:
+You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey requested language; align to Bloom's level; ground strictly in provided context.
 
-Content:
+TASK:
+Generate ${count} items strictly from the provided content.
+
+Content (use only this):
 ${content}
 
-Requirements:
+Constraints:
+- All text must be in ${language}. For Sinhala or Tamil, output clean Unicode.
 - Difficulty: ${difficulty}
-- Question types: ${types.join(', ')}
-- Format: JSON array with objects containing: type, difficulty, question, answer, options (for MCQ)
+- Bloom level: ${bloom_level}
+- Allowed types: MCQ, FIIB, TF, HOQ (ignore any other types)
 
-Question Types:
-- MCQ: Multiple Choice Questions (include 4 options)
-- FIIB: Fill in the Blanks
-- TF: True/False
-- HOQ: Higher Order Questions (analytical/critical thinking)
-- Summary: Summarization questions
-
-Return ONLY valid JSON array, no additional text.
+Output: JSON array only. Each item object must include:
+- type (MCQ|FIIB|TF|HOQ)
+- difficulty
+- question
+- answer (for MCQ/FIIB/TF/HOQ)
+- options (array of 4 strings for MCQ)
 `;
 
     const result = await model.generateContent(prompt);
@@ -222,9 +457,8 @@ Return ONLY valid JSON array, no additional text.
 
   } catch (error) {
     console.error('[Backend] Gemini generation error:', error);
-    
-    // Return mock questions if API fails
-    return generateMockQuestions(options.count || 5);
+    // No mock fallback: return empty set so UI shows real state
+    return [];
   }
 };
 
@@ -329,17 +563,28 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     // Step 2: Generate questions
     console.log('[Backend Gemini] Step 2: Generating questions...');
     let questions;
-    
     if (fileType === 'image' || fileType === 'pdf') {
-      questions = await generateQuestionsFromVision(base64Data, mimeType, { count, difficulty, types });
+      questions = await generateQuestionsFromVision(base64Data, mimeType, {
+        count,
+        difficulty,
+        types,
+        language: options.language,
+        bloom_level: options.bloom_level
+      });
     } else {
       // For text documents, extract text first
       const text = buffer.toString('utf-8');
-      questions = await generateQuestions(text, { count, difficulty, types });
+      questions = await generateQuestions(text, {
+        count,
+        difficulty,
+        types,
+        language: options.language,
+        bloom_level: options.bloom_level
+      });
     }
 
     // Step 3: Attach metadata to questions
-    if (metadata) {
+    if (metadata && Array.isArray(questions)) {
       questions = questions.map(q => ({
         ...q,
         metadata: {
@@ -355,8 +600,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
 
   } catch (error) {
     console.error('[Backend Gemini] File processing error:', error);
-    // Return mock questions as fallback
-    return generateMockQuestions(options.count || 5, error.message);
+    // No mock fallback: return empty set
+    return [];
   }
 };
 
@@ -369,41 +614,12 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
  */
 const generateQuestionsFromVision = async (base64Data, mimeType, options) => {
   try {
-    const { count, difficulty, types } = options;
+    const { count = 5, difficulty = 'Intermediate', types = ['MCQ', 'FIIB', 'TF', 'HOQ'], language = 'English', bloom_level = 'Understand' } = options || {};
 
     // Use Gemini Pro Vision for image/PDF analysis
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const prompt = `
-Analyze this document/image and generate ${count} educational questions.
-
-Requirements:
-- Difficulty: ${difficulty}
-- Question types: ${types.join(', ')}
-- Extract all text and visual information from the document
-- Generate questions based on the content
-- Format: JSON array with objects containing: id, type, difficulty, question, answer, options (for MCQ)
-
-Question Types:
-- MCQ: Multiple Choice Questions (include 4 options, mark correct answer)
-- FIIB: Fill in the Blanks (use ___ for blank)
-- TF: True/False
-- HOQ: Higher Order Questions (analytical/critical thinking)
-- Summary: Summarization questions
-
-Return ONLY valid JSON array, no markdown, no additional text.
-Example format:
-[
-  {
-    "id": 1,
-    "type": "MCQ",
-    "difficulty": "Easy",
-    "question": "What is...?",
-    "answer": "Option A",
-    "options": ["Option A", "Option B", "Option C", "Option D"]
-  }
-]
-`;
+    const prompt = `SYSTEM:\nYou are EduQuestLab, a multilingual pedagogy-aware generator. Obey the requested language; align to Bloom's level; ground strictly in the provided content.\n\nTASK:\nAnalyze this document/image and generate ${count} educational items.\n\nConstraints:\n- Respond ONLY in ${language}. For Sinhala/Tamil, output clean Unicode; avoid Latin letters except proper nouns/symbols.\n- Difficulty: ${difficulty}.\n- Bloom level: ${bloom_level}.\n- Allowed types: MCQ, FIIB, TF, HOQ (ignore any other types).\n\nPer-type rules:\n- MCQ: 1 correct + 3 plausible distractors.\n- FIIB: concise blanks (use ___).\n- TF: unambiguous true/false.\n- HOQ: require reasoning; include short rationale.\n\nOutput: Return ONLY a JSON array. Each item shape:\n{\n  "question_type": "MCQ|FIIB|TF|HOQ",\n  "difficulty": "Easy|Intermediate|Hard",\n  "blooms_taxonomy": "Remember|Understand|Apply|Analyze|Evaluate|Create",\n  "question_text": string,\n  "correct_answer": string,\n  "options": string[]\n}`;
 
     const imagePart = {
       inlineData: {
@@ -442,7 +658,13 @@ Example format:
     // Add generated flag and ensure IDs
     const processedQuestions = questions.map((q, index) => ({
       id: q.id || Date.now() + index,
-      ...q,
+      type: q.type || q.question_type || 'MCQ',
+      difficulty: q.difficulty || difficulty,
+      blooms_taxonomy: q.blooms_taxonomy || 'Understand',
+      question: q.question || q.question_text || '',
+      answer: q.answer || q.correct_answer || '',
+      options: Array.isArray(q.options) ? q.options : [],
+      reasoning: q.reasoning || undefined,
       generated: true,
       source: 'gemini-vision'
     }));
@@ -484,5 +706,6 @@ const getMimeType = (fileType, fileUrl) => {
 
 export default {
   generateQuestions,
-  generateQuestionsFromFile
+  generateQuestionsFromFile,
+  generateStructuredMaterialFromFile
 };

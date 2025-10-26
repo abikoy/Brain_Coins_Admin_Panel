@@ -3,9 +3,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 const StudentProgressChart = ({ data, timeFilter }) => {
   return (
-    <div className="w-full h-80">
+    <div className="w-full h-64 sm:h-80 md:h-96">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data}>
+        <BarChart 
+          data={data}
+          margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+        >
           <defs>
             <linearGradient id="colorProgress" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#7C3AED" stopOpacity={0.8}/>
@@ -13,16 +16,27 @@ const StudentProgressChart = ({ data, timeFilter }) => {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(124, 58, 237, 0.1)" />
-          <XAxis dataKey="name" stroke="#7C3AED" />
-          <YAxis stroke="#7C3AED" />
+          <XAxis 
+            dataKey="name" 
+            stroke="#7C3AED"
+            tick={{ fontSize: 12 }}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+          />
+          <YAxis 
+            stroke="#7C3AED"
+            tick={{ fontSize: 12 }}
+          />
           <Tooltip 
             contentStyle={{ 
               backgroundColor: 'rgba(255, 255, 255, 0.9)', 
               border: '1px solid rgba(124, 58, 237, 0.3)',
-              borderRadius: '8px'
+              borderRadius: '8px',
+              fontSize: '12px'
             }} 
           />
-          <Legend />
+          <Legend wrapperStyle={{ fontSize: '12px' }} />
           <Bar dataKey="score" fill="url(#colorProgress)" radius={[8, 8, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>

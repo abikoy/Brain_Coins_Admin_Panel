@@ -29,11 +29,7 @@ export const DataProvider = ({ children }) => {
     { name: 'Sun', score: 82 },
   ]);
 
-  const [questions, setQuestions] = useState([
-    { id: 1, type: 'MCQ', difficulty: 'Easy', question: 'What is the capital of France?', answer: 'Paris', generated: false },
-    { id: 2, type: 'FIIB', difficulty: 'Intermediate', question: 'The process of photosynthesis occurs in ___', answer: 'chloroplasts', generated: false },
-    { id: 3, type: 'TF', difficulty: 'Easy', question: 'Water boils at 100°C at sea level', answer: 'True', generated: false },
-  ]);
+  const [questions, setQuestions] = useState([]);
 
   const [logs, setLogs] = useState([
     { type: 'error', message: 'Gemini API rate limit exceeded', timestamp: '2024-01-15 14:30:00' },

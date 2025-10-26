@@ -126,7 +126,7 @@ export const deleteStudent = async (studentId) => {
 };
 
 /**
- * Save generated questions to database
+ * Save questions to database with the new schema
  * @param {Array} questions - Array of question objects
  * @returns {Promise<Array>} - Saved questions with IDs
  */
@@ -134,18 +134,24 @@ export const saveQuestions = async (questions) => {
   try {
     console.log('[Backend DB] Saving', questions.length, 'questions to database');
 
-    // Prepare questions for database (only include fields that exist in table)
+    // Prepare questions for database with your schema
     const questionsToSave = questions.map(q => ({
-      type: q.type,
-      difficulty: q.difficulty || 'Intermediate',
-      question: q.question,
-      answer: q.answer,
-      options: q.options || null,
-      // Store metadata if available
-      language: q.metadata?.language || null,
-      grade: q.metadata?.grade || null,
-      subject: q.metadata?.subject || null,
-      topics: q.metadata?.topics || null
+      pack_id: q.pack_id,
+      question_text: q.question_text || q.question || '',
+      question_text_si: q.question_text_si || q.question_si || null,
+      question_text_ta: q.question_text_ta || q.question_ta || null,
+      question_type: q.question_type || q.type || 'MCQ',
+      options: Array.isArray(q.options) ? q.options : [],
+      correct_answer: q.correct_answer || q.answer || '',
+      explanation: q.explanation || '',
+      explanation_si: q.explanation_si || null,
+      explanation_ta: q.explanation_ta || null,
+      has_diagram: q.has_diagram || !!q.diagram || false,
+      diagram_path: q.diagram_path || null,
+      blooms_taxonomy: q.blooms_taxonomy || 'Remember',
+      display_order: q.display_order || 0,
+      difficulty: q.difficulty || 'Medium',
+      generated: q.generated === undefined ? true : !!q.generated
     }));
 
     const { data, error } = await supabaseAdmin
@@ -167,29 +173,60 @@ export const saveQuestions = async (questions) => {
 };
 
 /**
- * Get all questions from database
- * @param {Object} filters - Optional filters (type, difficulty)
- * @returns {Promise<Array>} - List of questions
+ * Get all questions from database with optional filters
+ * @param {Object} filters - Filter options
+ * @returns {Promise<{data: Array, count: number}>} - Questions and total count
  */
 export const getAllQuestions = async (filters = {}) => {
   try {
     let query = supabaseAdmin
       .from('questions')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select(`
+        *,
+        learning_packs:pack_id (
+          id,
+          title,
+          subject_id,
+          subjects:subject_id (
+            id,
+            name,
+            name_si,
+            name_ta,
+            icon,
+            color
+          )
+        )
+      `, { count: 'exact' });
 
-    // Apply filters if provided
-    if (filters.type) {
-      query = query.eq('type', filters.type);
+    // Apply filters
+    if (filters.pack_id) query = query.eq('pack_id', filters.pack_id);
+    if (filters.subject_id) {
+      query = query.eq('learning_packs.subject_id', filters.subject_id);
     }
-    if (filters.difficulty) {
-      query = query.eq('difficulty', filters.difficulty);
+    if (filters.type) query = query.eq('question_type', filters.type);
+    if (filters.difficulty) query = query.eq('difficulty', filters.difficulty);
+
+    // Add sorting
+    query = query.order('display_order', { ascending: true })
+                .order('created_at', { ascending: false });
+
+    // Apply pagination if provided
+    if (filters.page && filters.limit) {
+      const page = parseInt(filters.page) || 1;
+      const limit = Math.min(parseInt(filters.limit) || 20, 100);
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      query = query.range(from, to);
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
 
     if (error) throw error;
-    return data || [];
+
+    return {
+      data: data || [],
+      count: count || 0
+    };
   } catch (error) {
     console.error('[Backend DB] Get questions error:', error);
     throw error;
@@ -271,6 +308,45 @@ export const deleteQuestion = async (questionId) => {
     if (error) throw error;
   } catch (error) {
     console.error('[Backend DB] Delete question error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Summaries: fetch by pack_id
+ */
+export const getSummaryByPack = async (pack_id) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('summaries')
+      .select('*')
+      .eq('pack_id', pack_id)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data; // may be null
+  } catch (error) {
+    console.error('[Backend DB] Get summary error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Summaries: upsert by pack_id
+ */
+export const upsertSummaryByPack = async (pack_id, bullets) => {
+  try {
+    const payload = { pack_id, bullets };
+    const { data, error } = await supabaseAdmin
+      .from('summaries')
+      .upsert(payload, { onConflict: 'pack_id' })
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('[Backend DB] Upsert summary error:', error);
     throw error;
   }
 };
