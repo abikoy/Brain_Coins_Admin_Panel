@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "bullmq": "^5.63.0",
+    "ioredis": "^5.8.2",
+    "redis-server": "^1.2.2",
+    "uuid": "^13.0.0"
+  }
+}

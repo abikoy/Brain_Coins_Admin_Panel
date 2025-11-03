@@ -6,9 +6,13 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase Configuration (Frontend)
-const supabaseUrl = "https://jgtjkqwephakgpxvvxsr.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpndGprcXdlcGhha2dweHZ2eHNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDIyNjYsImV4cCI6MjA3NjI3ODI2Nn0.ozPWNdgWmcTfFzetvxS-y3zq204fdx--kkyiIMCaTZQ";
+// Supabase Configuration (Frontend) — from Vite env
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('[Frontend Supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Define them in your frontend .env file.');
+}
 
 // Initialize Supabase client for frontend
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

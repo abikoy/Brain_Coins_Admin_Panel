@@ -21,6 +21,17 @@ const UploadForm = ({ onUploadComplete }) => {
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
+      // Check file size (50MB limit)
+      const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+      if (selectedFile.size > maxSize) {
+        setMessage({ 
+          type: 'error', 
+          text: `File is too large. Maximum size is 50MB. Your file is ${(selectedFile.size / (1024 * 1024)).toFixed(2)}MB.` 
+        });
+        e.target.value = ''; // Clear the file input
+        return;
+      }
+      
       setFile(selectedFile);
       setMessage({ type: '', text: '' });
     }
@@ -63,9 +74,15 @@ const UploadForm = ({ onUploadComplete }) => {
         text: `File uploaded successfully: ${result.fileName}`
       });
 
-      // Call parent callback
+      // Call parent callback with file information
       if (onUploadComplete) {
-        onUploadComplete(result.filePath, result.fileType, result.fileUrl);
+        onUploadComplete({
+          filePath: result.filePath,
+          fileType: result.fileType,
+          fileUrl: result.fileUrl,
+          name: result.fileName,
+          file: file // Pass the file object for direct upload
+        });
       }
 
       // Reset form after 2 seconds

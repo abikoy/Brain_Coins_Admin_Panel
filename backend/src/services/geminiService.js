@@ -7,12 +7,120 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
-import { downloadFile } from './supabaseStorage.js';
+import { downloadAny } from './supabaseStorage.js';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+// Import the module
+import * as pdfParseModule from 'pdf-parse';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+
+/**
+ * Extract text from file data based on MIME type
+ * @param {string} base64Data - Base64 encoded file data
+ * @param {string} mimeType - MIME type of the file
+ * @returns {Promise<string>} - Extracted text
+ */
+async function extractTextFromFile(base64Data, mimeType) {
+  try {
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    if (mimeType === 'application/pdf') {
+      try {
+        // Simple and fast text extraction with pdf-parse
+        const data = await pdfParseModule.default(buffer, {
+          // Limit to first 20 pages for better performance
+          max: 20,
+          // Disable worker threads for better compatibility
+          worker: false
+        });
+        
+        if (!data.text || !data.text.trim()) {
+          throw new Error('No text content could be extracted from the PDF');
+        }
+        
+        return data.text;
+      } catch (error) {
+        console.error('PDF text extraction error:', error);
+        throw new Error(`Failed to extract text from PDF: ${error.message}`);
+      }
+    } 
+    
+    // For images, use Gemini Vision to extract text
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent({
+      contents: [{
+        parts: [
+          { text: 'Extract all text from this image. Return only the raw text, no formatting or additional text.' },
+          {
+            inlineData: {
+              mimeType,
+              data: base64Data
+            }
+          }
+        ]
+      }]
+    });
+    
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error('[Backend Gemini] Error extracting text from file:', error);
+    throw new Error(`Failed to extract text from file: ${error.message}`);
+  }
+}
+
+// Enhanced retry helper with exponential backoff and jitter
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withRetry = async (fn, options = {}) => {
+  const {
+    maxAttempts = 5,
+    baseDelay = 1000, // 1 second base delay
+    maxDelay = 30000, // 30 seconds max delay
+  } = options;
+
+  let attempt = 0;
+  let lastError;
+
+  while (attempt < maxAttempts) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      attempt++;
+      
+      // Don't retry on client errors (4xx) except 429 (rate limit)
+      if (error.status >= 400 && error.status < 500 && error.status !== 429) {
+        throw error;
+      }
+
+      // Calculate delay with exponential backoff and jitter
+      const backoff = Math.min(
+        Math.pow(2, attempt) * baseDelay + Math.random() * 1000,
+        maxDelay
+      );
+
+      console.warn(`[Backend Gemini] Attempt ${attempt}/${maxAttempts} failed: ${error.message}. Retrying in ${Math.round(backoff)}ms`);
+      
+      // Wait before retry
+      if (attempt < maxAttempts) {
+        await sleep(backoff);
+      }
+    }
+  }
+
+  // If we get here, all attempts failed
+  console.error(`[Backend Gemini] All ${maxAttempts} attempts failed. Last error:`, lastError);
+  throw lastError || new Error('Max retry attempts reached');
+};
 
 // Sri Lankan education system - 8 Compulsory Subjects (Grades 6-11)
 const COMPULSORY_SUBJECTS = [
@@ -68,7 +176,7 @@ export const generateSummaryFromVision = async (base64Data, mimeType, language =
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\nTASK:\nProduce 5-8 concise bullet points strictly grounded in this document/image. No preface or trailing text.\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
     const imagePart = { inlineData: { data: base64Data, mimeType } };
-    const result = await model.generateContent([prompt, imagePart]);
+    const result = await withRetry(() => model.generateContent([prompt, imagePart]));
     const textOut = result.response.text();
     const match = textOut.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('Invalid summary response');
@@ -86,11 +194,7 @@ export const generateSummaryFromVision = async (base64Data, mimeType, language =
  */
 export const generateSummaryFromFile = async (fileUrl, fileType, language = 'English') => {
   try {
-    const urlParts = fileUrl.split('/');
-    const bucketIndex = urlParts.indexOf('content-uploads');
-    if (bucketIndex === -1) throw new Error('Invalid file URL format - bucket name not found');
-    const filePath = urlParts.slice(bucketIndex + 1).join('/');
-    const buffer = await downloadFile(filePath);
+    const buffer = await downloadAny(fileUrl);
     const mimeType = getMimeType(fileType, fileUrl);
     if (fileType === 'image' || fileType === 'pdf') {
       const base64Data = buffer.toString('base64');
@@ -116,14 +220,7 @@ export const generateStructuredMaterialFromFile = async (fileUrl, fileType) => {
     console.log('[Backend Gemini] Generating structured study material:', { fileUrl, fileType });
 
     // Parse path and download file (reuse logic)
-    const urlParts = fileUrl.split('/');
-    const bucketIndex = urlParts.indexOf('content-uploads');
-    if (bucketIndex === -1) {
-      throw new Error('Invalid file URL format - bucket name not found');
-    }
-    const filePath = urlParts.slice(bucketIndex + 1).join('/');
-
-    const buffer = await downloadFile(filePath);
+    const buffer = await downloadAny(fileUrl);
     const base64Data = buffer.toString('base64');
     const mimeType = getMimeType(fileType, fileUrl);
 
@@ -198,13 +295,13 @@ Keep it concise, accurate, and aligned to Sri Lankan Grades 6-11 context when po
 
     const imagePart = { inlineData: { data: base64Data, mimeType } };
 
-    const result = await model.generateContent({
+    const result = await withRetry(() => model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }, imagePart] }],
-      config: {
+      generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: schema
       }
-    });
+    }));
 
     const response = await result.response;
     const text = response.text();
@@ -323,35 +420,72 @@ Return ONLY valid JSON in the format strictly defined by the schema.
       }
     };
     
-    // 2. CORRECTED API CALL STRUCTURE:
-    // Wrap the prompt and imagePart into the 'parts' array of a 'user' content object.
-    const result = await model.generateContent({
-      contents: [{
-        role: "user",
-        parts: [{ text: prompt }, imagePart] // Combine prompt and image part here
-      }],
-      config: { // Pass configuration as the 'config' property
-        responseMimeType: "application/json",
-        responseSchema: metadataSchema
-      }
-    });
+    // 2. CORRECTED API CALL STRUCTURE with better error handling
+    const result = await withRetry(
+      async () => {
+        try {
+          const generationConfig = {
+            temperature: 0.7,
+            topP: 0.95,
+            topK: 40,
+            maxOutputTokens: 8192,
+          };
 
-    const response = await result.response;
+          const response = await model.generateContent({
+            contents: [{
+              role: "user",
+              parts: [
+                { text: prompt },
+                imagePart
+              ]
+            }],
+            generationConfig: generationConfig,
+          });
+
+          return response;
+        } catch (error) {
+          console.error('[Backend Gemini] API call failed:', {
+            message: error.message,
+            status: error.status,
+            code: error.code,
+            stack: error.stack?.split('\n').slice(0, 3).join('\n')
+          });
+          throw error; // Re-throw for retry logic
+        }
+      },
+      { maxAttempts: 5, baseDelay: 2000 }
+    );
+
+        const response = await result.response;
     const text = response.text();
+    
+    // Log first 200 chars for debugging
+    console.log('[Backend Gemini] Raw metadata response:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
 
-    console.log('[Backend Gemini] Raw metadata response:', text.substring(0, 200));
-
-    // Parse JSON response
+    // Parse JSON response with better error handling
     let metadata;
     try {
+      // First try direct JSON parse
       metadata = JSON.parse(text);
     } catch (parseError) {
+      console.warn('[Backend Gemini] Initial JSON parse failed, trying to extract from markdown');
+      
       // Try to extract JSON from markdown code blocks
-      const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/) || text.match(/\{[\s\S]*\}/);
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || 
+                       text.match(/\{[\s\S]*\}/);
+      
       if (jsonMatch) {
-        metadata = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+        try {
+          const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
+          metadata = JSON.parse(jsonStr);
+          console.log('[Backend Gemini] Successfully extracted JSON from markdown');
+        } catch (e) {
+          console.error('[Backend Gemini] Failed to parse extracted JSON:', e);
+          throw new Error(`Failed to parse JSON from response: ${e.message}`);
+        }
       } else {
-        throw new Error('Failed to parse metadata JSON');
+        console.error('[Backend Gemini] No valid JSON found in response');
+        throw new Error('No valid JSON found in API response');
       }
     }
 
@@ -375,19 +509,26 @@ Return ONLY valid JSON in the format strictly defined by the schema.
     return metadata;
 
   } catch (error) {
-    console.error('[Backend Gemini] Metadata extraction error:', error);
+    console.error('[Backend Gemini] Metadata extraction error:', {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n')
+    });
     
-    // Return default metadata on error
+    // Return default metadata with error details
     return {
-      language: 'Unknown',
-      grade: 'Unknown',
-      subject: 'Unknown',
+      language: 'English', // Default to English instead of Unknown
+      grade: '10', // Default to grade 10
+      subject: 'General', // Default subject
       chapters: [{
-        title: 'Content',
-        content: 'Unable to extract content',
-        pageNumbers: []
+        title: 'Document Content',
+        content: 'Content extraction failed. Please try again or check the document format.',
+        pageNumbers: [1]
       }],
-      summary: 'Metadata extraction failed',
+      summary: 'Unable to extract content. The document may be in an unsupported format or the service is temporarily unavailable.',
+      hasDiagrams: false,
+      topics: ['General Knowledge'],
       hasDiagrams: false,
       topics: [],
       error: error.message
@@ -519,27 +660,17 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     const {
       count = 5,
       difficulty = 'Intermediate',
-      types = ['MCQ', 'FIIB', 'TF', 'HOQ', 'Summary']
+      types = ['MCQ', 'FIIB', 'TF', 'HOQ'],
+      language = 'English',
+      bloom_level = 'Understand'
     } = options;
 
     console.log('[Backend Gemini] Processing file:', { fileUrl, fileType });
 
     // Extract file path from URL
     // URL format: https://.../storage/v1/object/public/content-uploads/uploads/file.pdf
-    const urlParts = fileUrl.split('/');
-    const bucketIndex = urlParts.indexOf('content-uploads');
-    
-    if (bucketIndex === -1) {
-      throw new Error('Invalid file URL format - bucket name not found');
-    }
-    
-    // Get path after bucket name (e.g., "uploads/file.pdf")
-    const filePath = urlParts.slice(bucketIndex + 1).join('/');
-    
-    console.log('[Backend Gemini] Downloading file from Supabase:', filePath);
-    
-    // Download file using Supabase service (bypasses RLS)
-    const buffer = await downloadFile(filePath);
+    console.log('[Backend Gemini] Downloading file:', fileUrl);
+    const buffer = await downloadAny(fileUrl);
     const base64Data = buffer.toString('base64');
 
     // Determine MIME type
@@ -562,30 +693,131 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
 
     // Step 2: Generate questions
     console.log('[Backend Gemini] Step 2: Generating questions...');
-    let questions;
-    if (fileType === 'image' || fileType === 'pdf') {
-      questions = await generateQuestionsFromVision(base64Data, mimeType, {
-        count,
-        difficulty,
-        types,
-        language: options.language,
-        bloom_level: options.bloom_level
+    let questions = [];
+    
+    // Use the provided counts if available, otherwise distribute evenly
+    const typeCounts = {};
+    if (options.counts) {
+      // Use the exact counts provided in the options
+      Object.entries(options.counts).forEach(([type, cnt]) => {
+        if (cnt > 0 && types.includes(type)) {
+          typeCounts[type] = cnt;
+        }
+      });
+    } else if (types && types.length > 0) {
+      // Fallback to even distribution if no counts provided
+      const baseCount = Math.floor(count / types.length);
+      const remainder = count % types.length;
+      
+      types.forEach((type, index) => {
+        typeCounts[type] = index < remainder ? baseCount + 1 : baseCount;
       });
     } else {
-      // For text documents, extract text first
-      const text = buffer.toString('utf-8');
-      questions = await generateQuestions(text, {
-        count,
-        difficulty,
-        types,
-        language: options.language,
-        bloom_level: options.bloom_level
-      });
+      // Fallback to all MCQs if no types specified
+      typeCounts['MCQ'] = count;
     }
+    
+    console.log('[Backend Gemini] Target question counts by type:', typeCounts);
+    
+    // If no valid types with count > 0, return empty array
+    if (Object.keys(typeCounts).length === 0) {
+      console.log('[Backend Gemini] No valid question types with count > 0');
+      return [];
+    }
+    
+    // Generate questions for each type
+    const allQuestions = [];
+    
+    for (const [type, typeCount] of Object.entries(typeCounts)) {
+      if (typeCount <= 0) continue;
+      
+      console.log(`[Backend Gemini] Generating ${typeCount} ${type} questions...`);
+      
+      try {
+        let typeQuestions = [];
+        let text = '';
+        
+        try {
+          text = fileType === 'pdf' || fileType === 'image' 
+            ? await extractTextFromFile(base64Data, mimeType)
+            : buffer.toString('utf-8');
+            
+          typeQuestions = await generateQuestions(text, {
+            count: typeCount * 2, // Generate extra to ensure we get enough
+            difficulty,
+            types: [type], // Generate only this type
+            language,
+            bloom_level
+          });
+        } catch (extractError) {
+          console.error(`[Backend Gemini] Error extracting text for ${type}:`, extractError);
+          // Fallback to mock questions if text extraction fails
+          typeQuestions = generateMockQuestions(typeCount, `Text extraction failed: ${extractError.message}`)
+            .filter(q => q.type === type);
+        }
+        
+        // Take only the requested number of this type
+        const selectedQuestions = typeQuestions
+          .filter(q => (q.type || q.question_type) === type)
+          .slice(0, typeCount);
+          
+        console.log(`[Backend Gemini] Generated ${selectedQuestions.length}/${typeCount} ${type} questions`);
+        allQuestions.push(...selectedQuestions);
+        
+      } catch (error) {
+        console.error(`[Backend Gemini] Error generating ${type} questions:`, error);
+        // Continue with other types
+      }
+    }
+    
+    // If we didn't get enough questions, try one more time with all types
+    if (allQuestions.length < count) {
+      const remaining = count - allQuestions.length;
+      console.log(`[Backend Gemini] Generating ${remaining} additional questions to reach target...`);
+      
+      try {
+        let additionalQuestions = [];
+        
+        if (fileType === 'image' || fileType === 'pdf') {
+          additionalQuestions = await generateQuestionsFromVision(base64Data, mimeType, {
+            count: remaining * 2,
+            difficulty,
+            types: Object.keys(typeCounts),
+            language,
+            bloom_level
+          });
+        } else {
+          const text = buffer.toString('utf-8');
+          additionalQuestions = await generateQuestions(text, {
+            count: remaining * 2,
+            difficulty,
+            types: Object.keys(typeCounts),
+            language,
+            bloom_level
+          });
+        }
+        
+        // Add unique questions up to the target count
+        const existingIds = new Set(allQuestions.map(q => q.id));
+        const newQuestions = additionalQuestions
+          .filter(q => !existingIds.has(q.id))
+          .slice(0, remaining);
+          
+        allQuestions.push(...newQuestions);
+        console.log(`[Backend Gemini] Added ${newQuestions.length} additional questions`);
+        
+      } catch (error) {
+        console.error('[Backend Gemini] Error generating additional questions:', error);
+      }
+    }
+    
+    // Ensure we don't exceed the requested count
+    const finalQuestions = allQuestions.slice(0, count);
+    console.log(`[Backend Gemini] Generated total of ${finalQuestions.length} questions`);
 
     // Step 3: Attach metadata to questions
-    if (metadata && Array.isArray(questions)) {
-      questions = questions.map(q => ({
+    if (metadata && Array.isArray(finalQuestions)) {
+      return finalQuestions.map(q => ({
         ...q,
         metadata: {
           language: metadata.language,
@@ -607,75 +839,137 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
 
 /**
  * Generate questions from image/PDF using Gemini Vision API
- * @param {string} base64Data - Base64 encoded file data
- * @param {string} mimeType - MIME type of file
- * @param {Object} options - Generation options
- * @returns {Promise<Array>} - Generated questions
- */
-const generateQuestionsFromVision = async (base64Data, mimeType, options) => {
-  try {
-    const { count = 5, difficulty = 'Intermediate', types = ['MCQ', 'FIIB', 'TF', 'HOQ'], language = 'English', bloom_level = 'Understand' } = options || {};
+      const prompt = `SYSTEM:\nYou are an expert educational content creator. Analyze the provided document/image and generate ${count} high-quality educational questions.\n\nINSTRUCTIONS:\n1. LANGUAGE: Respond in ${language}. For Sinhala/Tamil, use clean Unicode.\n2. DIFFICULTY: ${difficulty}.\n3. BLOOM'S LEVEL: ${bloom_level}.\n4. QUESTION TYPES: ${types.join(', ')}.\n\nQUESTION FORMAT RULES:\n- MCQ: 1 correct answer + 3 plausible distractors\n- FIIB: Use ___ for blanks\n- TF: Must be clearly true or false\n- HOQ: Include brief reasoning\n\nOUTPUT FORMAT: Return ONLY a valid JSON array. Example:\n[{\n  "question_type": "MCQ",\n  "difficulty": "Easy",\n  "blooms_taxonomy": "Understand",\n  "question_text": "Sample question?",\n  "correct_answer": "Correct answer",\n  "options": ["Incorrect 1", "Incorrect 2", "Correct answer", "Incorrect 3"],\n  "explanation": "Brief explanation if needed"\n}]`;
 
-    // Use Gemini Pro Vision for image/PDF analysis
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const imagePart = {
+        inlineData: {
+          data: base64Data,
+          mimeType: mimeType
+        }
+      };
 
-    const prompt = `SYSTEM:\nYou are EduQuestLab, a multilingual pedagogy-aware generator. Obey the requested language; align to Bloom's level; ground strictly in the provided content.\n\nTASK:\nAnalyze this document/image and generate ${count} educational items.\n\nConstraints:\n- Respond ONLY in ${language}. For Sinhala/Tamil, output clean Unicode; avoid Latin letters except proper nouns/symbols.\n- Difficulty: ${difficulty}.\n- Bloom level: ${bloom_level}.\n- Allowed types: MCQ, FIIB, TF, HOQ (ignore any other types).\n\nPer-type rules:\n- MCQ: 1 correct + 3 plausible distractors.\n- FIIB: concise blanks (use ___).\n- TF: unambiguous true/false.\n- HOQ: require reasoning; include short rationale.\n\nOutput: Return ONLY a JSON array. Each item shape:\n{\n  "question_type": "MCQ|FIIB|TF|HOQ",\n  "difficulty": "Easy|Intermediate|Hard",\n  "blooms_taxonomy": "Remember|Understand|Apply|Analyze|Evaluate|Create",\n  "question_text": string,\n  "correct_answer": string,\n  "options": string[]\n}`;
+      console.log('[Backend Gemini] Sending to Gemini Vision API...');
+      
+      const result = await model.generateContent([prompt, imagePart]);
+      const response = await result.response;
+      const text = response.text();
 
-    const imagePart = {
-      inlineData: {
-        data: base64Data,
-        mimeType: mimeType
+      console.log('[Backend Gemini] Received response from Gemini');
+      
+      // Log first 200 chars for debugging
+      console.log('[Backend Gemini] Raw response:', text.length > 200 ? text.substring(0, 200) + '...' : text);
+
+      // Parse JSON response with better error handling
+      let jsonText = text.trim();
+      
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || 
+                       jsonText.match(/\[[\s\S]*\]/);
+      
+      if (!jsonMatch) {
+        throw new Error('No valid JSON array found in response');
       }
-    };
 
-    console.log('[Backend Gemini] Sending to Gemini Vision API...');
+      // Clean and parse the JSON
+      let questions;
+      try {
+        const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
+        questions = JSON.parse(jsonStr);
+        
+        if (!Array.isArray(questions)) {
+          throw new Error('Expected an array of questions');
+        }
+      } catch (parseError) {
+        console.error('[Backend Gemini] JSON parse error:', parseError);
+        throw new Error(`Failed to parse questions: ${parseError.message}`);
+      }
 
-    const result = await model.generateContent([prompt, imagePart]);
-    const response = await result.response;
-    const text = response.text();
+      // Process and validate questions
+      const processedQuestions = questions.slice(0, count).map((q, index) => {
+        const questionType = (q.type || q.question_type || 'MCQ').toUpperCase();
+        const validTypes = ['MCQ', 'FIIB', 'TF', 'HOQ'];
+        
+        if (!validTypes.includes(questionType)) {
+          console.warn(`[Backend Gemini] Invalid question type: ${questionType}, defaulting to MCQ`);
+        }
 
-    console.log('[Backend Gemini] Received response from Gemini');
+        return {
+          id: `gen-${Date.now()}-${index}`,
+          type: validTypes.includes(questionType) ? questionType : 'MCQ',
+          difficulty: ['Easy', 'Intermediate', 'Hard'].includes(q.difficulty) 
+            ? q.difficulty 
+            : difficulty,
+          blooms_taxonomy: [
+            'Remember', 'Understand', 'Apply', 
+            'Analyze', 'Evaluate', 'Create'
+          ].includes(q.blooms_taxonomy) ? q.blooms_taxonomy : bloom_level,
+          question: String(q.question || q.question_text || `Question ${index + 1}`).trim(),
+          answer: String(q.answer || q.correct_answer || '').trim(),
+          options: Array.isArray(q.options) 
+            ? q.options.map(String).filter(Boolean) 
+            : [],
+          explanation: q.explanation ? String(q.explanation) : undefined,
+          generated: true,
+          source: 'gemini-vision',
+          metadata: {
+            attempt: attempt + 1,
+            timestamp: new Date().toISOString()
+          }
+        };
+      });
 
-    // Parse JSON response (handle markdown code blocks)
-    let jsonText = text.trim();
-    
-    // Remove markdown code blocks if present
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-    } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/```\n?/g, '');
+      console.log(`[Backend Gemini] Successfully generated ${processedQuestions.length} questions`);
+      return processedQuestions;
+
+    } catch (error) {
+      lastError = error;
+      attempt++;
+      
+      // Log error details
+      console.error(`[Backend Gemini] Question generation attempt ${attempt} failed:`, {
+        message: error.message,
+        status: error.status,
+        code: error.code,
+        attempt,
+        maxRetries
+      });
+
+      // If we've reached max retries, break the loop
+      if (attempt >= maxRetries) break;
+
+      // Calculate delay with exponential backoff and jitter
+      const delay = Math.min(
+        Math.pow(2, attempt) * baseDelay + Math.random() * 1000,
+        30000 // Max 30 seconds
+      );
+      
+      console.log(`[Backend Gemini] Retrying in ${Math.round(delay/1000)} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-
-    // Extract JSON array
-    const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      console.error('[Backend Gemini] Invalid response format:', text.substring(0, 200));
-      throw new Error('Invalid response format from Gemini');
-    }
-
-    const questions = JSON.parse(jsonMatch[0]);
-    
-    // Add generated flag and ensure IDs
-    const processedQuestions = questions.map((q, index) => ({
-      id: q.id || Date.now() + index,
-      type: q.type || q.question_type || 'MCQ',
-      difficulty: q.difficulty || difficulty,
-      blooms_taxonomy: q.blooms_taxonomy || 'Understand',
-      question: q.question || q.question_text || '',
-      answer: q.answer || q.correct_answer || '',
-      options: Array.isArray(q.options) ? q.options : [],
-      reasoning: q.reasoning || undefined,
-      generated: true,
-      source: 'gemini-vision'
-    }));
-
-    console.log('[Backend Gemini] Generated questions:', processedQuestions.length);
-    return processedQuestions;
-
-  } catch (error) {
-    console.error('[Backend Gemini] Vision API error:', error);
-    throw error;
   }
+
+  // If we get here, all attempts failed
+  console.error('[Backend Gemini] All question generation attempts failed');
+  
+  // Return mock questions as fallback
+  console.warn('[Backend Gemini] Returning mock questions as fallback');
+  return Array(count).fill().map((_, i) => ({
+    id: `mock-${Date.now()}-${i}`,
+    type: 'MCQ',
+    difficulty: difficulty,
+    blooms_taxonomy: bloom_level,
+    question: `Sample question ${i + 1} (mock data - service unavailable)`,
+    answer: 'Correct answer',
+    options: ['Incorrect 1', 'Incorrect 2', 'Correct answer', 'Incorrect 3'],
+    explanation: 'This is a placeholder question. The question generation service is currently unavailable.',
+    generated: true,
+    source: 'fallback',
+    metadata: {
+      isFallback: true,
+      error: lastError?.message || 'Service unavailable',
+      timestamp: new Date().toISOString()
+    }
+  }));
 };
 
 /**

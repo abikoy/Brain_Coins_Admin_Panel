@@ -11,10 +11,24 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Supabase Configuration (Backend - Server Side)
-const supabaseUrl = process.env.SUPABASE_URL || "https://jgtjkqwephakgpxvvxsr.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || ""; // require explicit .env
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""; // require service role for server
+
+// Diagnostics to help detect misconfiguration early
+(() => {
+  const maskedKey = supabaseServiceKey ? `${supabaseServiceKey.slice(0, 6)}...${supabaseServiceKey.slice(-4)}` : '(missing)';
+  console.log('[Backend DB] Supabase URL:', supabaseUrl || '(missing)');
+  console.log('[Backend DB] Supabase SERVICE ROLE KEY:', maskedKey);
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('[Backend DB] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in backend .env');
+  }
+})();
 
 // Initialize Supabase client for backend (with service role key for admin operations)
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Supabase is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend .env');
+}
+
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
@@ -317,14 +331,21 @@ export const deleteQuestion = async (questionId) => {
  */
 export const getSummaryByPack = async (pack_id) => {
   try {
+    // Fetch summary section from pack_sections
     const { data, error } = await supabaseAdmin
-      .from('summaries')
-      .select('*')
+      .from('pack_sections')
+      .select('id, pack_id, section_type, title, content')
       .eq('pack_id', pack_id)
+      .eq('section_type', 'summary')
+      .order('display_order', { ascending: true })
       .maybeSingle();
 
-    if (error) throw error;
-    return data; // may be null
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) return { pack_id, bullets: [] };
+
+    const content = data.content || {};
+    const bullets = Array.isArray(content.bullets) ? content.bullets : [];
+    return { pack_id, bullets };
   } catch (error) {
     console.error('[Backend DB] Get summary error:', error);
     throw error;
@@ -336,15 +357,54 @@ export const getSummaryByPack = async (pack_id) => {
  */
 export const upsertSummaryByPack = async (pack_id, bullets) => {
   try {
-    const payload = { pack_id, bullets };
-    const { data, error } = await supabaseAdmin
-      .from('summaries')
-      .upsert(payload, { onConflict: 'pack_id' })
-      .select()
+    // Normalize bullets
+    const normalized = (Array.isArray(bullets) ? bullets : [])
+      .map(b => (typeof b === 'string' ? b.trim() : ''))
+      .filter(Boolean)
+      .slice(0, 50);
+
+    // Check if a summary section exists
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+      .from('pack_sections')
+      .select('id')
+      .eq('pack_id', pack_id)
+      .eq('section_type', 'summary')
       .maybeSingle();
 
+    if (fetchErr && fetchErr.code !== 'PGRST116') throw fetchErr;
+
+    if (existing && existing.id) {
+      const { data, error } = await supabaseAdmin
+        .from('pack_sections')
+        .update({
+          title: 'Summary',
+          content: { bullets: normalized }
+        })
+        .eq('id', existing.id)
+        .select('id, pack_id, content')
+        .single();
+      if (error) throw error;
+      return { pack_id, bullets: data?.content?.bullets || normalized };
+    }
+
+    const insertRow = {
+      pack_id,
+      section_type: 'summary',
+      title: 'Summary',
+      content: { bullets: normalized },
+      display_order: 0,
+      has_diagram: false,
+      diagram_path: null
+    };
+
+    const { data, error } = await supabaseAdmin
+      .from('pack_sections')
+      .insert([insertRow])
+      .select('id, pack_id, content')
+      .single();
+
     if (error) throw error;
-    return data;
+    return { pack_id, bullets: data?.content?.bullets || normalized };
   } catch (error) {
     console.error('[Backend DB] Upsert summary error:', error);
     throw error;

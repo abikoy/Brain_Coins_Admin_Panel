@@ -2,7 +2,8 @@ import express from 'express';
 import { 
   listLearningPacksHandler,
   getLearningPackHandler,
-  createLearningPackHandler
+  createLearningPackHandler,
+  analyzeDocumentHandler
 } from '../controllers/learningPackController.js';
 
 const router = express.Router();
@@ -15,5 +16,8 @@ router.get('/:id', getLearningPackHandler);
 
 // Create a new learning pack
 router.post('/', createLearningPackHandler);
+
+// Analyze document and suggest learning packs
+router.post('/analyze-document', analyzeDocumentHandler);
 
 export default router;

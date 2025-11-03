@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../config/supabaseClient.js';
+import { supabaseAdmin } from './supabaseService.js';
 
 /**
  * Get all learning packs for a subject

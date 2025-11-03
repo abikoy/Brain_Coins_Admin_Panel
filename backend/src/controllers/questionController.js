@@ -123,6 +123,151 @@ export const createQuestionHandler = async (req, res) => {
   }
 };
 /**
+ * POST /api/questions/preview-from-file
+ * Generate preview (questions + summary) from uploaded file without saving
+ */
+export const generatePreviewFromFileHandler = async (req, res) => {
+  try {
+    const { fileUrl, fileType, language, counts, difficulty, types, bloom_level } = req.body || {};
+
+    if (!fileUrl || !fileType) {
+      return res.status(400).json({ success: false, error: 'fileUrl and fileType are required' });
+    }
+
+    // Normalize per-type counts
+    const allowedTypes = ['MCQ', 'FIIB', 'TF', 'HOQ'];
+    // Use questionTypes if counts is not provided (for backward compatibility)
+    const countsObj = (counts || req.body.questionTypes || {});
+    
+    // Debug log to see what we're receiving
+    console.log('Received counts object:', counts);
+    console.log('Parsed counts object:', countsObj);
+    
+    // Ensure we have valid counts for each type
+    const normalizedCounts = {};
+    let hasValidCounts = false;
+    
+    for (const type of allowedTypes) {
+      const count = parseInt(countsObj[type], 10);
+      if (!isNaN(count) && count > 0) {
+        normalizedCounts[type] = count;
+        hasValidCounts = true;
+      } else {
+        normalizedCounts[type] = 0;
+      }
+    }
+    
+    console.log('Normalized counts:', normalizedCounts);
+    
+    // Get requested types with counts > 0
+    const requestedTypes = allowedTypes.filter(t => normalizedCounts[t] > 0);
+    
+    if (!hasValidCounts) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one question type with count > 0 is required',
+        receivedCounts: counts,
+        normalizedCounts
+      });
+    }
+
+    // Calculate total questions needed
+    const totalRequested = requestedTypes.reduce((sum, t) => sum + normalizedCounts[t], 0);
+    
+    console.log('Requested types:', requestedTypes);
+    console.log('Total questions requested:', totalRequested);
+    
+    // Generate more questions than needed to ensure we can fill all types
+    const gen = await generateQuestionsFromFile(fileUrl, fileType, {
+      count: Math.min(totalRequested * 2, 40), // Generate extra to ensure we get all types
+      difficulty: difficulty || 'Medium',
+      types: requestedTypes,
+      language,
+      bloom_level
+    });
+
+    if (!Array.isArray(gen) || gen.length === 0) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate any questions. Please try again.'
+      });
+    }
+
+    // Group questions by type
+    const questionsByType = { MCQ: [], FIIB: [], TF: [], HOQ: [] };
+    gen.forEach(question => {
+      const type = (question.type || question.question_type || 'MCQ').toUpperCase();
+      if (questionsByType[type]) {
+        questionsByType[type].push(question);
+      }
+    });
+
+    // Select the requested number of each type
+    const selected = [];
+    const typeStats = {};
+    
+    for (const type of requestedTypes) {
+      const requestedCount = normalizedCounts[type];
+      const available = questionsByType[type] || [];
+      const countToTake = Math.min(available.length, requestedCount);
+      
+      selected.push(...available.slice(0, countToTake));
+      typeStats[type] = {
+        requested: requestedCount,
+        generated: available.length,
+        selected: countToTake
+      };
+      
+      // Log if we couldn't get enough of this type
+      if (countToTake < requestedCount) {
+        console.warn(`[Backend] Could only generate ${countToTake} out of ${requestedCount} requested ${type} questions`);
+      }
+    }
+    
+    console.log('[Backend] Question generation stats:', typeStats);
+
+    // Derive detected metadata (majority from items)
+    const metaCandidates = (gen || []).map(q => q.metadata).filter(Boolean);
+    const majority = (key) => {
+      const m = new Map();
+      for (const md of metaCandidates) {
+        if (md && md[key]) m.set(md[key], (m.get(md[key]) || 0) + 1);
+      }
+      let best = null, bestN = 0;
+      for (const [k, n] of m.entries()) if (n > bestN) { best = k; bestN = n; }
+      return best || null;
+    };
+    const detected_metadata = {
+      language: majority('language') || 'Unknown',
+      grade: majority('grade') || 'Unknown',
+      subject: majority('subject') || 'Unknown',
+      topics: []
+    };
+
+    // Generate summary (preview)
+    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English');
+
+    return res.json({
+      success: true,
+      preview: {
+        detected_metadata,
+        summary_bullets,
+        counts: normalizedCounts,
+        totals: {
+          requested: totalRequested,
+          generated: Array.isArray(gen) ? gen.length : 0,
+          selected: selected.length
+        },
+        questions: selected
+      }
+    });
+  } catch (error) {
+    console.error('[Backend] Preview from file error:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Failed to generate preview' });
+  }
+};
+
+/**
  * POST /api/questions/generate-from-file
  * Generate questions from uploaded file using Gemini Vision API
  */
@@ -224,10 +369,21 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
     // Generate 5-8 bullet summary based on uploaded file
     const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English');
 
+    // Persist summary into pack_sections (section_type='summary') if we have bullets
+    let saved_summary = null;
+    if (Array.isArray(summary_bullets) && summary_bullets.length) {
+      try {
+        saved_summary = await upsertSummaryByPack(effectivePackId, summary_bullets);
+      } catch (e) {
+        console.error('[Backend] Persist summary error:', e);
+      }
+    }
+
     res.json({
       success: true,
       questions: savedQuestions,
       summary_bullets,
+      saved_summary,
       count: savedQuestions.length,
       pack_id: effectivePackId,
       subject_id: learningPack.subject_id,
@@ -322,7 +478,7 @@ export const updateQuestionHandler = async (req, res) => {
 
     res.json({
       success: true,
-      data: updatedQuestion
+      question: updatedQuestion
     });
   } catch (error) {
     console.error(`[Backend] Update question ${req.params.id} error:`, error);
@@ -433,3 +589,112 @@ export const upsertSummaryByPackHandler = async (req, res) => {
     res.status(500).json({ success: false, error: error.message || 'Failed to save summary' });
   }
 };
+
+/**
+ * POST /api/questions/approve-from-preview
+ * Save questions that were previously previewed
+ */
+export const approveFromPreviewHandler = async (req, res) => {
+  console.log('[Backend] Approving questions from preview:', {
+    pack_id: req.body.pack_id,
+    questions_count: req.body.questions?.length || 0,
+    has_summary: !!req.body.summary
+  });
+
+  try {
+    const { pack_id, questions, summary } = req.body;
+
+    if (!pack_id) {
+      console.error('[Backend] Missing pack_id in request body');
+      return res.status(400).json({
+        success: false,
+        error: 'pack_id is required'
+      });
+    }
+
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      console.error('[Backend] No valid questions array provided');
+      return res.status(400).json({
+        success: false,
+        error: 'questions array is required and must not be empty'
+      });
+    }
+
+    console.log(`[Backend] Preparing to save ${questions.length} questions for pack ${pack_id}`);
+    
+    // Format questions for saving with all required fields
+    const questionsToSave = questions.map((q, index) => {
+      const questionData = {
+        pack_id,
+        question_type: q.question_type || 'MCQ',
+        question_text: q.question || `Question ${index + 1}`,
+        correct_answer: q.answer || '',
+        options: Array.isArray(q.options) ? q.options : [],
+        explanation: q.explanation || '',
+        has_diagram: false,
+        diagram_path: null,
+        blooms_taxonomy: q.bloom || 'Remember',
+        display_order: index,
+        difficulty: q.difficulty || 'Medium',
+        generated: true,
+        created_at: new Date().toISOString(),
+        metadata: q.metadata || {}
+      };
+      
+      // Log first question for debugging
+      if (index === 0) {
+        console.log('[Backend] First question to save (sample):', {
+          pack_id: questionData.pack_id,
+          question_type: questionData.question_type,
+          question_text: questionData.question_text.substring(0, 50) + '...',
+          correct_answer: questionData.correct_answer ? '***' : 'MISSING',
+          options_count: questionData.options.length,
+          difficulty: questionData.difficulty
+        });
+      }
+      
+      return questionData;
+    });
+
+    console.log('[Backend] Saving questions to database...');
+    const savedQuestions = await saveQuestions(questionsToSave);
+    console.log(`[Backend] Successfully saved ${savedQuestions.length} questions`);
+
+    // Save summary if provided
+    if (summary && Array.isArray(summary) && summary.length > 0) {
+      console.log('[Backend] Saving summary with', summary.length, 'bullets');
+      await upsertSummaryByPack(pack_id, summary);
+    }
+
+    // Prepare response to match frontend expectations
+    const response = {
+      success: true,
+      questions: savedQuestions,
+      count: savedQuestions.length,
+      pack_id: pack_id
+    };
+
+    // Include summary in response if it was saved
+    if (summary && Array.isArray(summary) && summary.length > 0) {
+      response.saved_summary = {
+        bullets: summary,
+        pack_id: pack_id
+      };
+    }
+
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('[Backend] Approve from preview error:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to approve questions',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+

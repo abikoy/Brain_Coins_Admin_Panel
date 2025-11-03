@@ -10,8 +10,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Supabase Configuration (Backend)
-const supabaseUrl = process.env.SUPABASE_URL || "https://jgtjkqwephakgpxvvxsr.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpndGprcXdlcGhha2dweHZ2eHNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDIyNjYsImV4cCI6MjA3NjI3ODI2Nn0.ozPWNdgWmcTfFzetvxS-y3zq204fdx--kkyiIMCaTZQ";
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('[Storage] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in backend .env');
+}
 
 // Initialize Supabase client for backend storage operations
 const supabaseStorage = createClient(supabaseUrl, supabaseServiceKey);
@@ -154,7 +157,7 @@ const getFileType = (fileName) => {
  */
 export const downloadFile = async (filePath) => {
   try {
-    console.log('[Backend Storage] Downloading file:', filePath);
+    console.log('[Backend Storage] Downloading file via storage API:', filePath);
 
     const { data, error } = await supabaseStorage
       .storage
@@ -166,7 +169,6 @@ export const downloadFile = async (filePath) => {
       throw new Error(error.message || 'Failed to download file');
     }
 
-    // Convert Blob to Buffer
     const arrayBuffer = await data.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -176,6 +178,79 @@ export const downloadFile = async (filePath) => {
   } catch (error) {
     console.error('[Backend Storage] Download failed:', error);
     throw error;
+  }
+};
+
+/**
+ * Download a public URL directly (works across projects)
+ */
+export const downloadFromPublicUrl = async (fileUrl) => {
+  try {
+    console.log('[Backend Storage] Downloading via public URL:', fileUrl);
+    const res = await fetch(fileUrl);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error('[Backend Storage] Public URL download failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Unified downloader: if URL belongs to this SUPABASE_URL host, use storage API; otherwise fetch via public URL.
+ */
+export const downloadAny = async (fileUrl) => {
+  try {
+    const thisHost = new URL(supabaseUrl).host;
+    const urlObj = new URL(fileUrl);
+    const isSameProject = urlObj.host === thisHost;
+
+    // Public URL form: /storage/v1/object/public/<bucket>/<path>
+    const publicPrefix = '/storage/v1/object/public/';
+    const idx = fileUrl.indexOf(publicPrefix);
+
+    if (!isSameProject || idx === -1) {
+      // Different project or not a standard public path → direct fetch
+      return await downloadFromPublicUrl(fileUrl);
+    }
+
+    // Same project: extract bucket and path and use storage API
+    const after = fileUrl.substring(idx + publicPrefix.length);
+    const [bucket, ...rest] = after.split('/');
+    const path = rest.join('/');
+
+    // Respect bucket from URL if different from default
+    const { data, error } = await supabaseStorage
+      .storage
+      .from(bucket || BUCKET_NAME)
+      .download(path);
+
+    if (error) {
+      console.warn('[Backend Storage] Storage API failed, falling back to public URL...', error);
+      return await downloadFromPublicUrl(fileUrl);
+    }
+
+    const arrayBuffer = await data.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error('[Backend Storage] downloadAny failed:', error);
+    throw error;
+  }
+};
+
+export const getBucketAndPathFromPublicUrl = (fileUrl) => {
+  try {
+    const publicPrefix = '/storage/v1/object/public/';
+    const idx = fileUrl.indexOf(publicPrefix);
+    if (idx === -1) return null;
+    const after = fileUrl.substring(idx + publicPrefix.length);
+    const [bucket, ...rest] = after.split('/');
+    return { bucket, path: rest.join('/') };
+  } catch {
+    return null;
   }
 };
 

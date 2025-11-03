@@ -334,6 +334,81 @@ export const deleteQuestion = async (questionId) => {
   }
 };
 
+export const previewFromFile = async (fileUrl, fileType, options = {}) => {
+  // If questionTypes is provided, use it as the counts object
+  const counts = options.questionTypes || {};
+  
+  const payload = {
+    fileUrl,
+    fileType,
+    language: options.language,
+    grade: options.grade,        // Add grade to payload
+    subject: options.subject,    // Add subject to payload
+    counts,                     // This will be used by the backend
+    difficulty: options.difficulty,
+    types: Object.keys(counts).filter(k => counts[k] > 0), // Only include types with count > 0
+    bloom_level: options.bloom_level
+  };
+  
+  console.log('[Frontend API] Preview payload:', payload);
+  const res = await fetch(`${API_BASE_URL}/questions/preview-from-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to generate preview');
+  }
+  const data = await res.json();
+  const pv = data?.preview || {};
+  const normalizedQuestions = Array.isArray(pv.questions) ? pv.questions.map(q => ({
+    ...q,
+    type: q.type || q.question_type || 'MCQ',
+    question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+    answer: q.answer || q.correct_answer || '',
+    options: Array.isArray(q.options) ? q.options : [],
+    pairs: Array.isArray(q.pairs) ? q.pairs : [],
+    diagram: q.diagram || undefined,
+    reasoning: q.reasoning || undefined,
+    generated: true
+  })) : [];
+  return {
+    detected_metadata: pv.detected_metadata || {},
+    summary_bullets: Array.isArray(pv.summary_bullets) ? pv.summary_bullets : [],
+    counts: pv.counts || {},
+    totals: pv.totals || {},
+    questions: normalizedQuestions
+  };
+};
+
+export const approveFromPreview = async ({ pack_id, questions, summary_bullets, language, difficulty, bloom_level }) => {
+  const res = await fetch(`${API_BASE_URL}/questions/approve-from-preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ pack_id, questions, summary_bullets, language, difficulty, bloom_level })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to approve items');
+  }
+  const data = await res.json();
+  const normalized = (data.questions || []).map(q => ({
+    ...q,
+    type: q.type || q.question_type || 'MCQ',
+    question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+    answer: q.answer || q.correct_answer || '',
+    options: Array.isArray(q.options) ? q.options : [],
+    pairs: Array.isArray(q.pairs) ? q.pairs : [],
+    diagram: q.diagram || undefined,
+    reasoning: q.reasoning || undefined,
+    generated: true
+  }));
+  return { questions: normalized, saved_summary: data.saved_summary, count: data.count, pack_id: data.pack_id };
+};
+
 export default {
   generateQuestionsFromFile,
   generateQuestionsFromText,
