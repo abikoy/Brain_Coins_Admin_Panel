@@ -125,10 +125,3 @@ export const deleteLearningPack = async (packId) => {
   }
 };
 
-export default {
-  getLearningPacksBySubject,
-  createLearningPack,
-  getLearningPackWithSubject,
-  updateLearningPack,
-  deleteLearningPack
-};

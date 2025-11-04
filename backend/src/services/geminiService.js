@@ -5,14 +5,20 @@
  * DO NOT use this in frontend - this should only run on the server
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import dotenv from 'dotenv';
-import { downloadAny } from './supabaseStorage.js';
+// Core Node.js modules
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-// Import the module
-import * as pdfParseModule from 'pdf-parse';
+import { createRequire } from 'module';
+
+// Third-party imports
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import dotenv from 'dotenv';
+
+// Local imports
+import { downloadAny } from './supabaseStorage.js';
+
+// We'll use dynamic import for pdf-parse to avoid ESM/CommonJS issues
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,8 +40,10 @@ async function extractTextFromFile(base64Data, mimeType) {
     
     if (mimeType === 'application/pdf') {
       try {
+        // Use dynamic import for pdf-parse
+        const { default: pdfParse } = await import('pdf-parse');
         // Simple and fast text extraction with pdf-parse
-        const data = await pdfParseModule.default(buffer, {
+        const data = await pdfParse(buffer, {
           // Limit to first 20 pages for better performance
           max: 20,
           // Disable worker threads for better compatibility
