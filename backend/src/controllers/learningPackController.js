@@ -1,14 +1,12 @@
 // Core Node.js modules
 import { promises as fs } from 'fs';
-import path from 'path';
+import path, { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
 // Third-party imports
-import fetch from 'node-fetch';
-import mammoth from 'mammoth';
 import multer from 'multer';
-import { createWorker } from 'tesseract.js';
+
+// (Removed PDF.js setup; using direct-to-Gemini flow)
 
 // Local imports
 import { 
@@ -16,6 +14,7 @@ import {
   getLearningPackWithSubject,
   createLearningPack
 } from '../services/learningPackService.js';
+import { generateLearningPacksFromBase64, generateQuestions } from '../services/geminiService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,6 +32,22 @@ const ensureUploadDir = async () => {
   }
 };
 
+// Generate questions for a selected learning pack (second phase)
+const generateQuestionsForPackHandler = async (req, res) => {
+  try {
+    const { content, language = 'English', count = 10, difficulty = 'Intermediate', types = ['MCQ', 'FIIB', 'TF', 'HOQ'], bloom_level = 'Understand' } = req.body || {};
+    if (!content || typeof content !== 'string' || content.trim().length < 20) {
+      return res.status(400).json({ success: false, error: 'Invalid or missing learning pack content' });
+    }
+
+    const questions = await generateQuestions(content, { count, difficulty, types, language, bloom_level });
+    return res.json({ success: true, questions, stats: { questions: Array.isArray(questions) ? questions.length : 0 } });
+  } catch (err) {
+    console.error('[Backend] Generate questions error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // Simple language detector
 const detectLanguage = (text) => {
   const tamilChars = text.match(/[\u0B80-\u0BFF]/g) || [];
@@ -42,75 +57,149 @@ const detectLanguage = (text) => {
   return 'English';
 };
 
-// Enhanced document structure analysis
+// Enhanced document structure analysis with better chapter detection
+// Enhanced document structure analysis with better chapter detection
 const analyzeDocumentStructure = (text, language) => {
-  const maxTextLength = 100000; // Increased limit for better content handling
-  const limitedText = text.length > maxTextLength 
-    ? text.substring(0, maxTextLength) + '... [content truncated]' 
-    : text;
+  if (!text || typeof text !== 'string') {
+    console.error('Invalid text input for document analysis');
+    return [{ title: 'Chapter 1: Document Content', content: 'No content available', order: 1 }];
+  }
 
-  // Common patterns for chapter/section headers
-  const chapterPatterns = [
-    /^(chapter|unit|section|part)[\s:]+(\d+|[IVXLCDM]+)/i,  // Chapter 1, Unit I, etc.
-    /^\d+[\s\.]\s*[A-Z][^\n]{5,}/,  // 1. Introduction
-    /^[A-Z][A-Z\s]{10,}$/  // UPPERCASE HEADER
-  ];
+  // Enhanced cleaning that preserves Sinhala and Tamil Unicode
+  const cleanedText = text
+    // Remove common PDF artifacts while preserving Sinhala (අ-෴) and Tamil (ஂ-௺) characters
+    .replace(/[^\p{L}\p{N}\p{P}\p{Z}\n\r\u0D80-\u0DFF\u0B80-\u0BFF]/gu, ' ')
+    // Remove common PDF commands
+    .replace(/endobj|endstream|obj|stream|endstream|trailer|startxref|filter|flatedecode|length/gi, '')
+    // Clean up excessive whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  const lines = limitedText.split('\n');
+  // Define language-specific patterns
+  const chapterPatterns = {
+    Sinhala: [
+      /(?:පරිච්ඡේදය|අධ්\u200Dයාය)\.?\s*(\d+|[IVXLCDM]+)/g,  // Sinhala chapter patterns
+      /^\s*(\d+)\..*?[\u0D80-\u0DFF]/g  // Number followed by Sinhala text
+    ],
+    Tamil: [
+      /(?:அத்தியாயம்|பகுதி)\s*(\d+|[IVXLCDM]+)/gi,  // Tamil chapter patterns
+      /^\s*(\d+)\..*?[\u0B80-\u0BFF]/g  // Number followed by Tamil text
+    ],
+    English: [
+      /^(chapter|unit|section|part|lecture|module|lesson)[\s:]+(\d+|[IVXLCDM]+)/i,
+      /^\d+[\s\.]+\s*[A-Z][^\n]{5,}/,
+      /^[IVXLCDM]+\.\s*[A-Z][^\n]+/i,
+      /^\d+\.\d+\s+[A-Z][^\n]+/,
+      /^[A-Z][A-Z\s]{10,}$/,
+      /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*:/
+    ]
+  };
+
+  // Select patterns based on detected language
+  const patterns = chapterPatterns[language] || chapterPatterns.English;
+  const lines = cleanedText.split('\n');
   const chapters = [];
-  let currentChapter = null;
-  let currentContent = [];
+  let currentChapter = { title: 'Chapter 1: Introduction', content: '', order: 1 };
+  let inChapter = false;
 
-  const addChapter = (title, content) => {
-    if (title && content.trim()) {
-      // Extract topics from content
-      const topicPattern = /^\s*(\d+\.\d+|\(?[a-z]\)|[-•*])\s*([^\n]+)/gmi;
-      const topics = [];
-      let topicMatch;
-      
-      while ((topicMatch = topicPattern.exec(content)) !== null) {
-        topics.push({
-          title: topicMatch[2].trim(),
-          content: ''
+  // First pass: Identify all potential chapter starts
+  const chapterIndices = [];
+  lines.forEach((line, index) => {
+    const isChapter = patterns.some(pattern => {
+      // Reset lastIndex for global regex to avoid state issues
+      if (pattern.global) pattern.lastIndex = 0;
+      return pattern.test(line);
+    });
+    
+    if (isChapter) {
+      chapterIndices.push({ index, line });
+    }
+  });
+
+  // If no chapters found, try to split by large paragraphs
+  if (chapterIndices.length === 0) {
+    console.log('No chapter markers found, attempting to split by paragraphs...');
+    const paragraphs = cleanedText.split(/\n\s*\n+/);
+    let currentContent = [];
+    let charCount = 0;
+    
+    paragraphs.forEach((para, i) => {
+      const paraLength = para.length;
+      // Start new chapter every 5000 characters or at major section breaks
+      if (charCount > 0 && (charCount + paraLength > 5000 || para.match(/[.!?]\s*$/))) {
+        chapters.push({
+          title: `Section ${chapters.length + 1}`,
+          content: currentContent.join('\n\n'),
+          order: chapters.length + 1
         });
+        currentContent = [para];
+        charCount = paraLength;
+      } else {
+        currentContent.push(para);
+        charCount += paraLength;
       }
-
+    });
+    
+    // Add the last chapter
+    if (currentContent.length > 0) {
       chapters.push({
-        title: title.trim(),
-        content: content.trim(),
-        topics: topics.length > 0 ? topics : undefined,
+        title: `Chapter ${chapters.length + 1}`,
+        content: currentContent.join('\n\n'),
         order: chapters.length + 1
       });
     }
-  };
-
-  for (const line of lines) {
-    const isChapter = chapterPatterns.some(pattern => pattern.test(line));
     
-    if (isChapter) {
-      if (currentChapter) {
-        addChapter(currentChapter, currentContent.join('\n'));
-      }
-      currentChapter = line;
-      currentContent = [];
-    } else if (currentChapter) {
-      currentContent.push(line);
+    return chapters.length > 0 ? chapters : [{
+      title: 'Chapter 1: Document Content',
+      content: cleanedText.substring(0, 10000),
+      order: 1
+    }];
+  }
+
+  // Process each chapter
+  chapterIndices.forEach((chapter, i) => {
+    const start = chapter.index;
+    const end = i < chapterIndices.length - 1 ? chapterIndices[i + 1].index : lines.length;
+    const chapterContent = lines.slice(start, end).join('\n');
+    
+    // Clean up the chapter title
+    let chapterTitle = chapter.line.trim();
+    
+    // Remove any numbering or special characters from the start
+    chapterTitle = chapterTitle
+      .replace(/^[^a-zA-Z\u0D80-\u0DFF\u0B80-\u0BFF]+/, '')
+      .trim();
+    
+    // If title is too short or missing, generate one
+    if (!chapterTitle || chapterTitle.length < 3) {
+      chapterTitle = `Chapter ${i + 1}`;
     }
-  }
+    
+    // Limit title length
+    if (chapterTitle.length > 100) {
+      chapterTitle = chapterTitle.substring(0, 100) + '...';
+    }
+    
+    // Add the chapter
+    chapters.push({
+      title: chapterTitle,
+      content: chapterContent,
+      order: i + 1
+    });
+  });
 
-  // Add the last chapter
-  if (currentChapter) {
-    addChapter(currentChapter, currentContent.join('\n'));
-  }
-
-  // If no chapters found, create a single chapter with the whole content
+  // If we still don't have chapters, split the content by size
   if (chapters.length === 0) {
-    addChapter(
-      language === 'Sinhala' ? 'ප්‍රධාන අංග' :
-      language === 'Tamil' ? 'முக்கிய பகுதி' : 
-      'Document Content',
-      limitedText.substring(0, 2000)
-    );
+    console.log('Falling back to content-based splitting...');
+    const chunkSize = 10000; // characters per chunk
+    for (let i = 0; i < cleanedText.length; i += chunkSize) {
+      const chunk = cleanedText.substring(i, i + chunkSize);
+      chapters.push({
+        title: `Chapter ${i / chunkSize + 1}`,
+        content: chunk,
+        order: i / chunkSize + 1
+      });
+    }
   }
 
   return chapters;
@@ -118,6 +207,19 @@ const analyzeDocumentStructure = (text, language) => {
 
 // Generate learning packs from chapters with better content organization
 const generateLearningPacks = (chapters, language) => {
+  if (!chapters || !Array.isArray(chapters) || chapters.length === 0) {
+    console.error('Invalid or empty chapters array');
+    return [{
+      title: 'Learning Pack 1',
+      description: 'Default learning pack',
+      content: 'No content available',
+      duration: 10,
+      difficulty: 'Beginner',
+      language: language || 'English',
+      createdAt: new Date().toISOString()
+    }];
+  }
+
   const difficultyLevels = {
     English: ['Beginner', 'Intermediate', 'Advanced'],
     Sinhala: ['ආරම්භක', 'මධ්‍යම', 'උසස්'],
@@ -125,71 +227,120 @@ const generateLearningPacks = (chapters, language) => {
   };
 
   const difficulties = difficultyLevels[language] || difficultyLevels.English;
-  const now = Date.now();
-
+  const now = new Date().toISOString();
+  
   return chapters.map((chapter, index) => {
-    const difficultyIndex = Math.min(
-      Math.floor(index / Math.max(1, Math.ceil(chapters.length / 3))), 
-      difficulties.length - 1
-    );
-    const difficulty = difficulties[difficultyIndex];
-
-    // Extract key concepts from chapter content
-    const content = chapter.content.toLowerCase();
-    const commonWords = new Set(['the', 'and', 'for', 'are', 'with', 'this', 'that', 'from', 'have', 'which']);
-    const wordFreq = {};
+    // Calculate content-based difficulty
+    const content = chapter.content || '';
+    const wordCount = content.split(/\s+/).length;
+    const sentenceCount = (content.match(/[.!?]+/g) || []).length;
+    const avgSentenceLength = wordCount / Math.max(1, sentenceCount);
     
-    // Simple word frequency analysis
-    content.split(/\s+/).forEach(word => {
-      word = word.replace(/[^\w]/g, '');
-      if (word.length > 4 && !commonWords.has(word)) {
-        wordFreq[word] = (wordFreq[word] || 0) + 1;
-      }
-    });
-
-    // Get top 5 most frequent meaningful words as key concepts
-    const keyConcepts = Object.entries(wordFreq)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([word]) => word.charAt(0).toUpperCase() + word.slice(1));
-
-    // Use topics if available, otherwise generate from content
-    const topics = chapter.topics?.map(t => t.title) || 
-      content.split('.')
-        .slice(0, 3)
-        .map(s => s.trim())
-        .filter(s => s.length > 10 && s.length < 150);
-
+    // Determine difficulty based on content metrics
+    let difficultyIndex = 0;
+    if (wordCount > 2000 || avgSentenceLength > 25) {
+      difficultyIndex = 2; // Advanced
+    } else if (wordCount > 1000 || avgSentenceLength > 15) {
+      difficultyIndex = 1; // Intermediate
+    }
+    
+    // Ensure we don't exceed array bounds
+    difficultyIndex = Math.min(difficultyIndex, difficulties.length - 1);
+    
+    // Extract key topics (first few sentences)
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const keyConcepts = sentences
+      .slice(0, 3)
+      .map(s => s.trim().substring(0, 50) + (s.length > 50 ? '...' : ''));
+    
     return {
-      id: `pack-${now}-${index}`,
-      title: chapter.title,
-      description: keyConcepts.length > 0 
-        ? `Covers: ${keyConcepts.join(', ')}`
-        : `Learning pack for ${chapter.title}`,
-      duration: Math.max(10, Math.min(60, Math.ceil(chapter.content.length / 1000) * 2)), // 2 min per 1000 chars
-      topics: topics.length > 0 ? topics : [chapter.title],
-      difficulty,
-      order: index + 1,
-      language,
-      contentPreview: chapter.content.substring(0, 250).trim() + (chapter.content.length > 250 ? '...' : ''),
-      totalChapters: chapters.length,
-      chapterNumber: index + 1
+      id: `pack-${Date.now()}-${index}`,
+      title: chapter.title || `Learning Pack ${index + 1}`,
+      description: keyConcepts[0] || 'No description available',
+      content: content.substring(0, 5000), // Limit content size
+      duration: Math.max(5, Math.ceil(wordCount / 200) * 5), // 5 min per 200 words, min 5 min
+      difficulty: difficulties[difficultyIndex],
+      language: language || 'English',
+      topics: keyConcepts,
+      order: chapter.order || index + 1,
+      createdAt: now,
+      updatedAt: now
     };
   });
 };
-
 // --- File Text Extraction Functions ---
 
 // pdf-parse extraction (Node ESM compatible)
+// Clean text by removing non-printable characters and PDF artifacts
+const cleanText = (text) => {
+  if (!text) return '';
+  
+  // Remove PDF binary artifacts
+  let cleaned = text
+    .replace(/\s*\b(?:endobj|endstream|obj|stream|endstream|trailer|startxref|filter|flatedecode|length|\d+\s+\d+\s+[A-Za-z]+)\b\s*/g, ' ')
+    .replace(/\b\d+\s+0\s+R\b/g, '')  // Remove PDF object references
+    .replace(/\b\w+\s*<<[^>]*>>/g, '')  // Remove PDF dictionaries
+    .replace(/[^\x00-\x7F]+/g, ' ')     // Remove non-ASCII characters
+    .replace(/\s+/g, ' ')               // Normalize whitespace
+    .trim();
+    
+  return cleaned;
+};
+
 const extractTextWithPDFParse = async (filePath) => {
-  const pdfParseModule = await import('pdf-parse');
-  const pdfParse = pdfParseModule.default || pdfParseModule;
-  const dataBuffer = await fs.readFile(filePath);
-
-  const data = await pdfParse(dataBuffer);
-  if (data.text && data.text.trim()) return data.text;
-
-  throw new Error('No text content found in PDF');
+  let pdf = null;
+  
+  try {
+    // Read the PDF file
+    const data = await fs.readFile(filePath);
+    
+    // Load the PDF document
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(data),
+      cMapUrl: '../../node_modules/pdfjs-dist/cmaps/',
+      cMapPacked: true,
+    });
+    
+    pdf = await loadingTask.promise;
+    let fullText = '';
+    
+    // Extract text from each page
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      fullText += pageText + '\n\n';
+      
+      // Clean up page resources
+      await page.cleanup();
+    }
+    
+    if (!fullText.trim()) {
+      throw new Error('No text content could be extracted from the PDF');
+    }
+    
+    // Clean the extracted text
+    const cleanedText = cleanText(fullText);
+    
+    if (!cleanedText || !cleanedText.trim()) {
+      throw new Error('No text content found in PDF after cleaning');
+    }
+    
+    return cleanedText;
+  } catch (error) {
+    console.error('PDF extraction error:', error);
+    throw new Error(`Failed to extract text from PDF: ${error.message}`);
+  } finally {
+    // Clean up PDF document resources
+    if (pdf) {
+      try {
+        await pdf.cleanup();
+        await pdf.destroy();
+      } catch (cleanupError) {
+        console.error('Error cleaning up PDF resources:', cleanupError);
+      }
+    }
+  }
 };
 
 // Enhanced PDF text extraction with better error handling
@@ -398,16 +549,48 @@ const analyzeDocumentHandler = async (req, res) => {
       if (err) return res.status(400).json({ success: false, error: err.message });
       if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
-      const text = await extractTextFromFile(req.file.path, req.file.mimetype);
-      const language = detectLanguage(text);
-      const chapters = analyzeDocumentStructure(text, language);
-      const learningPacks = generateLearningPacks(chapters, language);
+      // Direct-to-Gemini flow (Option A): send uploaded file to Gemini to generate a Learning Pack
+      console.log('[Analyze] Preparing file for Gemini...');
+      const fileBuffer = await fs.readFile(req.file.path);
+      const base64Data = fileBuffer.toString('base64');
+      const mimeType = req.file.mimetype;
 
-      await fs.unlink(req.file.path).catch(() => {});
-      res.json({ success: true, data: learningPacks, language });
+      // Request multiple learning packs (one per detected chapter/section)
+      console.log('[Analyze] Sending to Gemini for chapters...');
+      const packs = await generateLearningPacksFromBase64(base64Data, mimeType);
+
+      // Clean up the uploaded file
+      await fs.unlink(req.file.path).catch(console.error);
+
+      // Normalize and return packs only (no questions at this stage)
+      const learningPacks = Array.isArray(packs) && packs.length > 0
+        ? packs.map((p, i) => ({
+            title: String(p.title || `Chapter ${i + 1}`),
+            content: String(p.content || ''),
+            order: p.order || (i + 1),
+            language: p.language || 'English'
+          }))
+        : [{ title: 'Chapter 1: Document Content', content: 'No content available', order: 1, language: 'English' }];
+
+      const language = learningPacks[0]?.language || 'English';
+
+      res.json({
+        success: true,
+        data: learningPacks,
+        language,
+        stats: {
+          chapters: learningPacks.length,
+          learningPacks: learningPacks.length,
+          totalWords: learningPacks.reduce((sum, p) => sum + (p.content?.split(/\s+/)?.length || 0), 0)
+        }
+      });
     } catch (error) {
-      console.error('[Backend] Document analysis error:', error);
-      res.status(500).json({ success: false, error: error.message });
+      console.error('Document analysis error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   });
 };
@@ -417,5 +600,6 @@ export {
   listLearningPacksHandler,
   getLearningPackHandler,
   createLearningPackHandler,
-  analyzeDocumentHandler
+  analyzeDocumentHandler,
+  generateQuestionsForPackHandler
 };

@@ -29,6 +29,46 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 /**
+ * Detect language from text content using Unicode ranges
+ * @param {string} text - Text content to analyze
+ * @returns {string} - Detected language: 'English', 'Sinhala', or 'Tamil'
+ */
+function detectLanguageFromText(text) {
+  if (!text || typeof text !== 'string') return 'English';
+  
+  // Count characters in each Unicode range
+  let sinhalaCount = 0;
+  let tamilCount = 0;
+  let englishCount = 0;
+  
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    
+    // Sinhala Unicode range: 0D80-0DFF
+    if (code >= 0x0D80 && code <= 0x0DFF) {
+      sinhalaCount++;
+    }
+    // Tamil Unicode range: 0B80-0BFF
+    else if (code >= 0x0B80 && code <= 0x0BFF) {
+      tamilCount++;
+    }
+    // English/Latin: 0041-007A (A-Z, a-z)
+    else if ((code >= 0x0041 && code <= 0x005A) || (code >= 0x0061 && code <= 0x007A)) {
+      englishCount++;
+    }
+  }
+  
+  // Determine primary language based on character count
+  if (sinhalaCount > tamilCount && sinhalaCount > englishCount) {
+    return 'Sinhala';
+  } else if (tamilCount > sinhalaCount && tamilCount > englishCount) {
+    return 'Tamil';
+  } else {
+    return 'English';
+  }
+}
+
+/**
  * Extract text from file data based on MIME type
  * @param {string} base64Data - Base64 encoded file data
  * @param {string} mimeType - MIME type of the file
@@ -44,8 +84,8 @@ async function extractTextFromFile(base64Data, mimeType) {
         const { default: pdfParse } = await import('pdf-parse');
         // Simple and fast text extraction with pdf-parse
         const data = await pdfParse(buffer, {
-          // Limit to first 20 pages for better performance
-          max: 20,
+          // Limit to first 30 pages for better content coverage
+          max: 30,
           // Disable worker threads for better compatibility
           worker: false
         });
@@ -54,7 +94,23 @@ async function extractTextFromFile(base64Data, mimeType) {
           throw new Error('No text content could be extracted from the PDF');
         }
         
-        return data.text;
+        // Clean up the extracted text to remove garbage characters
+        let cleanedText = data.text
+          // Remove null bytes and control characters except newlines and tabs
+          .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+          // Normalize whitespace
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        // Check if we have meaningful content (not just garbage)
+        const hasValidContent = /[a-zA-Z\u0D80-\u0DFF\u0B80-\u0BFF]{10,}/.test(cleanedText);
+        
+        if (!hasValidContent) {
+          console.warn('[Backend Gemini] PDF text appears to be corrupted, using Vision API instead');
+          throw new Error('PDF text extraction produced invalid characters');
+        }
+        
+        return cleanedText;
       } catch (error) {
         console.error('PDF text extraction error:', error);
         throw new Error(`Failed to extract text from PDF: ${error.message}`);
@@ -130,6 +186,524 @@ const withRetry = async (fn, options = {}) => {
   throw lastError || new Error('Max retry attempts reached');
 };
 
+/**
+ * Generate multiple Learning Packs (one per chapter/section) from a base64 file.
+ * Returns an array: [{ title, content, order, language }]
+ */
+export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
+  try {
+    const isPdf = mimeType === 'application/pdf';
+    const isImage = mimeType.startsWith('image/');
+    const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const isDoc = mimeType === 'application/msword';
+    const isTxt = mimeType === 'text/plain';
+
+    let prompt = '';
+    let textForChapters = '';
+    let forceVisionAPI = false;
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    
+    // Pre-check for Sinhala/Tamil content in PDFs - use Vision API if detected
+    if (isPdf) {
+      try {
+        const buffer = Buffer.from(base64Data, 'base64');
+        const { default: pdfParse } = await import('pdf-parse');
+        const quickCheck = await pdfParse(buffer, { max: 3 }); // Check first 3 pages only
+        const sampleText = quickCheck.text.substring(0, 5000);
+        
+        // Detect if content has Sinhala/Tamil characters
+        const hasSinhala = /[\u0D80-\u0DFF]{5,}/.test(sampleText);
+        const hasTamil = /[\u0B80-\u0BFF]{5,}/.test(sampleText);
+        
+        if (hasSinhala || hasTamil) {
+          console.log('[Backend Gemini] Detected Sinhala/Tamil PDF - using Vision API for better Unicode handling');
+          forceVisionAPI = true;
+        }
+      } catch (preCheckError) {
+        console.warn('[Backend Gemini] Pre-check failed, will use Vision API:', preCheckError.message);
+        forceVisionAPI = true;
+      }
+    }
+
+    // Helper: sanitize slightly-malformed JSON array text
+    const sanitizeJsonArrayString = (raw) => {
+      if (!raw || typeof raw !== 'string') return raw;
+      let s = raw.trim();
+      const m = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || s.match(/\[[\s\S]*\]/);
+      if (m) s = (m[1] || m[0]).trim();
+      s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+      // Remove control characters except \n, \r, \t
+      s = s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ');
+      s = s.replace(/,\s*(\]|\})/g, '$1');
+      const start = s.indexOf('[');
+      const end = s.lastIndexOf(']');
+      if (start !== -1 && end !== -1) s = s.substring(start, end + 1);
+      return s;
+    };
+
+    // Local fallback: split plain text into multiple packs
+    const splitTextIntoPacks = (text) => {
+      const cleaned = String(text || '').replace(/\u0000/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      if (!cleaned) return [];
+      const paragraphs = cleaned.split(/\n\s*\n+/);
+      const packs = [];
+      let buf = [];
+      let chars = 0;
+      const targetMin = 1200;
+      const targetMax = 2500;
+      paragraphs.forEach((p) => {
+        const para = p.trim();
+        if (!para) return;
+        if (chars > 0 && (chars + para.length > targetMax)) {
+          const content = buf.join('\n\n');
+          const firstLine = content.split('\n')[0] || '';
+          const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Chapter ${packs.length + 1}`;
+          packs.push({ title, content, order: packs.length + 1, language: 'English' });
+          buf = [para];
+          chars = para.length;
+        } else {
+          buf.push(para);
+          chars += para.length;
+          if (chars >= targetMin) {
+            const content = buf.join('\n\n');
+            const firstLine = content.split('\n')[0] || '';
+            const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Chapter ${packs.length + 1}`;
+            packs.push({ title, content, order: packs.length + 1, language: 'English' });
+            buf = [];
+            chars = 0;
+          }
+        }
+      });
+      if (buf.length) {
+        const content = buf.join('\n\n');
+        const firstLine = content.split('\n')[0] || '';
+        const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Chapter ${packs.length + 1}`;
+        packs.push({ title, content, order: packs.length + 1, language: 'English' });
+      }
+      return packs;
+    };
+
+    // Local fallback orchestrator
+    const localFallbackPacks = async () => {
+      try {
+        if (isPdf) {
+          const { default: PDFParser } = await import('pdf2json');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const text = await new Promise((resolve, reject) => {
+            const pdfParser = new PDFParser(this, 1);
+            pdfParser.on('pdfParser_dataError', errData => reject(new Error(errData.parserError)));
+            pdfParser.on('pdfParser_dataReady', pdfData => {
+              try {
+                const pages = pdfData?.Pages || [];
+                const parts = [];
+                const safeDecode = (s) => {
+                  if (typeof s !== 'string') return '';
+                  const replaced = s.replace(/\+/g, ' ');
+                  try { return decodeURIComponent(replaced); } catch { return replaced; }
+                };
+                pages.forEach(pg => {
+                  (pg.Texts || []).forEach(t => {
+                    const str = (t.R || []).map(r => safeDecode(r.T || '')).join('');
+                    parts.push(str);
+                  });
+                  parts.push('\n\n');
+                });
+                resolve(parts.join(' '));
+              } catch (e) {
+                reject(e);
+              }
+            });
+            pdfParser.parseBuffer(buffer);
+          });
+          const packs = splitTextIntoPacks(text);
+          if (packs.length) return packs;
+        } else if (isDocx) {
+          const { default: mammoth } = await import('mammoth');
+          const buffer = Buffer.from(base64Data, 'base64');
+          const { value } = await mammoth.extractRawText({ buffer });
+          const packs = splitTextIntoPacks(value || '');
+          if (packs.length) return packs;
+        } else if (isTxt) {
+          const text = Buffer.from(base64Data, 'base64').toString('utf-8');
+          const packs = splitTextIntoPacks(text);
+          if (packs.length) return packs;
+        }
+      } catch (e) {
+        console.error('[Backend Gemini] Local fallback error:', e);
+      }
+      return [{ title: 'Chapter 1: Document Content', content: 'Content not available', order: 1, language: 'English' }];
+    };
+
+    if (isPdf || isImage || forceVisionAPI) {
+      // Use Vision API for images, PDFs, and Sinhala/Tamil content
+      const imagePart = { inlineData: { data: base64Data, mimeType } };
+      console.log('[Backend Gemini] Using Vision API for content extraction');
+      prompt = `You are an expert educational content creator for the Sri Lankan local syllabus (Grades 6-11) with advanced multilingual capabilities in English, Sinhala, and Tamil.
+
+⚠️ ABSOLUTE RULES - VIOLATION WILL RESULT IN REJECTION:
+1. Generate MAXIMUM 10 learning packs - NEVER exceed this limit
+2. Each pack must have a REAL, meaningful title from the document
+3. Use ONLY clean Unicode - NO garbage characters, NO corrupted text
+4. ALL content must be in the DETECTED language (English/Sinhala/Tamil)
+
+---
+
+### STEP 1: CRITICAL - PROPER UNICODE OCR
+
+🚨 **ABSOLUTE REQUIREMENT**: You MUST output proper Unicode characters. NO EXCEPTIONS.
+
+**FORBIDDEN OUTPUT EXAMPLES** (These are GARBAGE - DO NOT PRODUCE):
+❌ ";d;aúl ixLHd" 
+❌ "o¾Yl yd ,>q.Kl"
+❌ "fkdñ,a fnod yeÿ"
+❌ ">k jia;=j,"
+❌ "iudka;r f¾Ld"
+
+**REQUIRED OUTPUT EXAMPLES** (Proper Unicode):
+✅ Sinhala: "පළමු පරිච්ඡේදය", "ගණිතය", "සංඛ්‍යා පද්ධති", "වීජ ගණිතය"
+✅ Tamil: "முதல் அத்தியாயம்", "கணிதம்", "எண் முறைகள்", "இயற்கணிதம்"
+✅ English: "Chapter 1", "Mathematics", "Number Systems", "Algebra"
+
+**Language Detection**:
+1. Look at the script in the image
+2. If you see Sinhala script (rounded characters like ක ග ච ජ ට ඩ ණ ත ද න ප බ ම ය ර ල ව ශ ෂ ස හ ළ):
+   - Language = "Sinhala"
+   - Unicode range: U+0D80 to U+0DFF
+   - Output ONLY Sinhala Unicode characters
+3. If you see Tamil script (angular characters like க ங ச ஞ ட ண த ந ப ம ய ர ல வ ழ ள ற ன):
+   - Language = "Tamil"  
+   - Unicode range: U+0B80 to U+0BFF
+   - Output ONLY Tamil Unicode characters
+4. If you see Latin alphabet (A-Z, a-z):
+   - Language = "English"
+
+**SELF-VALIDATION BEFORE RESPONDING**:
+Before you output anything, check:
+1. Does my output contain characters from the CORRECT Unicode range?
+2. Do the words look like real Sinhala/Tamil words (not Latin gibberish)?
+3. Would a native speaker recognize these as proper words?
+
+If ANY answer is NO, you MUST re-read the image and try again.
+
+### STEP 2: Extract REAL Chapters
+Look for ACTUAL chapter markers in the document:
+- English: "Chapter 1", "Unit 1", "Lesson 1", "Section 1.1"
+- Sinhala: "පරිච්ඡේදය 1", "පාඩම 1", "ඒකකය 1"
+- Tamil: "அத்தியாயம் 1", "பாடம் 1", "அலகு 1"
+
+**CRITICAL**: If you find 5 real chapters, create 5 packs. If you find 8, create 8. MAXIMUM 10 packs total.
+
+### STEP 3: Create Learning Packs
+For EACH identified chapter:
+- **title**: Extract the EXACT chapter title from the document (in detected language)
+- **content**: Write a 150-300 word summary of that chapter's key concepts (in detected language)
+- **language**: The detected language
+
+### IF NO CLEAR CHAPTERS EXIST:
+Create 3-5 topic-based packs covering the main themes of the document.
+
+### VALIDATION RULES:
+✓ Each title must be meaningful and readable
+✓ NO random characters like "fkdñ,a fnod yeÿ iyd h'"
+✓ NO corrupted text or encoding errors
+✓ Use proper Unicode for Sinhala (0D80-0DFF) and Tamil (0B80-0BFF)
+✓ Maximum 10 packs - reject if more
+
+### OUTPUT FORMAT:
+<BEGIN_JSON>
+[
+  {
+    "title": "පළමු පරිච්ඡේදය: සංඛ්‍යා පද්ධති",
+    "content": "මෙම පරිච්ඡේදයෙන් සංඛ්‍යා පද්ධති පිළිබඳ මූලික සංකල්ප විස්තර කෙරේ...",
+    "language": "Sinhala"
+  }
+]
+<END_JSON>
+
+⚠️ REMEMBER: Maximum 10 packs, clean Unicode only, real chapter titles!`;
+
+      let result;
+      try {
+        result = await withRetry(() => model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: prompt }, imagePart] }]
+        }), { maxAttempts: 4, baseDelay: 1500 });
+      } catch (e) {
+        return await localFallbackPacks();
+      }
+
+      let raw = result.response.text();
+      const block = raw.match(/<BEGIN_JSON>[\s\S]*?<END_JSON>/);
+      if (block) raw = block[0].replace(/<BEGIN_JSON>|<END_JSON>/g, '').trim();
+      raw = sanitizeJsonArrayString(raw);
+      let packs;
+      try {
+        packs = JSON.parse(raw);
+      } catch (e1) {
+        const repairPrompt = `Fix to a valid JSON array only. No extra text.\n\n<INPUT>\n${raw}\n</INPUT>`;
+        try {
+          const repair = await withRetry(() => model.generateContent({ contents: [{ role: 'user', parts: [{ text: repairPrompt }] }] }), { maxAttempts: 3, baseDelay: 800 });
+          const repairedText = repair.response.text();
+          const repaired = sanitizeJsonArrayString(repairedText);
+          packs = JSON.parse(repaired);
+        } catch (e2) {
+          return await localFallbackPacks();
+        }
+      }
+      // Validate and filter packs
+      const validPacks = packs
+        .filter((p, idx) => {
+          const title = String(p.title || '');
+          const content = String(p.content || '');
+          const language = p.language || 'English';
+          
+          // Check if title has meaningful content (not just garbage)
+          const hasEnglish = /[a-zA-Z]{3,}/.test(title);
+          const hasSinhala = /[\u0D80-\u0DFF]{3,}/.test(title);
+          const hasTamil = /[\u0B80-\u0BFF]{3,}/.test(title);
+          const hasValidTitle = title.length > 3 && (hasEnglish || hasSinhala || hasTamil);
+          
+          // Specific garbage patterns for Sinhala/Tamil corruption
+          const hasGarbagePatterns = /fkd[ñ,a]|fnod|yeÿ|iyd|ksoi|mqkl|wdh|kfh|bEö|fjk|;d;a|o¾Y|,>q\.|>k jia|mDIaG|mßud|oaúm|ùÔh|iudka;r|f¾Ld|m%;s|fldgia/.test(title);
+          
+          // For Tamil/Sinhala, be more lenient with garbage ratio due to combining characters
+          // For English, use stricter threshold
+          const garbageThreshold = (hasTamil || hasSinhala) ? 0.5 : 0.3;
+          
+          // Reject if title is mostly garbage characters
+          const garbageRatio = (title.match(/[^\p{L}\p{N}\s.,!?\-:;()'"]/gu) || []).length / title.length;
+          const isGarbage = garbageRatio > garbageThreshold || hasGarbagePatterns;
+          
+          // Debug logging
+          if (!hasValidTitle || isGarbage) {
+            console.log(`[Backend Gemini] Debug pack ${idx + 1}:`, {
+              title: title.substring(0, 50),
+              language,
+              hasEnglish,
+              hasSinhala,
+              hasTamil,
+              hasValidTitle,
+              garbageRatio: garbageRatio.toFixed(3),
+              hasGarbagePatterns,
+              isGarbage
+            });
+          }
+          
+          // Language-specific validation
+          if (language === 'Sinhala' && !hasSinhala) {
+            console.warn(`[Backend Gemini] Pack ${idx + 1} claims Sinhala but has no Sinhala characters: "${title.substring(0, 50)}"`);
+            return false;
+          }
+          if (language === 'Tamil' && !hasTamil) {
+            console.warn(`[Backend Gemini] Pack ${idx + 1} claims Tamil but has no Tamil characters: "${title.substring(0, 50)}"`);
+            return false;
+          }
+          
+          if (!hasValidTitle || isGarbage) {
+            console.warn(`[Backend Gemini] Filtering out invalid pack ${idx + 1}: "${title.substring(0, 50)}"`);
+            return false;
+          }
+          
+          return true;
+        })
+        .slice(0, 10) // Enforce maximum 10 packs
+        .map((p, idx) => {
+          const title = String(p.title || `Chapter ${idx + 1}`);
+          const content = String(p.content || '');
+          // Detect language from title and content if not provided
+          const detectedLanguage = p.language || detectLanguageFromText(title + ' ' + content);
+          
+          return {
+            title: title,
+            content: content,
+            order: idx + 1,
+            language: detectedLanguage
+          };
+        });
+      
+      console.log(`[Backend Gemini] Validated ${validPacks.length} packs from ${packs.length} generated`);
+      return validPacks;
+    }
+
+    // Text-first path for DOCX/TXT
+    if (isDoc) throw new Error('DOC format is not supported. Please convert to PDF or DOCX.');
+
+    if (isDocx) {
+      const { default: mammoth } = await import('mammoth');
+      const buffer = Buffer.from(base64Data, 'base64');
+      const { value } = await mammoth.extractRawText({ buffer });
+      textForChapters = value || '';
+    } else if (isTxt) {
+      textForChapters = Buffer.from(base64Data, 'base64').toString('utf-8');
+    } else {
+      throw new Error(`Unsupported MIME type: ${mimeType}`);
+    }
+
+    if (!textForChapters?.trim()) throw new Error('No text could be extracted for chapter analysis');
+
+    prompt = `You are an expert educational content creator for the Sri Lankan local syllabus (Grades 6-11) with advanced multilingual capabilities in English, Sinhala, and Tamil.
+
+⚠️ ABSOLUTE RULES - VIOLATION WILL RESULT IN REJECTION:
+1. Generate MAXIMUM 10 learning packs - NEVER exceed this limit
+2. Each pack must have a REAL, meaningful title from the document
+3. Use ONLY clean Unicode - NO garbage characters, NO corrupted text
+4. ALL content must be in the DETECTED language (English/Sinhala/Tamil)
+
+---
+
+### STEP 1: Language Detection
+Analyze the text and identify the PRIMARY language:
+- **English**: If you see Latin alphabet (A-Z, a-z)
+- **Sinhala**: If you see Sinhala script (ක, ග, ච, ජ, ට, ඩ, ණ, ත, ද, න, ප, බ, ම, ය, ර, ල, ව, ශ, ෂ, ස, හ, ළ, etc.)
+- **Tamil**: If you see Tamil script (க, ங, ச, ஞ, ட, ண, த, ந, ப, ம, ய, ர, ல, வ, ழ, ள, ற, ன, etc.)
+
+Return ONLY: "English", "Sinhala", or "Tamil"
+
+### STEP 2: Extract REAL Chapters
+Look for ACTUAL chapter markers in the text:
+- English: "Chapter 1", "Unit 1", "Lesson 1", "Section 1.1"
+- Sinhala: "පරිච්ඡේදය 1", "පාඩම 1", "ඒකකය 1"
+- Tamil: "அத்தியாயம் 1", "பாடம் 1", "அலகு 1"
+
+**CRITICAL**: If you find 5 real chapters, create 5 packs. If you find 8, create 8. MAXIMUM 10 packs total.
+
+### STEP 3: Create Learning Packs
+For EACH identified chapter:
+- **title**: Extract the EXACT chapter title from the text (in detected language)
+- **content**: Write a 150-300 word summary of that chapter's key concepts (in detected language)
+- **language**: The detected language
+
+### IF NO CLEAR CHAPTERS EXIST:
+Create 3-5 topic-based packs covering the main themes of the document.
+
+### VALIDATION RULES:
+✓ Each title must be meaningful and readable
+✓ NO random characters like "fkdñ,a fnod yeÿ iyd h'"
+✓ NO corrupted text or encoding errors
+✓ Use proper Unicode for Sinhala (0D80-0DFF) and Tamil (0B80-0BFF)
+✓ Maximum 10 packs - reject if more
+
+### OUTPUT FORMAT:
+<BEGIN_JSON>
+[
+  {
+    "title": "පළමු පරිච්ඡේදය: සංඛ්‍යා පද්ධති",
+    "content": "මෙම පරිච්ඡේදයෙන් සංඛ්‍යා පද්ධති පිළිබඳ මූලික සංකල්ප විස්තර කෙරේ...",
+    "language": "Sinhala"
+  }
+]
+<END_JSON>
+
+⚠️ REMEMBER: Maximum 10 packs, clean Unicode only, real chapter titles!
+
+SOURCE TEXT (may be truncated):\n${textForChapters.substring(0, 120000)}`;
+
+    let result2;
+    try {
+      result2 = await withRetry(() => model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      }), { maxAttempts: 4, baseDelay: 1500 });
+    } catch (e) {
+      return await localFallbackPacks();
+    }
+
+    let raw2 = result2.response.text();
+    const block2 = raw2.match(/<BEGIN_JSON>[\s\S]*?<END_JSON>/);
+    if (block2) raw2 = block2[0].replace(/<BEGIN_JSON>|<END_JSON>/g, '').trim();
+    raw2 = sanitizeJsonArrayString(raw2);
+    let packs2;
+    try {
+      packs2 = JSON.parse(raw2);
+    } catch (e1) {
+      const repairPrompt2 = `Fix to a valid JSON array only. No extra text.\n\n<INPUT>\n${raw2}\n</INPUT>`;
+      try {
+        const repair2 = await withRetry(() => model.generateContent({ contents: [{ role: 'user', parts: [{ text: repairPrompt2 }] }] }), { maxAttempts: 3, baseDelay: 800 });
+        const repairedText2 = repair2.response.text();
+        const repaired2 = sanitizeJsonArrayString(repairedText2);
+        packs2 = JSON.parse(repaired2);
+      } catch (e2) {
+        return await localFallbackPacks();
+      }
+    }
+    // Validate and filter packs
+    const validPacks2 = packs2
+      .filter((p, idx) => {
+        const title = String(p.title || '');
+        const content = String(p.content || '');
+        const language = p.language || 'English';
+        
+        // Check if title has meaningful content (not just garbage)
+        const hasEnglish = /[a-zA-Z]{3,}/.test(title);
+        const hasSinhala = /[\u0D80-\u0DFF]{3,}/.test(title);
+        const hasTamil = /[\u0B80-\u0BFF]{3,}/.test(title);
+        const hasValidTitle = title.length > 3 && (hasEnglish || hasSinhala || hasTamil);
+        
+        // Specific garbage patterns for Sinhala/Tamil corruption
+        const hasGarbagePatterns = /fkd[ñ,a]|fnod|yeÿ|iyd|ksoi|mqkl|wdh|kfh|bEö|fjk|;d;a|o¾Y|,>q\.|>k jia|mDIaG|mßud|oaúm|ùÔh|iudka;r|f¾Ld|m%;s|fldgia/.test(title);
+        
+        // For Tamil/Sinhala, be more lenient with garbage ratio due to combining characters
+        // For English, use stricter threshold
+        const garbageThreshold = (hasTamil || hasSinhala) ? 0.5 : 0.3;
+        
+        // Reject if title is mostly garbage characters
+        const garbageRatio = (title.match(/[^\p{L}\p{N}\s.,!?\-:;()'"]/gu) || []).length / title.length;
+        const isGarbage = garbageRatio > garbageThreshold || hasGarbagePatterns;
+        
+        // Debug logging
+        if (!hasValidTitle || isGarbage) {
+          console.log(`[Backend Gemini] Debug pack ${idx + 1}:`, {
+            title: title.substring(0, 50),
+            language,
+            hasEnglish,
+            hasSinhala,
+            hasTamil,
+            hasValidTitle,
+            garbageRatio: garbageRatio.toFixed(3),
+            hasGarbagePatterns,
+            isGarbage
+          });
+        }
+        
+        // Language-specific validation
+        if (language === 'Sinhala' && !hasSinhala) {
+          console.warn(`[Backend Gemini] Pack ${idx + 1} claims Sinhala but has no Sinhala characters: "${title.substring(0, 50)}"`);
+          return false;
+        }
+        if (language === 'Tamil' && !hasTamil) {
+          console.warn(`[Backend Gemini] Pack ${idx + 1} claims Tamil but has no Tamil characters: "${title.substring(0, 50)}"`);
+          return false;
+        }
+        
+        if (!hasValidTitle || isGarbage) {
+          console.warn(`[Backend Gemini] Filtering out invalid pack ${idx + 1}: "${title.substring(0, 50)}"`);
+          return false;
+        }
+        
+        return true;
+      })
+      .slice(0, 10) // Enforce maximum 10 packs
+      .map((p, idx) => {
+        const title = String(p.title || `Chapter ${idx + 1}`);
+        const content = String(p.content || '');
+        // Detect language from title and content if not provided
+        const detectedLanguage = p.language || detectLanguageFromText(title + ' ' + content);
+        
+        return {
+          title: title,
+          content: content,
+          order: idx + 1,
+          language: detectedLanguage
+        };
+      });
+    
+    console.log(`[Backend Gemini] Validated ${validPacks2.length} packs from ${packs2.length} generated`);
+    return validPacks2;
+  } catch (error) {
+    console.error('[Backend Gemini] generateLearningPacksFromBase64 error:', error);
+    throw new Error(`Failed to generate learning packs: ${error.message}`);
+  }
+};
+
 // Sri Lankan education system - 8 Compulsory Subjects (Grades 6-11)
 const COMPULSORY_SUBJECTS = [
   'Mathematics',
@@ -173,6 +747,75 @@ export const generateSummaryFromText = async (text, language = 'English') => {
   } catch (err) {
     console.error('[Backend Gemini] Summary (text) error:', err);
     return [];
+  }
+};
+
+/**
+ * Generate a Learning Pack directly from a base64 file using Gemini Vision API
+ * Returns structured markdown/plain text according to the provided prompt
+ * @param {string} base64Data - Base64 encoded file data
+ * @param {string} mimeType - MIME type of the file (e.g., application/pdf, image/png)
+ * @param {string} userPrompt - The user-provided instruction prompt
+ * @returns {Promise<string>} - Generated learning pack text
+ */
+export const generateLearningPackFromBase64 = async (base64Data, mimeType, userPrompt) => {
+  try {
+    const prompt = userPrompt || 'You are an expert educational content creator. Generate a concise learning pack.';
+
+    // Route by MIME type: PDFs/images via Vision (inlineData). Others (e.g., DOCX) -> extract text and send as text-only.
+    const isPdf = mimeType === 'application/pdf';
+    const isImage = /^image\//.test(mimeType);
+    const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const isDoc = mimeType === 'application/msword';
+    const isTxt = mimeType === 'text/plain';
+
+    let contents;
+
+    if (isPdf || isImage) {
+      // Use Vision with inlineData
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const imagePart = { inlineData: { data: base64Data, mimeType } };
+      contents = [{ role: 'user', parts: [{ text: prompt }, imagePart] }];
+
+      const result = await withRetry(() => model.generateContent({ contents }), { maxAttempts: 4, baseDelay: 1500 });
+      const response = await result.response;
+      const text = response.text();
+      return String(text || '').replace(/\u0000/g, '').trim();
+    }
+
+    // For DOCX/DOC/TXT, convert to plain text then send as text-only prompt
+    let extractedText = '';
+    try {
+      if (isDocx) {
+        // Use mammoth to extract DOCX text (dynamic import to keep optional)
+        const { default: mammoth } = await import('mammoth');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const { value } = await mammoth.extractRawText({ buffer });
+        extractedText = value || '';
+      } else if (isDoc) {
+        throw new Error('DOC format is not supported. Please convert to PDF or DOCX.');
+      } else if (isTxt) {
+        extractedText = Buffer.from(base64Data, 'base64').toString('utf-8');
+      } else {
+        throw new Error(`Unsupported MIME type: ${mimeType}`);
+      }
+    } catch (e) {
+      console.error('[Backend Gemini] Text extraction for non-vision file failed:', e);
+      throw e;
+    }
+
+    if (!extractedText || !extractedText.trim()) {
+      throw new Error('No text could be extracted from the file');
+    }
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const textPrompt = `${prompt}\n\nSOURCE TEXT (clean Unicode):\n${extractedText.substring(0, 120000)}`; // safety cap
+    const result = await withRetry(() => model.generateContent(textPrompt), { maxAttempts: 4, baseDelay: 1500 });
+    const text = result.response.text();
+    return String(text || '').replace(/\u0000/g, '').trim();
+  } catch (error) {
+    console.error('[Backend Gemini] Learning Pack generation error:', error);
+    throw new Error(`Failed to generate learning pack: ${error.message}`);
   }
 };
 
@@ -570,7 +1213,7 @@ SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey requested language; align to Bloom's level; ground strictly in provided context.
 
 TASK:
-Generate ${count} items strictly from the provided content.
+Generate EXACTLY ${count} questions strictly from the provided content.
 
 Content (use only this):
 ${content}
@@ -580,13 +1223,42 @@ Constraints:
 - Difficulty: ${difficulty}
 - Bloom level: ${bloom_level}
 - Allowed types: MCQ, FIIB, TF, HOQ (ignore any other types)
+- Generate EXACTLY ${count} questions - no more, no less
+
+Question Format Requirements:
+1. MCQ (Multiple Choice):
+   - question: The question text
+   - answer: The correct answer
+   - options: Array of 4 options (including the correct answer)
+
+2. FIIB (Fill In The Blank):
+   - question: Text with ___ for blank (e.g., "The capital of France is ___")
+   - answer: The correct word/phrase to fill the blank
+   - options: Array of 4-6 possible answers (including correct one and distractors) for drag-and-drop
+
+3. TF (True/False):
+   - question: A statement
+   - answer: "True" or "False"
+
+4. HOQ (Higher Order Question):
+   - question: An analytical/evaluative question
+   - answer: Detailed explanation
 
 Output: JSON array only. Each item object must include:
 - type (MCQ|FIIB|TF|HOQ)
 - difficulty
 - question
-- answer (for MCQ/FIIB/TF/HOQ)
-- options (array of 4 strings for MCQ)
+- answer
+- options (array for MCQ and FIIB only)
+
+Example for FIIB:
+{
+  "type": "FIIB",
+  "difficulty": "Intermediate",
+  "question": "The process of converting light energy into chemical energy is called ___",
+  "answer": "photosynthesis",
+  "options": ["photosynthesis", "respiration", "digestion", "transpiration", "fermentation"]
+}
 `;
 
     const result = await model.generateContent(prompt);
@@ -670,6 +1342,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       difficulty = 'Intermediate',
       types = ['MCQ', 'FIIB', 'TF', 'HOQ'],
       language = 'English',
+      grade = 'Unknown',
+      subject = 'Unknown',
       bloom_level = 'Understand'
     } = options;
 
@@ -759,9 +1433,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
           });
         } catch (extractError) {
           console.error(`[Backend Gemini] Error extracting text for ${type}:`, extractError);
-          // Fallback to mock questions if text extraction fails
-          typeQuestions = generateMockQuestions(typeCount, `Text extraction failed: ${extractError.message}`)
-            .filter(q => q.type === type);
+          // Skip this type if extraction fails - no mock questions
+          typeQuestions = [];
         }
         
         // Take only the requested number of this type
@@ -823,20 +1496,20 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     const finalQuestions = allQuestions.slice(0, count);
     console.log(`[Backend Gemini] Generated total of ${finalQuestions.length} questions`);
 
-    // Step 3: Attach metadata to questions
-    if (metadata && Array.isArray(finalQuestions)) {
+    // Step 3: Attach metadata to questions using provided values
+    if (Array.isArray(finalQuestions)) {
       return finalQuestions.map(q => ({
         ...q,
         metadata: {
-          language: metadata.language,
-          grade: metadata.grade,
-          subject: metadata.subject,
-          topics: metadata.topics
+          language: language,
+          grade: grade,
+          subject: subject,
+          topics: metadata?.topics || []
         }
       }));
     }
 
-    return questions;
+    return finalQuestions;
 
   } catch (error) {
     console.error('[Backend Gemini] File processing error:', error);
@@ -847,138 +1520,102 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
 
 /**
  * Generate questions from image/PDF using Gemini Vision API
-      const prompt = `SYSTEM:\nYou are an expert educational content creator. Analyze the provided document/image and generate ${count} high-quality educational questions.\n\nINSTRUCTIONS:\n1. LANGUAGE: Respond in ${language}. For Sinhala/Tamil, use clean Unicode.\n2. DIFFICULTY: ${difficulty}.\n3. BLOOM'S LEVEL: ${bloom_level}.\n4. QUESTION TYPES: ${types.join(', ')}.\n\nQUESTION FORMAT RULES:\n- MCQ: 1 correct answer + 3 plausible distractors\n- FIIB: Use ___ for blanks\n- TF: Must be clearly true or false\n- HOQ: Include brief reasoning\n\nOUTPUT FORMAT: Return ONLY a valid JSON array. Example:\n[{\n  "question_type": "MCQ",\n  "difficulty": "Easy",\n  "blooms_taxonomy": "Understand",\n  "question_text": "Sample question?",\n  "correct_answer": "Correct answer",\n  "options": ["Incorrect 1", "Incorrect 2", "Correct answer", "Incorrect 3"],\n  "explanation": "Brief explanation if needed"\n}]`;
+ */
+export const generateQuestionsFromVision = async (base64Data, mimeType, params = {}) => {
+  const {
+    count = 5,
+    difficulty = 'Intermediate',
+    types = ['MCQ', 'FIIB', 'TF', 'HOQ'],
+    language = 'English',
+    bloom_level = 'Understand'
+  } = params;
 
-      const imagePart = {
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType
-        }
-      };
-
-      console.log('[Backend Gemini] Sending to Gemini Vision API...');
-      
-      const result = await model.generateContent([prompt, imagePart]);
-      const response = await result.response;
-      const text = response.text();
-
-      console.log('[Backend Gemini] Received response from Gemini');
-      
-      // Log first 200 chars for debugging
-      console.log('[Backend Gemini] Raw response:', text.length > 200 ? text.substring(0, 200) + '...' : text);
-
-      // Parse JSON response with better error handling
-      let jsonText = text.trim();
-      
-      // Try to extract JSON from markdown code blocks
-      const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || 
-                       jsonText.match(/\[[\s\S]*\]/);
-      
-      if (!jsonMatch) {
-        throw new Error('No valid JSON array found in response');
-      }
-
-      // Clean and parse the JSON
-      let questions;
-      try {
-        const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-        questions = JSON.parse(jsonStr);
-        
-        if (!Array.isArray(questions)) {
-          throw new Error('Expected an array of questions');
-        }
-      } catch (parseError) {
-        console.error('[Backend Gemini] JSON parse error:', parseError);
-        throw new Error(`Failed to parse questions: ${parseError.message}`);
-      }
-
-      // Process and validate questions
-      const processedQuestions = questions.slice(0, count).map((q, index) => {
-        const questionType = (q.type || q.question_type || 'MCQ').toUpperCase();
-        const validTypes = ['MCQ', 'FIIB', 'TF', 'HOQ'];
-        
-        if (!validTypes.includes(questionType)) {
-          console.warn(`[Backend Gemini] Invalid question type: ${questionType}, defaulting to MCQ`);
-        }
-
-        return {
-          id: `gen-${Date.now()}-${index}`,
-          type: validTypes.includes(questionType) ? questionType : 'MCQ',
-          difficulty: ['Easy', 'Intermediate', 'Hard'].includes(q.difficulty) 
-            ? q.difficulty 
-            : difficulty,
-          blooms_taxonomy: [
-            'Remember', 'Understand', 'Apply', 
-            'Analyze', 'Evaluate', 'Create'
-          ].includes(q.blooms_taxonomy) ? q.blooms_taxonomy : bloom_level,
-          question: String(q.question || q.question_text || `Question ${index + 1}`).trim(),
-          answer: String(q.answer || q.correct_answer || '').trim(),
-          options: Array.isArray(q.options) 
-            ? q.options.map(String).filter(Boolean) 
-            : [],
-          explanation: q.explanation ? String(q.explanation) : undefined,
-          generated: true,
-          source: 'gemini-vision',
-          metadata: {
-            attempt: attempt + 1,
-            timestamp: new Date().toISOString()
-          }
-        };
-      });
-
-      console.log(`[Backend Gemini] Successfully generated ${processedQuestions.length} questions`);
-      return processedQuestions;
-
-    } catch (error) {
-      lastError = error;
-      attempt++;
-      
-      // Log error details
-      console.error(`[Backend Gemini] Question generation attempt ${attempt} failed:`, {
-        message: error.message,
-        status: error.status,
-        code: error.code,
-        attempt,
-        maxRetries
-      });
-
-      // If we've reached max retries, break the loop
-      if (attempt >= maxRetries) break;
-
-      // Calculate delay with exponential backoff and jitter
-      const delay = Math.min(
-        Math.pow(2, attempt) * baseDelay + Math.random() * 1000,
-        30000 // Max 30 seconds
-      );
-      
-      console.log(`[Backend Gemini] Retrying in ${Math.round(delay/1000)} seconds...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-
-  // If we get here, all attempts failed
-  console.error('[Backend Gemini] All question generation attempts failed');
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   
-  // Return mock questions as fallback
-  console.warn('[Backend Gemini] Returning mock questions as fallback');
-  return Array(count).fill().map((_, i) => ({
-    id: `mock-${Date.now()}-${i}`,
-    type: 'MCQ',
-    difficulty: difficulty,
-    blooms_taxonomy: bloom_level,
-    question: `Sample question ${i + 1} (mock data - service unavailable)`,
-    answer: 'Correct answer',
-    options: ['Incorrect 1', 'Incorrect 2', 'Correct answer', 'Incorrect 3'],
-    explanation: 'This is a placeholder question. The question generation service is currently unavailable.',
-    generated: true,
-    source: 'fallback',
-    metadata: {
-      isFallback: true,
-      error: lastError?.message || 'Service unavailable',
-      timestamp: new Date().toISOString()
+  const prompt = `SYSTEM:\nYou are an expert educational content creator. Analyze the provided document/image and generate ${count} high-quality educational questions.\n\nINSTRUCTIONS:\n1. LANGUAGE: Respond in ${language}. For Sinhala/Tamil, use clean Unicode.\n2. DIFFICULTY: ${difficulty}.\n3. BLOOM'S LEVEL: ${bloom_level}.\n4. QUESTION TYPES: ${types.join(', ')}.\n\nQUESTION FORMAT RULES:\n- MCQ: 1 correct answer + 3 plausible distractors\n- FIIB: Use ___ for blanks\n- TF: Must be clearly true or false\n- HOQ: Include brief reasoning\n\nOUTPUT FORMAT: Return ONLY a valid JSON array. Example:\n[{\n  "question_type": "MCQ",\n  "difficulty": "Easy",\n  "blooms_taxonomy": "Understand",\n  "question_text": "Sample question?",\n  "correct_answer": "Correct answer",\n  "options": ["Incorrect 1", "Incorrect 2", "Correct answer", "Incorrect 3"],\n  "explanation": "Brief explanation if needed"\n}]`;
+
+  const imagePart = {
+    inlineData: {
+      data: base64Data,
+      mimeType: mimeType
     }
-  }));
-};
+  };
+
+  try {
+    console.log('[Backend Gemini] Sending to Gemini Vision API...');
+  
+    const result = await model.generateContent([prompt, imagePart]);
+    const response = await result.response;
+    const text = response.text();
+
+    console.log('[Backend Gemini] Received response from Gemini');
+    
+    // Log first 200 chars for debugging
+    console.log('[Backend Gemini] Raw response:', text.length > 200 ? text.substring(0, 200) + '...' : text);
+
+    // Parse JSON response with better error handling
+    let jsonText = text.trim();
+    
+    // Try to extract JSON from markdown code blocks
+    const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || 
+                     jsonText.match(/\[[\s\S]*\]/);
+    
+    if (!jsonMatch) {
+      throw new Error('No valid JSON array found in response');
+    }
+
+    // Clean and parse the JSON
+    let questions;
+    try {
+      const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
+      questions = JSON.parse(jsonStr);
+      
+      if (!Array.isArray(questions)) {
+        throw new Error('Expected an array of questions');
+      }
+    } catch (parseError) {
+      console.error('[Backend Gemini] JSON parse error:', parseError);
+      throw new Error(`Failed to parse questions: ${parseError.message}`);
+    }
+
+    // Process and validate questions
+    const processedQuestions = questions.slice(0, count).map((q, index) => {
+      const questionType = (q.type || q.question_type || 'MCQ').toUpperCase();
+      const validTypes = ['MCQ', 'FIIB', 'TF', 'HOQ'];
+      
+      if (!validTypes.includes(questionType)) {
+        console.warn(`[Backend Gemini] Invalid question type: ${questionType}, defaulting to MCQ`);
+      }
+
+      return {
+        id: `gen-${Date.now()}-${index}`,
+        type: validTypes.includes(questionType) ? questionType : 'MCQ',
+        difficulty: ['Easy', 'Intermediate', 'Hard'].includes(q.difficulty) 
+          ? q.difficulty 
+          : difficulty,
+        blooms_taxonomy: [
+          'Remember', 'Understand', 'Apply', 
+          'Analyze', 'Evaluate', 'Create'
+        ].includes(q.blooms_taxonomy) ? q.blooms_taxonomy : bloom_level,
+        question: String(q.question || q.question_text || `Question ${index + 1}`).trim(),
+        answer: String(q.answer || q.correct_answer || '').trim(),
+        options: Array.isArray(q.options) 
+          ? q.options.map(String).filter(Boolean) 
+          : [],
+        explanation: q.explanation ? String(q.explanation) : undefined,
+        generated: true,
+        source: 'gemini-vision'
+      };
+    });
+
+    console.log(`[Backend Gemini] Successfully generated ${processedQuestions.length} questions`);
+    return processedQuestions;
+
+} catch (error) {
+  console.error('[Backend Gemini] Vision question generation error:', error);
+  return [];
+}
+}
 
 /**
  * Get MIME type from file type and URL
@@ -1009,6 +1646,8 @@ const getMimeType = (fileType, fileUrl) => {
 export default {
   generateQuestions,
   generateQuestionsFromFile,
-  generateStructuredMaterialFromFile
+  generateStructuredMaterialFromFile,
+  generateLearningPackFromBase64,
+  generateLearningPacksFromBase64
 };
 //save

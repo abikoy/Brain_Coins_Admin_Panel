@@ -128,7 +128,7 @@ export const createQuestionHandler = async (req, res) => {
  */
 export const generatePreviewFromFileHandler = async (req, res) => {
   try {
-    const { fileUrl, fileType, language, counts, difficulty, types, bloom_level } = req.body || {};
+    const { fileUrl, fileType, language, grade, subject, counts, difficulty, types, bloom_level } = req.body || {};
 
     if (!fileUrl || !fileType) {
       return res.status(400).json({ success: false, error: 'fileUrl and fileType are required' });
@@ -177,13 +177,16 @@ export const generatePreviewFromFileHandler = async (req, res) => {
     console.log('Requested types:', requestedTypes);
     console.log('Total questions requested:', totalRequested);
     
-    // Generate more questions than needed to ensure we can fill all types
+    // Generate questions with exact counts per type
     const gen = await generateQuestionsFromFile(fileUrl, fileType, {
-      count: Math.min(totalRequested * 2, 40), // Generate extra to ensure we get all types
+      count: totalRequested, // Use exact count requested
       difficulty: difficulty || 'Medium',
       types: requestedTypes,
-      language,
-      bloom_level
+      counts: normalizedCounts, // Pass the exact counts per type
+      language: language || 'English',
+      grade: grade || 'Unknown',
+      subject: subject || 'Unknown',
+      bloom_level: bloom_level || 'Understand'
     });
 
     if (!Array.isArray(gen) || gen.length === 0) {
@@ -226,23 +229,15 @@ export const generatePreviewFromFileHandler = async (req, res) => {
     
     console.log('[Backend] Question generation stats:', typeStats);
 
-    // Derive detected metadata (majority from items)
-    const metaCandidates = (gen || []).map(q => q.metadata).filter(Boolean);
-    const majority = (key) => {
-      const m = new Map();
-      for (const md of metaCandidates) {
-        if (md && md[key]) m.set(md[key], (m.get(md[key]) || 0) + 1);
-      }
-      let best = null, bestN = 0;
-      for (const [k, n] of m.entries()) if (n > bestN) { best = k; bestN = n; }
-      return best || null;
-    };
+    // Use provided metadata from request instead of extracting from questions
     const detected_metadata = {
-      language: majority('language') || 'Unknown',
-      grade: majority('grade') || 'Unknown',
-      subject: majority('subject') || 'Unknown',
+      language: language || 'English',
+      grade: grade || 'Unknown',
+      subject: subject || 'Unknown',
       topics: []
     };
+    
+    console.log('[Backend] Using provided metadata:', detected_metadata);
 
     // Generate summary (preview)
     const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English');

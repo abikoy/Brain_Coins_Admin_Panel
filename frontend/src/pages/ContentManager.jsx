@@ -177,11 +177,19 @@ const ContentManager = ({ questions, setQuestions }) => {
       }
       
       // Analyze the document to suggest learning packs
-      const packs = await analyzeDocument(uploadedFile.fileUrl, uploadedFile.fileType, fileObj);
+      const analysisResponse = await analyzeDocument(uploadedFile.fileUrl, uploadedFile.fileType, fileObj);
+      const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
       
       // Auto-select all packs by default
       setSelectedPacks(packs.map((_, index) => index));
+      
+      // Auto-detect and set the language from the analysis
+      if (packs.length > 0 && packs[0].language) {
+        const detectedLanguage = packs[0].language;
+        setGenLanguage(detectedLanguage);
+        console.log('[ContentManager] Auto-detected language:', detectedLanguage);
+      }
       
     } catch (error) {
       console.error('Document analysis failed:', error);
@@ -307,14 +315,26 @@ const ContentManager = ({ questions, setQuestions }) => {
       });
 
       console.log('[ContentManager] Preview data:', pv);
+      
+      // Check if we got any questions
+      if (!pv.questions || pv.questions.length === 0) {
+        setGenerationError('No questions were generated. Please try again or adjust your settings.');
+        setPreview(null);
+        return;
+      }
+      
       setPreview(pv);
       
       // Pre-select all questions by default
       const pre = {};
       (pv.questions || []).forEach((q, i) => { pre[q.id || i] = true; });
       setSelectedIds(pre);
+      
+      console.log(`[ContentManager] Preview ready with ${pv.questions.length} questions`);
     } catch (e) {
+      console.error('[ContentManager] Preview error:', e);
       setGenerationError(e.message || 'Failed to preview');
+      setPreview(null);
     } finally {
       setIsGenerating(false);
     }
@@ -334,6 +354,7 @@ const ContentManager = ({ questions, setQuestions }) => {
     setGenerationError('');
     
     try {
+      console.log('[ContentManager] Approving questions:', chosen.length);
       const { questions: saved, saved_summary } = await approveFromPreview({
         pack_id: selectedPackId,
         questions: chosen,
@@ -343,7 +364,11 @@ const ContentManager = ({ questions, setQuestions }) => {
         bloom_level: genBloom
       });
       
-      setQuestions([...questions, ...saved]);
+      console.log('[ContentManager] Saved questions:', saved);
+      console.log('[ContentManager] Current questions count:', questions.length);
+      const updatedQuestions = [...questions, ...saved];
+      console.log('[ContentManager] Updated questions count:', updatedQuestions.length);
+      setQuestions(updatedQuestions);
       if (Array.isArray(saved_summary?.bullets)) setSummaryBullets(saved_summary.bullets);
       
       // Set the action type and show success modal
@@ -591,74 +616,96 @@ const ContentManager = ({ questions, setQuestions }) => {
       )}
 
       {/* Suggested Learning Packs */}
-      {suggestedPacks.length > 0 && (
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-medium">Suggested Learning Packs</h3>
-            <span className="text-sm text-gray-500">
-              {selectedPacks.length} of {suggestedPacks.length} selected
-            </span>
-          </div>
-          
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-4">
-            {suggestedPacks.map((pack, index) => (
-              <div 
-                key={index}
-                className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                  selectedPacks.includes(index) 
-                    ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
-                    : 'border-gray-200 hover:bg-gray-50'
-                }`}
-                onClick={() => togglePackSelection(index)}
-              >
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    checked={selectedPacks.includes(index)}
-                    onChange={() => togglePackSelection(index)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  />
-                  <div className="ml-3 flex-1">
-                    <h4 className="font-medium text-gray-900">{pack.title}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{pack.description}</p>
-                    <div className="mt-2 flex items-center">
-                      <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600">
-                        {pack.duration} min
-                      </span>
-                    </div>
-                    <div className="mt-2">
-                      <h5 className="text-xs font-medium text-gray-500 mb-1">Topics:</h5>
-                      <div className="flex flex-wrap gap-1">
-                        {pack.topics.slice(0, 3).map((topic, i) => (
-                          <span key={i} className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
-                            {topic}
-                          </span>
-                        ))}
-                        {pack.topics.length > 3 && (
-                          <span className="text-xs text-gray-400">+{pack.topics.length - 3} more</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+    {/* Update the suggested packs grid and card styling*/}
+<div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-4">
+  {suggestedPacks.map((pack, index) => {
+    // Clean up the title and description - preserve Unicode for Sinhala/Tamil
+    const cleanText = (text) => {
+      if (!text) return '';
+      // Only remove control characters and excessive whitespace
+      // Preserve all Unicode letters (including Sinhala, Tamil, etc.)
+      return text
+        .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control characters only
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+    };
+
+    const cleanTitle = cleanText(pack.title || `Learning Pack ${index + 1}`);
+    const cleanDescription = cleanText(pack.content || pack.description || 'No description available');
+    
+    // Clean topics
+    const cleanTopics = (pack.topics || [])
+      .map(topic => cleanText(topic))
+      .filter(topic => topic.length > 0 && topic.length < 50) // Filter out too long topics
+      .slice(0, 3); // Limit to 3 topics max
+
+    return (
+      <div 
+        key={index}
+        className={`
+          group relative p-4 border rounded-lg cursor-pointer transition-all
+          hover:shadow-md overflow-hidden h-full flex flex-col
+          ${selectedPacks.includes(index) 
+            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
+            : 'border-gray-200 hover:border-gray-300 bg-white'
+          }
+        `}
+        onClick={() => togglePackSelection(index)}
+      >
+        <div className="flex items-start">
+          <input
+            type="checkbox"
+            checked={selectedPacks.includes(index)}
+            onChange={() => togglePackSelection(index)}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 flex-shrink-0"
+          />
+          <div className="ml-3 flex-1 min-w-0"> {/* Add min-w-0 to prevent text overflow */}
+            <h4 
+              className="font-medium text-gray-900 text-sm sm:text-base break-words"
+              title={cleanTitle}
+            >
+              {cleanTitle}
+            </h4>
+            
+            <p 
+              className="text-xs sm:text-sm text-gray-600 mt-1 line-clamp-2 break-words"
+              title={cleanDescription}
+            >
+              {cleanDescription}
+            </p>
+            
+            <div className="mt-2 flex items-center flex-wrap gap-2">
+              <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600 whitespace-nowrap">
+                {pack.duration || 10} min
+              </span>
+              <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600 whitespace-nowrap">
+                {pack.language || 'English'}
+              </span>
+            </div>
+            
+            {cleanTopics.length > 0 && (
+              <div className="mt-2">
+                <h5 className="text-xs font-medium text-gray-500 mb-1">Topics:</h5>
+                <div className="flex flex-wrap gap-1">
+                  {cleanTopics.map((topic, i) => (
+                    <span 
+                      key={i} 
+                      className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full truncate max-w-full"
+                      title={topic}
+                    >
+                      {topic}
+                    </span>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Generate Questions Button */}
-          <div className="flex justify-end mt-4">
-            <Button 
-              onClick={handleGenerateQuestions}
-              disabled={selectedPacks.length === 0}
-              className="flex items-center"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate Questions ({selectedPacks.length} Packs)
-            </Button>
+            )}
           </div>
         </div>
-      )}
+      </div>
+    );
+  })}
+</div>
 
       {/* Upload & Generate Section */}
       {!showUploadForm && (
@@ -1000,13 +1047,44 @@ const ContentManager = ({ questions, setQuestions }) => {
                     onChange={(e) => setSelectedIds({ ...selectedIds, [key]: e.target.checked })}
                     className="mt-1"
                   />
-                  <div>
+                  <div className="flex-1">
                     <div className="text-xs text-gray-500 mb-1">{q.type} · {q.difficulty || 'Intermediate'}</div>
                     <div className="font-medium mb-1">{q.question}</div>
-                    {Array.isArray(q.options) && q.options.length > 0 && (
+                    
+                    {/* MCQ options */}
+                    {q.type === 'MCQ' && Array.isArray(q.options) && q.options.length > 0 && (
                       <ul className="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                        {q.options.map((o, j) => (<li key={j}>{o}</li>))}
+                        {q.options.map((o, j) => (
+                          <li key={j} className={o === q.answer ? 'font-semibold text-green-700' : ''}>
+                            {o} {o === q.answer && '✓'}
+                          </li>
+                        ))}
                       </ul>
+                    )}
+                    
+                    {/* FIIB draggable options */}
+                    {q.type === 'FIIB' && Array.isArray(q.options) && q.options.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500 mb-1">Drag options:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {q.options.map((o, j) => (
+                            <span key={j} className={`text-xs px-2 py-1 rounded border ${
+                              o === q.answer 
+                                ? 'bg-green-100 border-green-500 text-green-800 font-semibold' 
+                                : 'bg-blue-50 border-blue-300 text-blue-700'
+                            }`}>
+                              {o} {o === q.answer && '✓'}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Answer for TF and HOQ */}
+                    {(q.type === 'TF' || q.type === 'HOQ') && q.answer && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        <span className="font-medium">Answer:</span> {q.answer}
+                      </p>
                     )}
                   </div>
                 </label>
@@ -1097,6 +1175,32 @@ const ContentManager = ({ questions, setQuestions }) => {
                 </div>
               )}
 
+              {/* FIIB type: show draggable options */}
+              {question.type === 'FIIB' && question.options && question.options.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-xs text-gray-500 mb-2">Drag-and-drop options:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {question.options.map((option, index) => (
+                      <div 
+                        key={index}
+                        draggable="true"
+                        className={`text-sm px-3 py-1.5 rounded cursor-move border-2 ${
+                          option === question.answer 
+                            ? 'bg-green-100 border-green-500 text-green-800 font-medium' 
+                            : 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+                        }`}
+                      >
+                        {option}
+                        {option === question.answer && ' ✓'}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 italic">
+                    Students will drag these options to fill in the blank(s)
+                  </p>
+                </div>
+              )}
+
               {/* MATCH type: show pairs grid */}
               {question.type === 'MATCH' && Array.isArray(question.pairs) && question.pairs.length > 0 && (
                 <div className="mb-2 overflow-x-auto">
@@ -1135,9 +1239,9 @@ const ContentManager = ({ questions, setQuestions }) => {
                 </div>
               )}
 
-              {/* Answer line (hide if not applicable) */}
-              {question.answer && (
-                <p className="text-sm text-gray-600">
+              {/* Answer line - show for TF, HOQ, and FIIB if not already shown in options */}
+              {question.answer && question.type !== 'MCQ' && question.type !== 'IMAGE_MCQ' && (
+                <p className="text-sm text-gray-600 mt-2">
                   <span className="font-medium">Answer:</span> {question.answer}
                 </p>
               )}
