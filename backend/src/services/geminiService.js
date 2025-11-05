@@ -386,13 +386,22 @@ Before you output anything, check:
 
 If ANY answer is NO, you MUST re-read the image and try again.
 
-### STEP 2: Extract REAL Chapters
-Look for ACTUAL chapter markers in the document:
+### STEP 2: STANDARDIZED PACK CREATION
+
+⚠️ **CRITICAL RULE**: Create EXACTLY ONE learning pack per document.
+
+**ONLY create multiple packs if:**
+1. The document EXPLICITLY has multiple distinct chapters/units (e.g., "Chapter 1", "Chapter 2", "Chapter 3")
+2. Each chapter is clearly separated with headings
+3. Each chapter covers a DIFFERENT topic
+
+**Chapter markers to look for:**
 - English: "Chapter 1", "Unit 1", "Lesson 1", "Section 1.1"
 - Sinhala: "පරිච්ඡේදය 1", "පාඩම 1", "ඒකකය 1"
 - Tamil: "அத்தியாயம் 1", "பாடம் 1", "அலகு 1"
 
-**CRITICAL**: If you find 5 real chapters, create 5 packs. If you find 8, create 8. MAXIMUM 10 packs total.
+**DEFAULT BEHAVIOR**: If you see ONE chapter or unclear structure → Create ONE pack with a comprehensive summary.
+**MAXIMUM**: 10 packs total (only if document has 10+ clear chapters)
 
 ### STEP 3: Create Learning Packs
 For EACH identified chapter:
@@ -401,7 +410,7 @@ For EACH identified chapter:
 - **language**: The detected language
 
 ### IF NO CLEAR CHAPTERS EXIST:
-Create 3-5 topic-based packs covering the main themes of the document.
+Create EXACTLY ONE comprehensive learning pack that covers all main themes of the document.
 
 ### VALIDATION RULES:
 ✓ Each title must be meaningful and readable
@@ -1234,7 +1243,8 @@ Question Format Requirements:
 2. FIIB (Fill In The Blank):
    - question: Text with ___ for blank (e.g., "The capital of France is ___")
    - answer: The correct word/phrase to fill the blank
-   - options: Array of 4-6 possible answers (including correct one and distractors) for drag-and-drop
+   - options: REQUIRED Array of 4-6 possible answers (MUST include correct answer and distractors) for drag-and-drop
+   - ⚠️ CRITICAL: FIIB questions MUST have an options array - this is mandatory!
 
 3. TF (True/False):
    - question: A statement
@@ -1273,8 +1283,32 @@ Example for FIIB:
 
     const questions = JSON.parse(jsonMatch[0]);
     
-    console.log('[Backend] Generated questions:', questions.length);
-    return questions;
+    // Validate and fix FIIB questions to ensure they have options
+    const validatedQuestions = questions.map(q => {
+      if (q.type === 'FIIB') {
+        if (!Array.isArray(q.options) || q.options.length === 0) {
+          console.warn('[Backend] FIIB question missing options, generating defaults:', q.question);
+          // Generate default options if missing
+          const answer = q.answer || 'answer';
+          q.options = [
+            answer,
+            'option1',
+            'option2',
+            'option3',
+            'option4'
+          ];
+        }
+        console.log('[Backend] FIIB question validated:', {
+          question: q.question?.substring(0, 50),
+          answer: q.answer,
+          optionsCount: q.options?.length
+        });
+      }
+      return q;
+    });
+    
+    console.log('[Backend] Generated questions:', validatedQuestions.length);
+    return validatedQuestions;
 
   } catch (error) {
     console.error('[Backend] Gemini generation error:', error);
@@ -1464,6 +1498,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
             count: remaining * 2,
             difficulty,
             types: Object.keys(typeCounts),
+            counts: typeCounts, // Pass exact counts per type
             language,
             bloom_level
           });
@@ -1527,12 +1562,106 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
     difficulty = 'Intermediate',
     types = ['MCQ', 'FIIB', 'TF', 'HOQ'],
     language = 'English',
-    bloom_level = 'Understand'
+    bloom_level = 'Understand',
+    counts = {}
   } = params;
 
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   
-  const prompt = `SYSTEM:\nYou are an expert educational content creator. Analyze the provided document/image and generate ${count} high-quality educational questions.\n\nINSTRUCTIONS:\n1. LANGUAGE: Respond in ${language}. For Sinhala/Tamil, use clean Unicode.\n2. DIFFICULTY: ${difficulty}.\n3. BLOOM'S LEVEL: ${bloom_level}.\n4. QUESTION TYPES: ${types.join(', ')}.\n\nQUESTION FORMAT RULES:\n- MCQ: 1 correct answer + 3 plausible distractors\n- FIIB: Use ___ for blanks\n- TF: Must be clearly true or false\n- HOQ: Include brief reasoning\n\nOUTPUT FORMAT: Return ONLY a valid JSON array. Example:\n[{\n  "question_type": "MCQ",\n  "difficulty": "Easy",\n  "blooms_taxonomy": "Understand",\n  "question_text": "Sample question?",\n  "correct_answer": "Correct answer",\n  "options": ["Incorrect 1", "Incorrect 2", "Correct answer", "Incorrect 3"],\n  "explanation": "Brief explanation if needed"\n}]`;
+  // Build type-specific count requirements
+  let typeRequirements = '';
+  if (Object.keys(counts).length > 0) {
+    typeRequirements = '\n\nEXACT QUESTION TYPE COUNTS REQUIRED:\n';
+    Object.entries(counts).forEach(([type, cnt]) => {
+      if (cnt > 0) {
+        typeRequirements += `- Generate EXACTLY ${cnt} ${type} questions\n`;
+      }
+    });
+  } else {
+    typeRequirements = `\n\nGenerate ${count} questions using these types: ${types.join(', ')}`;
+  }
+  
+  const prompt = `SYSTEM:
+You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provided document/image and generate educational questions.
+
+🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA/TAMIL:
+${language === 'Sinhala' || language === 'Tamil' ? `
+⚠️ ABSOLUTE REQUIREMENT: You MUST output PURE Unicode characters. NO EXCEPTIONS.
+
+**FORBIDDEN OUTPUT (GARBAGE - DO NOT PRODUCE):**
+❌ "f.da,hlska odr fyda YS¾I"
+❌ ";d;aúl ixLHd"
+❌ "o¾Yl yd ,>q.Kl"
+❌ "fkdñ,a fnod yeÿ"
+❌ ">k jia;=j,"
+❌ "iudka;r f¾Ld"
+
+**REQUIRED OUTPUT (Proper Unicode):**
+${language === 'Sinhala' ? '✅ Sinhala: "පළමු පරිච්ඡේදය", "ගණිතය", "සංඛ්‍යා පද්ධති", "වීජ ගණිතය"' : ''}
+${language === 'Tamil' ? '✅ Tamil: "முதல் அத்தியாயம்", "கணிதம்", "எண் முறைகள்", "இயற்கணிதம்"' : ''}
+
+**SELF-VALIDATION BEFORE RESPONDING:**
+1. Does my output contain characters from the CORRECT Unicode range?
+   - Sinhala: U+0D80 to U+0DFF (ක ග ච ජ ට ඩ ණ ත ද න ප බ ම ය ර ල ව ශ ෂ ස හ ළ)
+   - Tamil: U+0B80 to U+0BFF (க ங ச ஞ ட ண த ந ப ம ய ர ல வ ழ ள ற ன)
+2. Do the words look like real ${language} words (not Latin gibberish)?
+3. Would a native speaker recognize these as proper words?
+
+If ANY answer is NO, you MUST re-read the image and try again.
+` : ''}
+
+TASK:
+Generate questions strictly from the provided document/image content.
+${typeRequirements}
+
+Constraints:
+- All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}
+- Difficulty: ${difficulty}
+- Bloom level: ${bloom_level}
+- Allowed types: MCQ, FIIB, TF, HOQ
+
+Question Format Requirements:
+1. MCQ (Multiple Choice):
+   - question_type: "MCQ"
+   - question_text: The question
+   - correct_answer: The correct answer
+   - options: Array of 4 options (including the correct answer)
+   - explanation: WHY the correct answer is correct (2-3 sentences explaining the reasoning)
+
+2. FIIB (Fill In The Blank):
+   - question_type: "FIIB"
+   - question_text: Text with ___ for blank (e.g., "The capital of France is ___")
+   - correct_answer: The correct word/phrase to fill the blank
+   - options: REQUIRED Array of 4-6 possible answers (MUST include correct answer and distractors) for drag-and-drop
+   - explanation: WHY this answer fills the blank correctly (2-3 sentences)
+   - ⚠️ CRITICAL: FIIB questions MUST have an options array - this is mandatory!
+
+3. TF (True/False):
+   - question_type: "TF"
+   - question_text: A statement
+   - correct_answer: "True" or "False"
+   - explanation: WHY the statement is true or false (2-3 sentences with evidence)
+
+4. HOQ (Higher Order Question):
+   - question_type: "HOQ"
+   - question_text: An analytical/evaluative question
+   - correct_answer: Detailed explanation
+   - explanation: Additional context or reasoning supporting the answer (2-3 sentences)
+
+⚠️ CRITICAL: ALL questions MUST include an "explanation" field in ${language}!
+
+OUTPUT FORMAT: Return ONLY a valid JSON array. Example for FIIB:
+[{
+  "question_type": "FIIB",
+  "difficulty": "Medium",
+  "blooms_taxonomy": "Understand",
+  "question_text": "The process of converting light energy into chemical energy is called ___",
+  "correct_answer": "photosynthesis",
+  "options": ["photosynthesis", "respiration", "digestion", "transpiration", "fermentation"],
+  "explanation": "Photosynthesis is the process by which plants convert light energy from the sun into chemical energy stored in glucose. This occurs in the chloroplasts of plant cells using chlorophyll."
+}]
+
+IMPORTANT: Respect the exact question type counts requested above!`;
 
   const imagePart = {
     inlineData: {
@@ -1587,9 +1716,81 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
         console.warn(`[Backend Gemini] Invalid question type: ${questionType}, defaulting to MCQ`);
       }
 
+      const finalType = validTypes.includes(questionType) ? questionType : 'MCQ';
+      let questionText = String(q.question || q.question_text || `Question ${index + 1}`).trim();
+      let answer = String(q.answer || q.correct_answer || '').trim();
+      let options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
+      
+      // 🚨 CRITICAL: Validate Sinhala/Tamil Unicode - REJECT garbage characters
+      if (language === 'Sinhala' || language === 'Tamil') {
+        const garbagePatterns = /fkd[ñ,a]|fnod|yeÿ|iyd|ksoi|mqkl|wdh|kfh|bEö|fjk|;d;a|o¾Y|,>q\.|>k jia|mDIaG|mßud|oaúm|ùÔh|iudka;r|f¾Ld|m%;s|fldgia|YS¾I/;
+        
+        const hasGarbage = garbagePatterns.test(questionText) || 
+                          garbagePatterns.test(answer) ||
+                          options.some(opt => garbagePatterns.test(opt));
+        
+        if (hasGarbage) {
+          console.error(`[Backend Gemini] ❌ REJECTED Question ${index + 1} - Contains garbage characters:`, {
+            question: questionText.substring(0, 100),
+            language
+          });
+          
+          // Skip this question - it will not be included in the final array
+          return null;
+        }
+        
+        // Validate proper Unicode range
+        const hasProperUnicode = language === 'Sinhala' 
+          ? /[\u0D80-\u0DFF]{3,}/.test(questionText)
+          : /[\u0B80-\u0BFF]{3,}/.test(questionText);
+        
+        if (!hasProperUnicode) {
+          console.warn(`[Backend Gemini] ⚠️ Question ${index + 1} missing proper ${language} Unicode:`, questionText.substring(0, 50));
+        }
+      }
+      
+      // Validate FIIB questions have options
+      if (finalType === 'FIIB') {
+        if (!options || options.length === 0) {
+          console.warn('[Backend Gemini] FIIB question missing options, generating defaults:', questionText.substring(0, 50));
+          // Generate default options if missing
+          options = [
+            answer,
+            'option1',
+            'option2',
+            'option3',
+            'option4'
+          ];
+        }
+        console.log('[Backend Gemini] Vision FIIB question validated:', {
+          question: questionText.substring(0, 50),
+          answer: answer,
+          optionsCount: options.length
+        });
+      }
+
+      // ✅ CRITICAL: Ensure ALL questions have explanations
+      let explanation = q.explanation || q.reasoning || '';
+      
+      // Generate default explanation if missing
+      if (!explanation || explanation.trim().length < 10) {
+        console.warn(`[Backend Gemini] Question ${index + 1} missing explanation, generating default`);
+        
+        // Generate type-specific default explanations
+        if (finalType === 'MCQ') {
+          explanation = `The correct answer is "${answer}" based on the content provided.`;
+        } else if (finalType === 'FIIB') {
+          explanation = `"${answer}" correctly fills the blank in this context.`;
+        } else if (finalType === 'TF') {
+          explanation = `This statement is ${answer} according to the source material.`;
+        } else if (finalType === 'HOQ') {
+          explanation = `This answer addresses the key concepts and demonstrates understanding of the topic.`;
+        }
+      }
+
       return {
         id: `gen-${Date.now()}-${index}`,
-        type: validTypes.includes(questionType) ? questionType : 'MCQ',
+        type: finalType,
         difficulty: ['Easy', 'Intermediate', 'Hard'].includes(q.difficulty) 
           ? q.difficulty 
           : difficulty,
@@ -1597,19 +1798,32 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
           'Remember', 'Understand', 'Apply', 
           'Analyze', 'Evaluate', 'Create'
         ].includes(q.blooms_taxonomy) ? q.blooms_taxonomy : bloom_level,
-        question: String(q.question || q.question_text || `Question ${index + 1}`).trim(),
-        answer: String(q.answer || q.correct_answer || '').trim(),
-        options: Array.isArray(q.options) 
-          ? q.options.map(String).filter(Boolean) 
-          : [],
-        explanation: q.explanation ? String(q.explanation) : undefined,
+        question: questionText,
+        answer: answer,
+        options: options,
+        explanation: explanation, // ✅ ALWAYS has a value now
         generated: true,
         source: 'gemini-vision'
       };
     });
 
-    console.log(`[Backend Gemini] Successfully generated ${processedQuestions.length} questions`);
-    return processedQuestions;
+    // Filter out null values (rejected questions with garbage characters)
+    const validQuestions = processedQuestions.filter(q => q !== null);
+    
+    const rejectedCount = processedQuestions.length - validQuestions.length;
+    if (rejectedCount > 0) {
+      console.warn(`[Backend Gemini] ⚠️ Rejected ${rejectedCount} questions due to garbage characters`);
+      console.warn(`[Backend Gemini] Valid questions: ${validQuestions.length}, Requested: ${count}`);
+      
+      // If we rejected too many and don't have enough valid questions, warn the user
+      if (validQuestions.length < count * 0.5) {
+        console.error(`[Backend Gemini] ❌ CRITICAL: Only ${validQuestions.length}/${count} valid questions generated!`);
+        console.error(`[Backend Gemini] The PDF may have encoding issues. Consider re-scanning or using a different file.`);
+      }
+    }
+    
+    console.log(`[Backend Gemini] Successfully generated ${validQuestions.length} valid questions (${rejectedCount} rejected)`);
+    return validQuestions;
 
 } catch (error) {
   console.error('[Backend Gemini] Vision question generation error:', error);

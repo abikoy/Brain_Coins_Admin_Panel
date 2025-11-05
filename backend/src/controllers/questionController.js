@@ -128,7 +128,7 @@ export const createQuestionHandler = async (req, res) => {
  */
 export const generatePreviewFromFileHandler = async (req, res) => {
   try {
-    const { fileUrl, fileType, language, grade, subject, counts, difficulty, types, bloom_level } = req.body || {};
+    const { fileUrl, fileType, language, grade, subject, counts, difficulty, types, bloom_level, typeDifficulties } = req.body || {};
 
     if (!fileUrl || !fileType) {
       return res.status(400).json({ success: false, error: 'fileUrl and fileType are required' });
@@ -205,7 +205,7 @@ export const generatePreviewFromFileHandler = async (req, res) => {
       }
     });
 
-    // Select the requested number of each type
+    // Select the requested number of each type and apply per-type difficulties
     const selected = [];
     const typeStats = {};
     
@@ -214,11 +214,21 @@ export const generatePreviewFromFileHandler = async (req, res) => {
       const available = questionsByType[type] || [];
       const countToTake = Math.min(available.length, requestedCount);
       
-      selected.push(...available.slice(0, countToTake));
+      // Get difficulty for this type (from typeDifficulties or fallback to default)
+      const typeDifficulty = (typeDifficulties && typeDifficulties[type]) || difficulty || 'Medium';
+      
+      // Apply difficulty to each question of this type
+      const questionsWithDifficulty = available.slice(0, countToTake).map(q => ({
+        ...q,
+        difficulty: typeDifficulty
+      }));
+      
+      selected.push(...questionsWithDifficulty);
       typeStats[type] = {
         requested: requestedCount,
         generated: available.length,
-        selected: countToTake
+        selected: countToTake,
+        difficulty: typeDifficulty
       };
       
       // Log if we couldn't get enough of this type
@@ -334,14 +344,13 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
     // Add pack_id and other required fields to each question
     const questionsToSave = questions.map((q, idx) => {
       const qt = q.type || q.question_type || 'MCQ';
+      const explanationText = q.explanation || q.reasoning || '';
+      
       const base = {
         pack_id: effectivePackId,
         question_type: qt,
         options: Array.isArray(q.options) ? q.options : [],
         correct_answer: q.answer || q.correct_answer || '',
-        explanation: q.explanation || q.reasoning || '',
-        explanation_si: q.explanation_si || null,
-        explanation_ta: q.explanation_ta || null,
         has_diagram: false,
         diagram_path: null,
         blooms_taxonomy: q.blooms_taxonomy || bloom_level || 'Understand',
@@ -349,13 +358,39 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
         difficulty: q.difficulty || difficulty || learningPack.difficulty || 'Medium',
         generated: true
       };
-      // Language-specific question text fields
+      
+      // Language-specific question text AND explanation fields
       if (language === 'Sinhala') {
-        return { ...base, question_text: '', question_text_si: q.question || q.question_text || '', question_text_ta: null };
+        return { 
+          ...base, 
+          question_text: '', 
+          question_text_si: q.question || q.question_text || '', 
+          question_text_ta: null,
+          explanation: '',
+          explanation_si: explanationText,
+          explanation_ta: null
+        };
       } else if (language === 'Tamil') {
-        return { ...base, question_text: '', question_text_si: null, question_text_ta: q.question || q.question_text || '' };
+        return { 
+          ...base, 
+          question_text: '', 
+          question_text_si: null, 
+          question_text_ta: q.question || q.question_text || '',
+          explanation: '',
+          explanation_si: null,
+          explanation_ta: explanationText
+        };
       }
-      return { ...base, question_text: q.question || q.question_text || '', question_text_si: null, question_text_ta: null };
+      // English (default)
+      return { 
+        ...base, 
+        question_text: q.question || q.question_text || '', 
+        question_text_si: null, 
+        question_text_ta: null,
+        explanation: explanationText,
+        explanation_si: null,
+        explanation_ta: null
+      };
     });
 
     // Save questions to database
@@ -593,11 +628,15 @@ export const approveFromPreviewHandler = async (req, res) => {
   console.log('[Backend] Approving questions from preview:', {
     pack_id: req.body.pack_id,
     questions_count: req.body.questions?.length || 0,
-    has_summary: !!req.body.summary
+    has_summary: !!req.body.summary,
+    language: req.body.language
   });
 
   try {
-    const { pack_id, questions, summary } = req.body;
+    const { pack_id, questions, summary, summary_bullets, language } = req.body;
+    
+    // Use summary_bullets if summary is not provided (for backward compatibility)
+    const summaryToSave = summary || summary_bullets;
 
     if (!pack_id) {
       console.error('[Backend] Missing pack_id in request body');
@@ -615,26 +654,51 @@ export const approveFromPreviewHandler = async (req, res) => {
       });
     }
 
-    console.log(`[Backend] Preparing to save ${questions.length} questions for pack ${pack_id}`);
+    console.log(`[Backend] Preparing to save ${questions.length} questions for pack ${pack_id} in ${language || 'English'}`);
     
     // Format questions for saving with all required fields
     const questionsToSave = questions.map((q, index) => {
+      const explanationText = q.explanation || q.reasoning || '';
+      
       const questionData = {
         pack_id,
-        question_type: q.question_type || 'MCQ',
-        question_text: q.question || `Question ${index + 1}`,
-        correct_answer: q.answer || '',
-        options: Array.isArray(q.options) ? q.options : [],
-        explanation: q.explanation || '',
+        question_type: q.question_type || q.type || 'MCQ',
         has_diagram: false,
         diagram_path: null,
-        blooms_taxonomy: q.bloom || 'Remember',
+        blooms_taxonomy: q.blooms_taxonomy || q.bloom || 'Remember',
         display_order: index,
         difficulty: q.difficulty || 'Medium',
         generated: true,
         created_at: new Date().toISOString(),
-        metadata: q.metadata || {}
+        metadata: q.metadata || {},
+        correct_answer: q.correct_answer || q.answer || '',
+        options: Array.isArray(q.options) ? q.options : []
       };
+      
+      // Language-specific question text AND explanation
+      if (language === 'Sinhala') {
+        questionData.question_text = '';
+        questionData.question_text_si = q.question_text || q.question || `Question ${index + 1}`;
+        questionData.question_text_ta = null;
+        questionData.explanation = '';
+        questionData.explanation_si = explanationText;
+        questionData.explanation_ta = null;
+      } else if (language === 'Tamil') {
+        questionData.question_text = '';
+        questionData.question_text_si = null;
+        questionData.question_text_ta = q.question_text || q.question || `Question ${index + 1}`;
+        questionData.explanation = '';
+        questionData.explanation_si = null;
+        questionData.explanation_ta = explanationText;
+      } else {
+        // English (default)
+        questionData.question_text = q.question_text || q.question || `Question ${index + 1}`;
+        questionData.question_text_si = null;
+        questionData.question_text_ta = null;
+        questionData.explanation = explanationText;
+        questionData.explanation_si = null;
+        questionData.explanation_ta = null;
+      }
       
       // Log first question for debugging
       if (index === 0) {
@@ -656,9 +720,9 @@ export const approveFromPreviewHandler = async (req, res) => {
     console.log(`[Backend] Successfully saved ${savedQuestions.length} questions`);
 
     // Save summary if provided
-    if (summary && Array.isArray(summary) && summary.length > 0) {
-      console.log('[Backend] Saving summary with', summary.length, 'bullets');
-      await upsertSummaryByPack(pack_id, summary);
+    if (summaryToSave && Array.isArray(summaryToSave) && summaryToSave.length > 0) {
+      console.log('[Backend] Saving summary with', summaryToSave.length, 'bullets');
+      await upsertSummaryByPack(pack_id, summaryToSave);
     }
 
     // Prepare response to match frontend expectations
@@ -670,9 +734,9 @@ export const approveFromPreviewHandler = async (req, res) => {
     };
 
     // Include summary in response if it was saved
-    if (summary && Array.isArray(summary) && summary.length > 0) {
+    if (summaryToSave && Array.isArray(summaryToSave) && summaryToSave.length > 0) {
       response.saved_summary = {
-        bullets: summary,
+        bullets: summaryToSave,
         pack_id: pack_id
       };
     }

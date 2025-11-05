@@ -31,7 +31,8 @@ const ContentManager = ({ questions, setQuestions }) => {
   
   // Learning pack generation state
   const [suggestedPacks, setSuggestedPacks] = useState([]);
-  const [selectedPacks, setSelectedPacks] = useState([]);
+  const [selectedPacks, setSelectedPacks] = useState([]); // For checkbox (saving to DB)
+  const [selectedPacksForQuestions, setSelectedPacksForQuestions] = useState([]); // For question generation
   const [isGeneratingPacks, setIsGeneratingPacks] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -199,9 +200,18 @@ const ContentManager = ({ questions, setQuestions }) => {
     }
   };
 
-  // Toggle pack selection
+  // Toggle pack selection for saving to database (checkbox)
   const togglePackSelection = (index) => {
     setSelectedPacks(prev => 
+      prev.includes(index)
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
+  };
+
+  // Toggle pack selection for question generation (card click)
+  const togglePackForQuestions = (index) => {
+    setSelectedPacksForQuestions(prev => 
       prev.includes(index)
         ? prev.filter(i => i !== index)
         : [...prev, index]
@@ -297,7 +307,7 @@ const ContentManager = ({ questions, setQuestions }) => {
       
       console.log('[ContentManager] Previewing content from file:', uploadedFile);
       
-      // Get enabled question types and their counts
+      // Get enabled question types with their counts AND difficulties
       const enabledQuestionTypes = Object.entries(questionConfig)
         .filter(([_, config]) => config.enabled && config.count > 0)
         .reduce((acc, [type, config]) => ({
@@ -305,16 +315,39 @@ const ContentManager = ({ questions, setQuestions }) => {
           [type]: config.count
         }), {});
       
+      // Get difficulty for each type
+      const typeDifficulties = Object.entries(questionConfig)
+        .filter(([_, config]) => config.enabled && config.count > 0)
+        .reduce((acc, [type, config]) => ({
+          ...acc,
+          [type]: config.difficulty
+        }), {});
+      
+      console.log('[ContentManager] Question config:', { enabledQuestionTypes, typeDifficulties });
+      
       const pv = await previewFromFile(uploadedFile.fileUrl, uploadedFile.fileType, {
         language: genLanguage,
         grade,
         subject,
-        difficulty: 'Medium', // Default, can be overridden per question type
+        difficulty: Object.values(typeDifficulties)[0] || 'Medium', // Use first type's difficulty as default
         bloom_level: genBloom,
-        questionTypes: enabledQuestionTypes
+        questionTypes: enabledQuestionTypes,
+        typeDifficulties: typeDifficulties // Pass per-type difficulties
       });
 
       console.log('[ContentManager] Preview data:', pv);
+      
+      // Debug FIIB questions
+      pv.questions?.forEach((q, i) => {
+        if (q.type === 'FIIB') {
+          console.log(`[ContentManager] FIIB Question ${i + 1}:`, {
+            question: q.question,
+            answer: q.answer,
+            options: q.options,
+            hasOptions: Array.isArray(q.options) && q.options.length > 0
+          });
+        }
+      });
       
       // Check if we got any questions
       if (!pv.questions || pv.questions.length === 0) {
@@ -345,7 +378,11 @@ const ContentManager = ({ questions, setQuestions }) => {
 
   // Approve selected items and persist
   const handleApprove = async () => {
-    if (!selectedPackId) { setGenerationError('Please select or create a learning pack first'); return; }
+    // ONLY check for selected packs from cards (NOT dropdown)
+    if (selectedPacksForQuestions.length === 0) {
+      setGenerationError('Please select a learning pack by clicking on a card above');
+      return;
+    }
     if (!preview || !Array.isArray(preview.questions)) { setGenerationError('No preview to approve'); return; }
     const chosen = preview.questions.filter((q, i) => selectedIds[q.id || i]);
     if (!chosen.length) { setGenerationError('Select at least one item to approve'); return; }
@@ -354,9 +391,25 @@ const ContentManager = ({ questions, setQuestions }) => {
     setGenerationError('');
     
     try {
+      // Create the first selected pack in DB and use its ID
+      const firstSelectedPack = suggestedPacks[selectedPacksForQuestions[0]];
+      const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
+      
+      const newPack = await createLearningPackAPI({
+        title: firstSelectedPack.title,
+        description: firstSelectedPack.content || firstSelectedPack.description,
+        subject_id: subject,
+        grade: parseInt(grade),
+        difficulty: 'Medium',
+        is_active: true
+      });
+      
+      const packId = newPack.id;
+      console.log('[ContentManager] Created learning pack:', packId);
+      
       console.log('[ContentManager] Approving questions:', chosen.length);
       const { questions: saved, saved_summary } = await approveFromPreview({
-        pack_id: selectedPackId,
+        pack_id: packId,
         questions: chosen,
         summary_bullets: preview.summary_bullets,
         language: genLanguage,
@@ -386,14 +439,15 @@ const ContentManager = ({ questions, setQuestions }) => {
     }
   };
 
-  // Generate questions from uploaded file using Gemini API (legacy direct-save)
+  // Generate questions from uploaded file using Gemini API (direct-save)
   const handleGenerateQuestions = async () => {
     if (!uploadedFile) {
       setGenerationError('Please upload a file first');
       return;
     }
-    if (!selectedPackId) {
-      setGenerationError('Please select or create a learning pack first');
+    // ONLY check for selected packs from cards (NOT dropdown)
+    if (selectedPacksForQuestions.length === 0) {
+      setGenerationError('Please select a learning pack by clicking on a card above');
       return;
     }
 
@@ -401,6 +455,22 @@ const ContentManager = ({ questions, setQuestions }) => {
     setGenerationError('');
     
     try {
+      // Create the first selected pack in DB and use its ID
+      const firstSelectedPack = suggestedPacks[selectedPacksForQuestions[0]];
+      const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
+      
+      const newPack = await createLearningPackAPI({
+        title: firstSelectedPack.title,
+        description: firstSelectedPack.content || firstSelectedPack.description,
+        subject_id: subject,
+        grade: parseInt(grade),
+        difficulty: 'Medium',
+        is_active: true
+      });
+      
+      const packId = newPack.id;
+      console.log('[ContentManager] Created learning pack:', packId);
+      
       console.log('[ContentManager] Generating questions from file:', uploadedFile);
 
       // Call backend API to generate questions
@@ -408,7 +478,7 @@ const ContentManager = ({ questions, setQuestions }) => {
         uploadedFile.fileUrl,
         uploadedFile.fileType,
         {
-          pack_id: selectedPackId,
+          pack_id: packId,
           count: 5,
           difficulty: 'Intermediate',
           types: ['MCQ', 'FIIB', 'TF', 'HOQ', 'MATCH', 'DIAGRAM', 'IMAGE_MCQ'],
@@ -616,7 +686,20 @@ const ContentManager = ({ questions, setQuestions }) => {
       )}
 
       {/* Suggested Learning Packs */}
-    {/* Update the suggested packs grid and card styling*/}
+    {suggestedPacks.length > 0 && (
+      <div className="mb-4 p-4 bg-gradient-to-r from-green-100 to-blue-100 border-2 border-gray-300 rounded-lg">
+        <h4 className="font-bold text-gray-800 mb-2 flex items-center">
+          <span className="mr-2">🤖</span> AI Question Generation from File:
+        </h4>
+        <div className="space-y-2 text-sm text-gray-700">
+          <p><strong>Step 1:</strong> Click on learning pack cards below to select them (cards turn GREEN)</p>
+          <p><strong>Step 2 Option A:</strong> Click "Preview" → Review questions → Select which to keep → Click GREEN "Approve & Save"</p>
+          <p><strong>Step 2 Option B:</strong> Click "Generate Questions" → All questions saved automatically</p>
+          <p className="text-xs text-gray-600 mt-2">💡 Tip: You can select multiple packs to generate questions from all of them!</p>
+          <p className="text-xs font-semibold text-red-600 mt-2">⚠️ Note: The dropdown menu below is ONLY for manual question creation, NOT for AI generation!</p>
+        </div>
+      </div>
+    )}
 <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-4">
   {suggestedPacks.map((pack, index) => {
     // Clean up the title and description - preserve Unicode for Sinhala/Tamil
@@ -633,6 +716,10 @@ const ContentManager = ({ questions, setQuestions }) => {
     const cleanTitle = cleanText(pack.title || `Learning Pack ${index + 1}`);
     const cleanDescription = cleanText(pack.content || pack.description || 'No description available');
     
+
+    const isSelectedForQuestions = selectedPacksForQuestions.includes(index);
+    const isSelectedForSaving = selectedPacks.includes(index);
+    
     // Clean topics
     const cleanTopics = (pack.topics || [])
       .map(topic => cleanText(topic))
@@ -643,14 +730,17 @@ const ContentManager = ({ questions, setQuestions }) => {
       <div 
         key={index}
         className={`
-          group relative p-4 border rounded-lg cursor-pointer transition-all
-          hover:shadow-md overflow-hidden h-full flex flex-col
-          ${selectedPacks.includes(index) 
-            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' 
-            : 'border-gray-200 hover:border-gray-300 bg-white'
+          group relative p-4 border-2 rounded-lg cursor-pointer transition-all
+          hover:shadow-lg overflow-hidden h-full flex flex-col
+          ${
+            isSelectedForQuestions
+              ? 'border-green-500 bg-green-50 ring-2 ring-green-300 shadow-md'
+              : isSelectedForSaving
+              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+              : 'border-gray-200 hover:border-gray-400 bg-white'
           }
         `}
-        onClick={() => togglePackSelection(index)}
+        onClick={() => togglePackForQuestions(index)}
       >
         <div className="flex items-start">
           <input
@@ -698,6 +788,15 @@ const ContentManager = ({ questions, setQuestions }) => {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+            
+            {/* Visual indicator for question generation selection */}
+            {isSelectedForQuestions && (
+              <div className="mt-3 pt-3 border-t border-green-300">
+                <p className="text-xs font-semibold text-green-700 flex items-center">
+                  <span className="mr-1">✓</span> Selected for Question Generation
+                </p>
               </div>
             )}
           </div>
@@ -796,7 +895,7 @@ const ContentManager = ({ questions, setQuestions }) => {
           onClick={() => setIsSubjectDropdownOpen(!isSubjectDropdownOpen)}
           className="w-full flex justify-between items-center rounded-md border border-gray-300 px-3 py-2 bg-white text-sm text-left"
         >
-          <span className="truncate">{subject || 'Select Subject'}</span>
+          <span className="truncate">{subjects.find(s => s.id === subject)?.name || 'Select Subject'}</span>
           <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isSubjectDropdownOpen ? 'transform rotate-180' : ''}`} />
         </button>
         
@@ -809,9 +908,9 @@ const ContentManager = ({ questions, setQuestions }) => {
                 subjects.map((sub) => (
                   <div
                     key={sub.id}
-                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 ${subject === sub.name ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`}
+                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 ${subject === sub.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`}
                     onClick={() => {
-                      setSubject(sub.name);
+                      setSubject(sub.id);
                       setIsSubjectDropdownOpen(false);
                     }}
                   >
@@ -912,27 +1011,58 @@ const ContentManager = ({ questions, setQuestions }) => {
                 </div>
               )}
 
-              {/* Status Message */}
+              {/* Status Messages */}
               {!uploadedFile && !generationError && (
                 <p className="text-xs text-gray-500 mb-4">
                   ⚠️ Upload a file first to generate questions
                 </p>
               )}
+              
+              {uploadedFile && selectedPacksForQuestions.length === 0 && !generationError && (
+                <p className="text-xs text-amber-600 mb-4 font-medium">
+                  ⚠️ Click on learning pack cards above to select them for question generation (cards will turn GREEN)
+                </p>
+              )}
+              
+              {selectedPacksForQuestions.length > 0 && !preview && (
+                <div className="mb-4 p-2 rounded-lg bg-green-50 border border-green-200">
+                  <p className="text-xs text-green-700 font-semibold">
+                    ✓ {selectedPacksForQuestions.length} pack{selectedPacksForQuestions.length > 1 ? 's' : ''} selected for question generation
+                  </p>
+                </div>
+              )}
+              
+              {preview && preview.questions && preview.questions.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200">
+                  <p className="text-sm text-green-700 font-semibold">
+                    ✓ Preview ready with {preview.questions.length} questions!
+                  </p>
+                  <p className="text-xs text-green-600 mt-1">
+                    Select questions (checkboxes) and click the GREEN "Approve & Save" button
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-center justify-center gap-2">
                 <Button 
                   onClick={handlePreview}
-                  disabled={isGenerating || !uploadedFile}
+                  disabled={isGenerating || !uploadedFile || selectedPacksForQuestions.length === 0}
                   variant="outline"
+                  title={selectedPacksForQuestions.length === 0 ? 'Select at least one learning pack first' : 'Preview questions before saving'}
                 >
                   Preview
                 </Button>
                 <Button 
                   onClick={handleApprove}
-                  disabled={isGenerating || !uploadedFile || !selectedPackId || !preview}
-                  className="bg-electric-cyan hover:bg-electric-cyan/90"
+                  disabled={isGenerating || !preview || !preview.questions || preview.questions.length === 0}
+                  className={`transition-all ${
+                    preview && preview.questions && preview.questions.length > 0
+                      ? 'bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={!preview ? 'Click Preview first to generate questions' : 'Save selected questions to database'}
                 >
-                  Approve & Save
+                  {preview && preview.questions && preview.questions.length > 0 ? '✓ ' : ''}Approve & Save
                 </Button>
               </div>
 
@@ -941,8 +1071,9 @@ const ContentManager = ({ questions, setQuestions }) => {
               </div>
               <Button 
                 onClick={handleGenerateQuestions}
-                disabled={isGenerating || !uploadedFile || !selectedPackId}
+                disabled={isGenerating || !uploadedFile || selectedPacksForQuestions.length === 0}
                 className="mt-2"
+                title={selectedPacksForQuestions.length === 0 ? 'Select at least one learning pack first' : 'Generate and save questions directly'}
               >
                 {isGenerating ? (
                   <>
@@ -1022,7 +1153,7 @@ const ContentManager = ({ questions, setQuestions }) => {
               <p className="font-medium mb-1">Detected Metadata</p>
               <p>Language: {preview.detected_metadata?.language || 'Unknown'}</p>
               <p>Grade: {preview.detected_metadata?.grade || 'Unknown'}</p>
-              <p>Subject: {preview.detected_metadata?.subject || 'Unknown'}</p>
+              <p>Subject: {subjects.find(s => s.id === subject)?.name || preview.detected_metadata?.subject || 'Unknown'}</p>
             </div>
             <div className="p-3 rounded border md:col-span-2">
               <p className="font-medium mb-1">Summary</p>
@@ -1085,6 +1216,14 @@ const ContentManager = ({ questions, setQuestions }) => {
                       <p className="text-sm text-gray-600 mt-1">
                         <span className="font-medium">Answer:</span> {q.answer}
                       </p>
+                    )}
+                    
+                    {/* Explanation - Show for ALL question types */}
+                    {q.explanation && (
+                      <div className="mt-2 p-2 bg-blue-50 border-l-4 border-blue-400 rounded">
+                        <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
+                        <p className="text-xs text-blue-700">{q.explanation}</p>
+                      </div>
                     )}
                   </div>
                 </label>
@@ -1244,6 +1383,16 @@ const ContentManager = ({ questions, setQuestions }) => {
                 <p className="text-sm text-gray-600 mt-2">
                   <span className="font-medium">Answer:</span> {question.answer}
                 </p>
+              )}
+              
+              {/* Explanation - Show for ALL question types */}
+              {(question.explanation || question.explanation_si || question.explanation_ta) && (
+                <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
+                  <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
+                  <p className="text-sm text-blue-700">
+                    {question.explanation || question.explanation_si || question.explanation_ta}
+                  </p>
+                </div>
               )}
             </div>
           ))}
