@@ -118,15 +118,29 @@ const analyzeDocumentHandler = async (req, res) => {
       // Clean up uploaded file
       await fs.unlink(req.file.path).catch(console.error);
 
-      // Normalize packs
+      // Normalize packs with duration calculation
       const learningPacks = Array.isArray(packs) && packs.length > 0
-        ? packs.map((p, i) => ({
-            title: String(p.title || `Chapter ${i + 1}`),
-            content: String(p.content || ''),
-            order: p.order || (i + 1),
-            language: p.language || 'English'
-          }))
-        : [{ title: 'Chapter 1: Document Content', content: 'No content available', order: 1, language: 'English' }];
+        ? packs.map((p, i) => {
+            const content = String(p.content || '');
+            const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
+            // Calculate duration: 5 minutes per 200 words, minimum 5 minutes
+            const duration = Math.max(5, Math.ceil(wordCount / 200) * 5);
+            
+            return {
+              title: String(p.title || `Chapter ${i + 1}`),
+              content: content,
+              order: p.order || (i + 1),
+              language: p.language || 'English',
+              duration: duration
+            };
+          })
+        : [{ 
+            title: 'Chapter 1: Document Content', 
+            content: 'No content available', 
+            order: 1, 
+            language: 'English',
+            duration: 10
+          }];
 
       res.json({
         success: true,

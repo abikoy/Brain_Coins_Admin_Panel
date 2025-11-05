@@ -31,8 +31,7 @@ const ContentManager = ({ questions, setQuestions }) => {
   
   // Learning pack generation state
   const [suggestedPacks, setSuggestedPacks] = useState([]);
-  const [selectedPacks, setSelectedPacks] = useState([]); // For checkbox (saving to DB)
-  const [selectedPacksForQuestions, setSelectedPacksForQuestions] = useState([]); // For question generation
+  const [selectedPacksForQuestions, setSelectedPacksForQuestions] = useState([]);
   const [isGeneratingPacks, setIsGeneratingPacks] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -149,10 +148,9 @@ const ContentManager = ({ questions, setQuestions }) => {
       name: uploadData.name || uploadData.fileUrl.split('/').pop(),
       file: uploadData.file
     });
-    setSuggestedPacks([]); // Clear previous suggestions
-    setSelectedPacks([]); // Clear previous selections
-    setShowUploadForm(false); // Hide the upload form after successful upload
-    setAnalysisError(''); // Clear any previous errors
+    setSuggestedPacks([]);
+    setShowUploadForm(false);
+    setAnalysisError('');
   };
 
   // Generate learning packs from uploaded file
@@ -177,19 +175,13 @@ const ContentManager = ({ questions, setQuestions }) => {
         fileObj = new File([blob], uploadedFile.name || 'document', { type: uploadedFile.fileType || 'application/octet-stream' });
       }
       
-      // Analyze the document to suggest learning packs
       const analysisResponse = await analyzeDocument(uploadedFile.fileUrl, uploadedFile.fileType, fileObj);
       const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
       
-      // Auto-select all packs by default
-      setSelectedPacks(packs.map((_, index) => index));
-      
-      // Auto-detect and set the language from the analysis
+      // Auto-detect language
       if (packs.length > 0 && packs[0].language) {
-        const detectedLanguage = packs[0].language;
-        setGenLanguage(detectedLanguage);
-        console.log('[ContentManager] Auto-detected language:', detectedLanguage);
+        setGenLanguage(packs[0].language);
       }
       
     } catch (error) {
@@ -198,15 +190,6 @@ const ContentManager = ({ questions, setQuestions }) => {
     } finally {
       setIsGeneratingPacks(false);
     }
-  };
-
-  // Toggle pack selection for saving to database (checkbox)
-  const togglePackSelection = (index) => {
-    setSelectedPacks(prev => 
-      prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    );
   };
 
   // Toggle pack selection for question generation (card click)
@@ -298,14 +281,11 @@ const ContentManager = ({ questions, setQuestions }) => {
     setGenerationError('');
 
     try {
-      console.log('[ContentManager] Validating content...');
       const isValid = await validateContent(uploadedFile.fileUrl, uploadedFile.fileType);
       
       if (!isValid) {
-        return; // Error already set by validateContent
+        return;
       }
-      
-      console.log('[ContentManager] Previewing content from file:', uploadedFile);
       
       // Get enabled question types with their counts AND difficulties
       const enabledQuestionTypes = Object.entries(questionConfig)
@@ -323,8 +303,6 @@ const ContentManager = ({ questions, setQuestions }) => {
           [type]: config.difficulty
         }), {});
       
-      console.log('[ContentManager] Question config:', { enabledQuestionTypes, typeDifficulties });
-      
       const pv = await previewFromFile(uploadedFile.fileUrl, uploadedFile.fileType, {
         language: genLanguage,
         grade,
@@ -335,20 +313,6 @@ const ContentManager = ({ questions, setQuestions }) => {
         typeDifficulties: typeDifficulties // Pass per-type difficulties
       });
 
-      console.log('[ContentManager] Preview data:', pv);
-      
-      // Debug FIIB questions
-      pv.questions?.forEach((q, i) => {
-        if (q.type === 'FIIB') {
-          console.log(`[ContentManager] FIIB Question ${i + 1}:`, {
-            question: q.question,
-            answer: q.answer,
-            options: q.options,
-            hasOptions: Array.isArray(q.options) && q.options.length > 0
-          });
-        }
-      });
-      
       // Check if we got any questions
       if (!pv.questions || pv.questions.length === 0) {
         setGenerationError('No questions were generated. Please try again or adjust your settings.');
@@ -362,8 +326,6 @@ const ContentManager = ({ questions, setQuestions }) => {
       const pre = {};
       (pv.questions || []).forEach((q, i) => { pre[q.id || i] = true; });
       setSelectedIds(pre);
-      
-      console.log(`[ContentManager] Preview ready with ${pv.questions.length} questions`);
     } catch (e) {
       console.error('[ContentManager] Preview error:', e);
       setGenerationError(e.message || 'Failed to preview');
@@ -405,9 +367,7 @@ const ContentManager = ({ questions, setQuestions }) => {
       });
       
       const packId = newPack.id;
-      console.log('[ContentManager] Created learning pack:', packId);
       
-      console.log('[ContentManager] Approving questions:', chosen.length);
       const { questions: saved, saved_summary } = await approveFromPreview({
         pack_id: packId,
         questions: chosen,
@@ -417,11 +377,7 @@ const ContentManager = ({ questions, setQuestions }) => {
         bloom_level: genBloom
       });
       
-      console.log('[ContentManager] Saved questions:', saved);
-      console.log('[ContentManager] Current questions count:', questions.length);
-      const updatedQuestions = [...questions, ...saved];
-      console.log('[ContentManager] Updated questions count:', updatedQuestions.length);
-      setQuestions(updatedQuestions);
+      setQuestions([...questions, ...saved]);
       if (Array.isArray(saved_summary?.bullets)) setSummaryBullets(saved_summary.bullets);
       
       // Set the action type and show success modal
@@ -469,9 +425,6 @@ const ContentManager = ({ questions, setQuestions }) => {
       });
       
       const packId = newPack.id;
-      console.log('[ContentManager] Created learning pack:', packId);
-      
-      console.log('[ContentManager] Generating questions from file:', uploadedFile);
 
       // Call backend API to generate questions
       const { questions: generatedQuestions, summary_bullets } = await generateQuestionsFromFile(
@@ -487,7 +440,6 @@ const ContentManager = ({ questions, setQuestions }) => {
         }
       );
 
-      console.log('[ContentManager] Questions generated:', generatedQuestions);
       setSummaryBullets(Array.isArray(summary_bullets) ? summary_bullets : []);
 
       // Add generated questions to existing questions
@@ -515,8 +467,6 @@ const ContentManager = ({ questions, setQuestions }) => {
 
   const handleSaveEdit = async () => {
     try {
-      console.log('[ContentManager] Saving question edits:', editingQuestion);
-
       // Call backend API to update in database
       const updatedQuestion = await updateQuestionAPI(editingQuestion.id, {
         type: editingQuestion.type,
@@ -533,8 +483,6 @@ const ContentManager = ({ questions, setQuestions }) => {
 
       setIsEditModalOpen(false);
       setEditingQuestion(null);
-
-      console.log('[ContentManager] Question updated successfully');
     } catch (error) {
       console.error('[ContentManager] Save edit error:', error);
       alert('Failed to save changes: ' + error.message);
@@ -572,15 +520,11 @@ const ContentManager = ({ questions, setQuestions }) => {
         return;
       }
 
-      console.log('[ContentManager] Deleting question:', id);
-
       // Call backend API to delete from database
       await deleteQuestionAPI(id);
 
       // Update local state
       setQuestions(questions.filter(q => q.id !== id));
-
-      console.log('[ContentManager] Question deleted successfully');
     } catch (error) {
       console.error('[ContentManager] Delete error:', error);
       alert('Failed to delete question: ' + error.message);
@@ -589,8 +533,6 @@ const ContentManager = ({ questions, setQuestions }) => {
 
   const handleUpdateDifficulty = async (questionId, newDifficulty) => {
     try {
-      console.log('[ContentManager] Updating difficulty:', { questionId, newDifficulty });
-
       // Call backend API to update in database
       const updatedQuestion = await updateQuestionDifficultyAPI(questionId, newDifficulty);
 
@@ -598,8 +540,6 @@ const ContentManager = ({ questions, setQuestions }) => {
       setQuestions(questions.map(q => 
         q.id === updatedQuestion.id ? updatedQuestion : q
       ));
-
-      console.log('[ContentManager] Difficulty updated successfully');
     } catch (error) {
       console.error('[ContentManager] Update difficulty error:', error);
       alert('Failed to update difficulty: ' + error.message);
@@ -718,13 +658,12 @@ const ContentManager = ({ questions, setQuestions }) => {
     
 
     const isSelectedForQuestions = selectedPacksForQuestions.includes(index);
-    const isSelectedForSaving = selectedPacks.includes(index);
     
     // Clean topics
     const cleanTopics = (pack.topics || [])
       .map(topic => cleanText(topic))
-      .filter(topic => topic.length > 0 && topic.length < 50) // Filter out too long topics
-      .slice(0, 3); // Limit to 3 topics max
+      .filter(topic => topic.length > 0 && topic.length < 50)
+      .slice(0, 3);
 
     return (
       <div 
@@ -735,22 +674,13 @@ const ContentManager = ({ questions, setQuestions }) => {
           ${
             isSelectedForQuestions
               ? 'border-green-500 bg-green-50 ring-2 ring-green-300 shadow-md'
-              : isSelectedForSaving
-              ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
               : 'border-gray-200 hover:border-gray-400 bg-white'
           }
         `}
         onClick={() => togglePackForQuestions(index)}
       >
         <div className="flex items-start">
-          <input
-            type="checkbox"
-            checked={selectedPacks.includes(index)}
-            onChange={() => togglePackSelection(index)}
-            onClick={(e) => e.stopPropagation()}
-            className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 flex-shrink-0"
-          />
-          <div className="ml-3 flex-1 min-w-0"> {/* Add min-w-0 to prevent text overflow */}
+          <div className="flex-1 min-w-0">
             <h4 
               className="font-medium text-gray-900 text-sm sm:text-base break-words"
               title={cleanTitle}

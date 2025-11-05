@@ -146,8 +146,6 @@ export const deleteStudent = async (studentId) => {
  */
 export const saveQuestions = async (questions) => {
   try {
-    console.log('[Backend DB] Saving', questions.length, 'questions to database');
-
     // Prepare questions for database with your schema
     const questionsToSave = questions.map(q => ({
       pack_id: q.pack_id,
@@ -178,7 +176,6 @@ export const saveQuestions = async (questions) => {
       throw error;
     }
 
-    console.log('[Backend DB] Successfully saved', data.length, 'questions');
     return data;
   } catch (error) {
     console.error('[Backend DB] Save questions failed:', error);
@@ -255,8 +252,6 @@ export const getAllQuestions = async (filters = {}) => {
  */
 export const updateQuestion = async (questionId, updates) => {
   try {
-    console.log('[Backend DB] Updating question:', questionId, updates);
-
     const { data, error } = await supabaseAdmin
       .from('questions')
       .update(updates)
@@ -269,7 +264,6 @@ export const updateQuestion = async (questionId, updates) => {
       throw error;
     }
 
-    console.log('[Backend DB] Question updated successfully');
     return data;
   } catch (error) {
     console.error('[Backend DB] Update question failed:', error);
@@ -285,8 +279,6 @@ export const updateQuestion = async (questionId, updates) => {
  */
 export const updateQuestionDifficulty = async (questionId, difficulty) => {
   try {
-    console.log('[Backend DB] Updating difficulty:', questionId, difficulty);
-
     const { data, error } = await supabaseAdmin
       .from('questions')
       .update({ difficulty })
@@ -299,7 +291,6 @@ export const updateQuestionDifficulty = async (questionId, difficulty) => {
       throw error;
     }
 
-    console.log('[Backend DB] Difficulty updated successfully');
     return data;
   } catch (error) {
     console.error('[Backend DB] Update difficulty failed:', error);
