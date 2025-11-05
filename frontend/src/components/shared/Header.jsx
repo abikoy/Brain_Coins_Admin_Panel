@@ -1,15 +1,21 @@
 import React from 'react';
 import { LogOut, User, Bell } from 'lucide-react';
 import Button from '../ui/Button';
+import logo from '../../assets/logo bc.jpg';
 
 const Header = ({ onLogout, adminName = 'Admin' }) => {
   return (
     <header className="glass-card sticky top-0 z-40 w-full border-b border-white/20">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center">
-              <span className="text-white font-bold text-lg">BC</span>
+          <div className="flex items-center space-x-3">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-primary rounded-full blur-md opacity-30 group-hover:opacity-50 transition-opacity"></div>
+              <img 
+                src={logo} 
+                alt="Brain Coins" 
+                className="relative h-12 w-12 rounded-full object-cover border-2 border-white shadow-lg ring-2 ring-purple-100 group-hover:scale-110 transition-transform duration-200"
+              />
             </div>
             <div>
               <h1 className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">

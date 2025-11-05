@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Lock, Mail, GraduationCap, AlertCircle } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { signInAdmin } from '../lib/supabaseClient';
+import logo from '../assets/logo bc.jpg';
 
 const Login = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,8 +48,15 @@ const Login = ({ onLogin }) => {
       {/* Glassmorphism Login Card */}
       <Card className="w-full max-w-md glass-card border-white/30 shadow-2xl relative z-10">
         <CardHeader className="text-center pb-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-primary mb-4 mx-auto shadow-lg">
-            <GraduationCap className="h-10 w-10 text-white" />
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-primary rounded-full blur-xl opacity-50 animate-pulse"></div>
+              <img 
+                src={logo} 
+                alt="Brain Coins Logo" 
+                className="relative w-32 h-32 rounded-full object-cover border-4 border-white shadow-2xl ring-4 ring-purple-200/50"
+              />
+            </div>
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-2">
             Brain Coins
@@ -90,13 +99,25 @@ const Login = ({ onLogin }) => {
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-10"
+                className="pl-10 pr-10"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
             </div>
           </div>
 
