@@ -184,19 +184,53 @@ export const downloadFile = async (filePath) => {
 /**
  * Download a public URL directly (works across projects)
  */
-export const downloadFromPublicUrl = async (fileUrl) => {
-  try {
-    console.log('[Backend Storage] Downloading via public URL:', fileUrl);
-    const res = await fetch(fileUrl);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+export const downloadFromPublicUrl = async (fileUrl, retries = 3) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`[Backend Storage] Downloading via public URL (attempt ${attempt}/${retries}):`, fileUrl);
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      const res = await fetch(fileUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'BrainCoins-Backend/1.0'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      console.log(`[Backend Storage] Successfully downloaded ${arrayBuffer.byteLength} bytes`);
+      return Buffer.from(arrayBuffer);
+      
+    } catch (error) {
+      lastError = error;
+      console.error(`[Backend Storage] Download attempt ${attempt} failed:`, error.message);
+      
+      // Don't retry on non-network errors
+      if (error.name !== 'AbortError' && !error.message.includes('fetch failed') && !error.message.includes('timeout')) {
+        throw error;
+      }
+      
+      // Wait before retry (exponential backoff)
+      if (attempt < retries) {
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Max 5s
+        console.log(`[Backend Storage] Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
     }
-    const arrayBuffer = await res.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  } catch (error) {
-    console.error('[Backend Storage] Public URL download failed:', error);
-    throw error;
   }
+  
+  console.error('[Backend Storage] All download attempts failed');
+  throw lastError;
 };
 
 /**

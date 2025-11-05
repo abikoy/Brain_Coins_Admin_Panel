@@ -9,6 +9,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 // Third-party imports
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -105,6 +106,7 @@ async function extractTextFromFile(base64Data, mimeType) {
         const hasValidContent = /[a-zA-Z\u0D80-\u0DFF\u0B80-\u0BFF]{10,}/.test(cleanedText);
         
         if (!hasValidContent) {
+          console.warn('[Backend Gemini] PDF text appears to be corrupted, using Vision API instead');
           throw new Error('PDF text extraction produced invalid characters');
         }
         
@@ -215,6 +217,7 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
         const hasTamil = /[\u0B80-\u0BFF]{5,}/.test(sampleText);
         
         if (hasSinhala || hasTamil) {
+          console.log('[Backend Gemini] Detected Sinhala/Tamil PDF - using Vision API for better Unicode handling');
           forceVisionAPI = true;
         }
       } catch (preCheckError) {
@@ -335,6 +338,7 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
     if (isPdf || isImage || forceVisionAPI) {
       // Use Vision API for images, PDFs, and Sinhala/Tamil content
       const imagePart = { inlineData: { data: base64Data, mimeType } };
+      console.log('[Backend Gemini] Using Vision API for content extraction');
       prompt = `You are an expert educational content creator for the Sri Lankan local syllabus (Grades 6-11) with advanced multilingual capabilities in English, Sinhala, and Tamil.
 
 ⚠️ ABSOLUTE RULES - VIOLATION WILL RESULT IN REJECTION:
@@ -873,6 +877,7 @@ export const generateSummaryFromFile = async (fileUrl, fileType, language = 'Eng
  */
 export const generateStructuredMaterialFromFile = async (fileUrl, fileType) => {
   try {
+    console.log('[Backend Gemini] Generating structured study material:', { fileUrl, fileType });
 
     // Parse path and download file (reuse logic)
     const buffer = await downloadAny(fileUrl);
@@ -1003,6 +1008,7 @@ Keep it concise, accurate, and aligned to Sri Lankan Grades 6-11 context when po
  */
 export const extractContentMetadata = async (base64Data, mimeType) => {
   try {
+    console.log('[Backend Gemini] Extracting content metadata...');
 
     // Define the JSON schema for the response (REQUIRED FOR STRUCTURED OUTPUT)
     const metadataSchema = {
@@ -1112,6 +1118,9 @@ Return ONLY valid JSON in the format strictly defined by the schema.
 
         const response = await result.response;
     const text = response.text();
+    
+    // Log first 200 chars for debugging
+    console.log('[Backend Gemini] Raw metadata response:', text.substring(0, 200) + (text.length > 200 ? '...' : ''));
 
     // Parse JSON response with better error handling
     let metadata;
@@ -1129,6 +1138,7 @@ Return ONLY valid JSON in the format strictly defined by the schema.
         try {
           const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
           metadata = JSON.parse(jsonStr);
+          console.log('[Backend Gemini] Successfully extracted JSON from markdown');
         } catch (e) {
           console.error('[Backend Gemini] Failed to parse extracted JSON:', e);
           throw new Error(`Failed to parse JSON from response: ${e.message}`);
@@ -1288,10 +1298,16 @@ Example for FIIB:
             'option4'
           ];
         }
+        console.log('[Backend] FIIB question validated:', {
+          question: q.question?.substring(0, 50),
+          answer: q.answer,
+          optionsCount: q.options?.length
+        });
       }
       return q;
     });
     
+    console.log('[Backend] Generated questions:', validatedQuestions.length);
     return validatedQuestions;
 
   } catch (error) {
@@ -1308,6 +1324,7 @@ Example for FIIB:
  * @returns {Array} - Mock questions
  */
 const generateMockQuestions = (count, reason = 'API unavailable') => {
+  console.log('[Backend Gemini] Using mock questions:', reason);
   const mockQuestions = [
     {
       type: 'MCQ',
@@ -1364,21 +1381,34 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       bloom_level = 'Understand'
     } = options;
 
+    console.log('[Backend Gemini] Processing file:', { fileUrl, fileType });
+
     // Extract file path from URL
     // URL format: https://.../storage/v1/object/public/content-uploads/uploads/file.pdf
+    console.log('[Backend Gemini] Downloading file:', fileUrl);
     const buffer = await downloadAny(fileUrl);
     const base64Data = buffer.toString('base64');
 
     // Determine MIME type
     const mimeType = getMimeType(fileType, fileUrl);
 
+    console.log('[Backend Gemini] File converted to base64, size:', base64Data.length);
+
     // Step 1: Extract content metadata (language, grade, subject, chapters)
     let metadata = null;
     if (fileType === 'image' || fileType === 'pdf') {
+      console.log('[Backend Gemini] Step 1: Extracting content metadata...');
       metadata = await extractContentMetadata(base64Data, mimeType);
+      console.log('[Backend Gemini] Metadata extracted:', {
+        language: metadata.language,
+        grade: metadata.grade,
+        subject: metadata.subject,
+        chapters: metadata.chapters?.length || 0
+      });
     }
 
     // Step 2: Generate questions
+    console.log('[Backend Gemini] Step 2: Generating questions...');
     let questions = [];
     
     // Use the provided counts if available, otherwise distribute evenly
@@ -1403,8 +1433,11 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       typeCounts['MCQ'] = count;
     }
     
+    console.log('[Backend Gemini] Target question counts by type:', typeCounts);
+    
     // If no valid types with count > 0, return empty array
     if (Object.keys(typeCounts).length === 0) {
+      console.log('[Backend Gemini] No valid question types with count > 0');
       return [];
     }
     
@@ -1413,6 +1446,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     
     for (const [type, typeCount] of Object.entries(typeCounts)) {
       if (typeCount <= 0) continue;
+      
+      console.log(`[Backend Gemini] Generating ${typeCount} ${type} questions...`);
       
       try {
         let typeQuestions = [];
@@ -1441,6 +1476,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
           .filter(q => (q.type || q.question_type) === type)
           .slice(0, typeCount);
           
+        console.log(`[Backend Gemini] Generated ${selectedQuestions.length}/${typeCount} ${type} questions`);
         allQuestions.push(...selectedQuestions);
         
       } catch (error) {
@@ -1452,6 +1488,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     // If we didn't get enough questions, try one more time with all types
     if (allQuestions.length < count) {
       const remaining = count - allQuestions.length;
+      console.log(`[Backend Gemini] Generating ${remaining} additional questions to reach target...`);
       
       try {
         let additionalQuestions = [];
@@ -1483,6 +1520,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
           .slice(0, remaining);
           
         allQuestions.push(...newQuestions);
+        console.log(`[Backend Gemini] Added ${newQuestions.length} additional questions`);
         
       } catch (error) {
         console.error('[Backend Gemini] Error generating additional questions:', error);
@@ -1633,9 +1671,16 @@ IMPORTANT: Respect the exact question type counts requested above!`;
   };
 
   try {
+    console.log('[Backend Gemini] Sending to Gemini Vision API...');
+  
     const result = await model.generateContent([prompt, imagePart]);
     const response = await result.response;
     const text = response.text();
+
+    console.log('[Backend Gemini] Received response from Gemini');
+    
+    // Log first 200 chars for debugging
+    console.log('[Backend Gemini] Raw response:', text.length > 200 ? text.substring(0, 200) + '...' : text);
 
     // Parse JSON response with better error handling
     let jsonText = text.trim();

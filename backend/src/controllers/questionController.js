@@ -1,42 +1,50 @@
-/**
- * BACKEND - Question Controller
- * Handles HTTP requests related to questions
- */
-
 import { generateQuestions, generateQuestionsFromFile, generateSummaryFromFile } from '../services/geminiService.js';
 import { 
   saveQuestions, 
   getAllQuestions, 
   updateQuestion,
   deleteQuestion,
-  updateQuestionDifficulty
+  updateQuestionDifficulty,
+  getSummaryByPack,
+  upsertSummaryByPack
 } from '../services/supabaseService.js';
 import { getLearningPackWithSubject, createLearningPack } from '../services/learningPackService.js';
-import { getSummaryByPack, upsertSummaryByPack } from '../services/supabaseService.js';
 
-/**
- * POST /api/questions/generate
- * Generate questions using Gemini AI from text content
- */
+// Helper: Map language-specific fields
+const mapLanguageFields = (language, questionText, explanationText) => {
+  if (language === 'Sinhala') {
+    return {
+      question_text: '', question_text_si: questionText, question_text_ta: null,
+      explanation: '', explanation_si: explanationText, explanation_ta: null
+    };
+  }
+  if (language === 'Tamil') {
+    return {
+      question_text: '', question_text_si: null, question_text_ta: questionText,
+      explanation: '', explanation_si: null, explanation_ta: explanationText
+    };
+  }
+  return {
+    question_text: questionText, question_text_si: null, question_text_ta: null,
+    explanation: explanationText, explanation_si: null, explanation_ta: null
+  };
+};
+
+// POST /api/questions/generate - Generate questions from text content
 export const generateQuestionsHandler = async (req, res) => {
   try {
     const { content, count, pack_id, difficulty, type } = req.body;
 
     if (!content || !pack_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'Content and pack_id are required'
-      });
+      return res.status(400).json({ success: false, error: 'Content and pack_id are required' });
     }
 
-    // Generate questions using AI
     const questions = await generateQuestions(content, {
       count: Math.min(parseInt(count) || 5, 20),
       difficulty: difficulty || 'Medium',
       type: type || 'MCQ'
     });
 
-    // Add pack_id and other required fields to each question
     const questionsToSave = questions.map(q => ({
       ...q,
       pack_id,
@@ -48,55 +56,33 @@ export const generateQuestionsHandler = async (req, res) => {
       metadata: q.metadata || {}
     }));
 
-    // Save questions to database
     const savedQuestions = await saveQuestions(questionsToSave);
-
-    res.json({
-      success: true,
-      questions: savedQuestions,
-      count: savedQuestions.length
-    });
+    res.json({ success: true, questions: savedQuestions, count: savedQuestions.length });
 
   } catch (error) {
     console.error('[Backend] Generate questions error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to generate questions',
-      code: error.code || 'GENERATION_ERROR'
-    });
+    res.status(500).json({ success: false, error: error.message || 'Failed to generate questions' });
   }
 };
 
-/**
- * POST /api/questions
- * Create a single manual question
- */
+// POST /api/questions - Create single manual question
 export const createQuestionHandler = async (req, res) => {
   try {
     const {
-      pack_id,
-      type = 'MCQ',
-      difficulty = 'Medium',
-      question = '',
-      answer = '',
-      options = [],
-      language = 'English',
-      blooms_taxonomy = 'Understand'
+      pack_id, type = 'MCQ', difficulty = 'Medium', question = '', answer = '',
+      options = [], language = 'English', blooms_taxonomy = 'Understand'
     } = req.body || {};
 
     if (!pack_id || !question) {
       return res.status(400).json({ success: false, error: 'pack_id and question are required' });
     }
 
-    const qt = type || 'MCQ';
     const base = {
       pack_id,
-      question_type: qt,
+      question_type: type,
       options: Array.isArray(options) ? options : [],
-      correct_answer: answer || '',
+      correct_answer: answer,
       explanation: req.body.explanation || '',
-      explanation_si: req.body.explanation_si || null,
-      explanation_ta: req.body.explanation_ta || null,
       has_diagram: false,
       diagram_path: null,
       blooms_taxonomy,
@@ -105,16 +91,8 @@ export const createQuestionHandler = async (req, res) => {
       generated: false
     };
 
-    let row;
-    if (language === 'Sinhala') {
-      row = { ...base, question_text: '', question_text_si: question, question_text_ta: null };
-    } else if (language === 'Tamil') {
-      row = { ...base, question_text: '', question_text_si: null, question_text_ta: question };
-    } else {
-      row = { ...base, question_text: question, question_text_si: null, question_text_ta: null };
-    }
-
-    const [saved] = await saveQuestions([row]);
+    const languageFields = mapLanguageFields(language, question, req.body.explanation || '');
+    const [saved] = await saveQuestions([{ ...base, ...languageFields }]);
 
     return res.status(201).json({ success: true, question: saved });
   } catch (error) {
@@ -122,28 +100,20 @@ export const createQuestionHandler = async (req, res) => {
     res.status(500).json({ success: false, error: error.message || 'Failed to create question' });
   }
 };
-/**
- * POST /api/questions/preview-from-file
- * Generate preview (questions + summary) from uploaded file without saving
- */
+
+// POST /api/questions/preview-from-file - Generate preview without saving
 export const generatePreviewFromFileHandler = async (req, res) => {
   try {
-    const { fileUrl, fileType, language, grade, subject, counts, difficulty, types, bloom_level, typeDifficulties } = req.body || {};
+    const { fileUrl, fileType, language, grade, subject, counts, difficulty, bloom_level, typeDifficulties } = req.body || {};
 
     if (!fileUrl || !fileType) {
       return res.status(400).json({ success: false, error: 'fileUrl and fileType are required' });
     }
 
-    // Normalize per-type counts
     const allowedTypes = ['MCQ', 'FIIB', 'TF', 'HOQ'];
-    // Use questionTypes if counts is not provided (for backward compatibility)
-    const countsObj = (counts || req.body.questionTypes || {});
+    const countsObj = counts || req.body.questionTypes || {};
     
-    // Debug log to see what we're receiving
-    console.log('Received counts object:', counts);
-    console.log('Parsed counts object:', countsObj);
-    
-    // Ensure we have valid counts for each type
+    // Normalize counts
     const normalizedCounts = {};
     let hasValidCounts = false;
     
@@ -157,32 +127,23 @@ export const generatePreviewFromFileHandler = async (req, res) => {
       }
     }
     
-    console.log('Normalized counts:', normalizedCounts);
-    
-    // Get requested types with counts > 0
     const requestedTypes = allowedTypes.filter(t => normalizedCounts[t] > 0);
     
     if (!hasValidCounts) {
       return res.status(400).json({
         success: false,
-        error: 'At least one question type with count > 0 is required',
-        receivedCounts: counts,
-        normalizedCounts
+        error: 'At least one question type with count > 0 is required'
       });
     }
 
-    // Calculate total questions needed
     const totalRequested = requestedTypes.reduce((sum, t) => sum + normalizedCounts[t], 0);
     
-    console.log('Requested types:', requestedTypes);
-    console.log('Total questions requested:', totalRequested);
-    
-    // Generate questions with exact counts per type
+    // Generate questions
     const gen = await generateQuestionsFromFile(fileUrl, fileType, {
-      count: totalRequested, // Use exact count requested
+      count: totalRequested,
       difficulty: difficulty || 'Medium',
       types: requestedTypes,
-      counts: normalizedCounts, // Pass the exact counts per type
+      counts: normalizedCounts,
       language: language || 'English',
       grade: grade || 'Unknown',
       subject: subject || 'Unknown',
@@ -190,79 +151,34 @@ export const generatePreviewFromFileHandler = async (req, res) => {
     });
 
     if (!Array.isArray(gen) || gen.length === 0) {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to generate any questions. Please try again.'
-      });
+      return res.status(500).json({ success: false, error: 'Failed to generate any questions. Please try again.' });
     }
 
-    // Group questions by type
+    // Group and select questions by type
     const questionsByType = { MCQ: [], FIIB: [], TF: [], HOQ: [] };
-    gen.forEach(question => {
-      const type = (question.type || question.question_type || 'MCQ').toUpperCase();
-      if (questionsByType[type]) {
-        questionsByType[type].push(question);
-      }
+    gen.forEach(q => {
+      const type = (q.type || q.question_type || 'MCQ').toUpperCase();
+      if (questionsByType[type]) questionsByType[type].push(q);
     });
 
-    // Select the requested number of each type and apply per-type difficulties
     const selected = [];
-    const typeStats = {};
-    
     for (const type of requestedTypes) {
-      const requestedCount = normalizedCounts[type];
       const available = questionsByType[type] || [];
-      const countToTake = Math.min(available.length, requestedCount);
-      
-      // Get difficulty for this type (from typeDifficulties or fallback to default)
       const typeDifficulty = (typeDifficulties && typeDifficulties[type]) || difficulty || 'Medium';
+      const countToTake = Math.min(available.length, normalizedCounts[type]);
       
-      // Apply difficulty to each question of this type
-      const questionsWithDifficulty = available.slice(0, countToTake).map(q => ({
-        ...q,
-        difficulty: typeDifficulty
-      }));
-      
-      selected.push(...questionsWithDifficulty);
-      typeStats[type] = {
-        requested: requestedCount,
-        generated: available.length,
-        selected: countToTake,
-        difficulty: typeDifficulty
-      };
-      
-      // Log if we couldn't get enough of this type
-      if (countToTake < requestedCount) {
-        console.warn(`[Backend] Could only generate ${countToTake} out of ${requestedCount} requested ${type} questions`);
-      }
+      selected.push(...available.slice(0, countToTake).map(q => ({ ...q, difficulty: typeDifficulty })));
     }
-    
-    console.log('[Backend] Question generation stats:', typeStats);
 
-    // Use provided metadata from request instead of extracting from questions
-    const detected_metadata = {
-      language: language || 'English',
-      grade: grade || 'Unknown',
-      subject: subject || 'Unknown',
-      topics: []
-    };
-    
-    console.log('[Backend] Using provided metadata:', detected_metadata);
-
-    // Generate summary (preview)
     const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English');
 
     return res.json({
       success: true,
       preview: {
-        detected_metadata,
+        detected_metadata: { language: language || 'English', grade: grade || 'Unknown', subject: subject || 'Unknown', topics: [] },
         summary_bullets,
         counts: normalizedCounts,
-        totals: {
-          requested: totalRequested,
-          generated: Array.isArray(gen) ? gen.length : 0,
-          selected: selected.length
-        },
+        totals: { requested: totalRequested, generated: gen.length, selected: selected.length },
         questions: selected
       }
     });
@@ -272,42 +188,33 @@ export const generatePreviewFromFileHandler = async (req, res) => {
   }
 };
 
-/**
- * POST /api/questions/generate-from-file
- * Generate questions from uploaded file using Gemini Vision API
- */
+// POST /api/questions/generate-from-file - Generate and save questions from file
 export const generateQuestionsFromFileHandler = async (req, res) => {
   try {
     const { fileUrl, fileType, pack_id, count, difficulty, types, language, bloom_level } = req.body;
 
-    // Validate file inputs
     if (!fileUrl || !fileType) {
-      return res.status(400).json({
-        success: false,
-        error: 'fileUrl and fileType are required'
-      });
+      return res.status(400).json({ success: false, error: 'fileUrl and fileType are required' });
     }
 
     let effectivePackId = pack_id;
     let learningPack;
 
-    // If no pack_id is provided, attempt to create a learning pack from payload
+    // Create pack if not provided
     if (!effectivePackId) {
       const { subject_id, grade, pack_title, pack_description, pack_difficulty } = req.body;
 
       if (!subject_id || !grade) {
         return res.status(400).json({
           success: false,
-          error: 'Either pack_id must be provided, or subject_id and grade are required to create a learning pack'
+          error: 'Either pack_id must be provided, or subject_id and grade are required'
         });
       }
-
-      const title = pack_title || `Auto Pack - ${new Date().toLocaleDateString()}`;
 
       const createdPack = await createLearningPack({
         subject_id,
         grade,
-        title,
+        title: pack_title || `Auto Pack - ${new Date().toLocaleDateString()}`,
         description: pack_description || 'Auto-created for AI question generation',
         difficulty: pack_difficulty || difficulty || 'Medium',
         is_active: true
@@ -316,20 +223,13 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
       effectivePackId = createdPack.id;
       learningPack = await getLearningPackWithSubject(effectivePackId);
     } else {
-      // Verify the provided learning pack exists
       learningPack = await getLearningPackWithSubject(effectivePackId);
       if (!learningPack) {
-        return res.status(404).json({
-          success: false,
-          error: 'Learning pack not found'
-        });
+        return res.status(404).json({ success: false, error: 'Learning pack not found' });
       }
     }
 
-    console.log('[Backend] Generating questions from file:', { fileUrl, fileType });
-
-    // Generate questions from file
-    const allowedTypes = ['MCQ','FIIB','TF','HOQ'];
+    const allowedTypes = ['MCQ', 'FIIB', 'TF', 'HOQ'];
     const reqTypes = Array.isArray(types) && types.length ? types : allowedTypes;
     const filteredTypes = reqTypes.filter(t => allowedTypes.includes(t));
 
@@ -341,14 +241,14 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
       bloom_level
     });
 
-    // Add pack_id and other required fields to each question
+    // Format questions for saving
     const questionsToSave = questions.map((q, idx) => {
-      const qt = q.type || q.question_type || 'MCQ';
       const explanationText = q.explanation || q.reasoning || '';
+      const languageFields = mapLanguageFields(language, q.question || q.question_text || '', explanationText);
       
-      const base = {
+      return {
         pack_id: effectivePackId,
-        question_type: qt,
+        question_type: q.type || q.question_type || 'MCQ',
         options: Array.isArray(q.options) ? q.options : [],
         correct_answer: q.answer || q.correct_answer || '',
         has_diagram: false,
@@ -356,50 +256,15 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
         blooms_taxonomy: q.blooms_taxonomy || bloom_level || 'Understand',
         display_order: idx + 1,
         difficulty: q.difficulty || difficulty || learningPack.difficulty || 'Medium',
-        generated: true
-      };
-      
-      // Language-specific question text AND explanation fields
-      if (language === 'Sinhala') {
-        return { 
-          ...base, 
-          question_text: '', 
-          question_text_si: q.question || q.question_text || '', 
-          question_text_ta: null,
-          explanation: '',
-          explanation_si: explanationText,
-          explanation_ta: null
-        };
-      } else if (language === 'Tamil') {
-        return { 
-          ...base, 
-          question_text: '', 
-          question_text_si: null, 
-          question_text_ta: q.question || q.question_text || '',
-          explanation: '',
-          explanation_si: null,
-          explanation_ta: explanationText
-        };
-      }
-      // English (default)
-      return { 
-        ...base, 
-        question_text: q.question || q.question_text || '', 
-        question_text_si: null, 
-        question_text_ta: null,
-        explanation: explanationText,
-        explanation_si: null,
-        explanation_ta: null
+        generated: true,
+        ...languageFields
       };
     });
 
-    // Save questions to database
     const savedQuestions = await saveQuestions(questionsToSave);
-
-    // Generate 5-8 bullet summary based on uploaded file
     const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English');
 
-    // Persist summary into pack_sections (section_type='summary') if we have bullets
+    // Save summary
     let saved_summary = null;
     if (Array.isArray(summary_bullets) && summary_bullets.length) {
       try {
@@ -423,28 +288,14 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
 
   } catch (error) {
     console.error('[Backend] Generate from file error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to generate questions from file',
-      code: error.code || 'FILE_PROCESSING_ERROR'
-    });
+    res.status(500).json({ success: false, error: error.message || 'Failed to generate questions from file' });
   }
 };
 
-/**
- * GET /api/questions
- * Get all questions
- */
+// GET /api/questions - Get all questions with filters
 export const getAllQuestionsHandler = async (req, res) => {
   try {
-    const { 
-      pack_id, 
-      subject_id, 
-      type, 
-      difficulty, 
-      page = 1, 
-      limit = 20 
-    } = req.query;
+    const { pack_id, subject_id, type, difficulty, page = 1, limit = 20 } = req.query;
 
     const { data: questions, count } = await getAllQuestions({
       pack_id,
@@ -467,122 +318,62 @@ export const getAllQuestionsHandler = async (req, res) => {
     });
   } catch (error) {
     console.error('[Backend] Get questions error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      code: error.code || 'FETCH_ERROR'
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-/**
- * PATCH /api/questions/:id
- * Update entire question
- */
+// PATCH /api/questions/:id - Update entire question
 export const updateQuestionHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { id: _ignore, created_at, pack_id, question: uiQuestion, answer: uiAnswer, type: uiType, ...rest } = req.body;
 
-    // Remove non-updatable fields and strip UI-only fields
-    const {
-      id: _ignore,
-      created_at,
-      pack_id,
-      question: uiQuestion,
-      answer: uiAnswer,
-      type: uiType,
-      ...rest
-    } = updates;
-
-    // Map UI fields to DB columns and avoid passing unknown columns
-    const { type: _dropType, ...restWithoutType } = rest;
     const mappedUpdates = {
-      ...restWithoutType,
+      ...rest,
       ...(uiQuestion && { question_text: uiQuestion }),
       ...(uiAnswer && { correct_answer: uiAnswer }),
       ...(uiType && { question_type: uiType })
     };
 
     const updatedQuestion = await updateQuestion(id, mappedUpdates);
-
-    res.json({
-      success: true,
-      question: updatedQuestion
-    });
+    res.json({ success: true, question: updatedQuestion });
   } catch (error) {
     console.error(`[Backend] Update question ${req.params.id} error:`, error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update question',
-      code: error.code || 'UPDATE_ERROR'
-    });
+    res.status(500).json({ success: false, error: error.message || 'Failed to update question' });
   }
 };
 
-/**
- * PATCH /api/questions/:id/difficulty
- * Update question difficulty only
- */
+// PATCH /api/questions/:id/difficulty - Update difficulty only
 export const updateQuestionDifficultyHandler = async (req, res) => {
   try {
     const { id } = req.params;
     const { difficulty } = req.body;
 
     if (!difficulty) {
-      return res.status(400).json({
-        success: false,
-        error: 'Difficulty is required'
-      });
+      return res.status(400).json({ success: false, error: 'Difficulty is required' });
     }
 
-    console.log('[Backend] Updating difficulty:', id, difficulty);
-
     const updatedQuestion = await updateQuestionDifficulty(id, difficulty);
-
-    res.json({
-      success: true,
-      question: updatedQuestion
-    });
+    res.json({ success: true, question: updatedQuestion });
   } catch (error) {
     console.error('[Backend] Update difficulty error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update difficulty'
-    });
+    res.status(500).json({ success: false, error: error.message || 'Failed to update difficulty' });
   }
 };
 
-/**
- * DELETE /api/questions/:id
- * Delete question
- */
+// DELETE /api/questions/:id - Delete question
 export const deleteQuestionHandler = async (req, res) => {
   try {
     const { id } = req.params;
-
-    console.log('[Backend] Deleting question:', id);
-
     await deleteQuestion(id);
-
-    res.json({
-      success: true,
-      message: 'Question deleted successfully'
-    });
+    res.json({ success: true, message: 'Question deleted successfully' });
   } catch (error) {
     console.error('[Backend] Delete question error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to delete question'
-    });
+    res.status(500).json({ success: false, error: error.message || 'Failed to delete question' });
   }
 };
 
-// Note: default export moved to the end of file after all handlers are defined
-
-/**
- * GET /api/summaries/:pack_id
- */
+// GET /api/summaries/:pack_id - Get summary by pack
 export const getSummaryByPackHandler = async (req, res) => {
   try {
     const { pack_id } = req.params;
@@ -595,10 +386,7 @@ export const getSummaryByPackHandler = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/summaries/:pack_id
- * Body: { bullets: string[] }
- */
+// PUT /api/summaries/:pack_id - Upsert summary
 export const upsertSummaryByPackHandler = async (req, res) => {
   try {
     const { pack_id } = req.params;
@@ -607,11 +395,7 @@ export const upsertSummaryByPackHandler = async (req, res) => {
     if (!Array.isArray(bullets)) {
       return res.status(400).json({ success: false, error: 'bullets must be an array of strings' });
     }
-    // Normalize and cap to 20
-    const normalized = bullets
-      .map(b => (typeof b === 'string' ? b.trim() : ''))
-      .filter(Boolean)
-      .slice(0, 20);
+    const normalized = bullets.map(b => (typeof b === 'string' ? b.trim() : '')).filter(Boolean).slice(0, 20);
     const data = await upsertSummaryByPack(pack_id, normalized);
     res.json({ success: true, data });
   } catch (error) {
@@ -620,47 +404,26 @@ export const upsertSummaryByPackHandler = async (req, res) => {
   }
 };
 
-/**
- * POST /api/questions/approve-from-preview
- * Save questions that were previously previewed
- */
+// POST /api/questions/approve-from-preview - Save previewed questions
 export const approveFromPreviewHandler = async (req, res) => {
-  console.log('[Backend] Approving questions from preview:', {
-    pack_id: req.body.pack_id,
-    questions_count: req.body.questions?.length || 0,
-    has_summary: !!req.body.summary,
-    language: req.body.language
-  });
-
   try {
     const { pack_id, questions, summary, summary_bullets, language } = req.body;
-    
-    // Use summary_bullets if summary is not provided (for backward compatibility)
     const summaryToSave = summary || summary_bullets;
 
     if (!pack_id) {
-      console.error('[Backend] Missing pack_id in request body');
-      return res.status(400).json({
-        success: false,
-        error: 'pack_id is required'
-      });
+      return res.status(400).json({ success: false, error: 'pack_id is required' });
     }
 
     if (!questions || !Array.isArray(questions) || questions.length === 0) {
-      console.error('[Backend] No valid questions array provided');
-      return res.status(400).json({
-        success: false,
-        error: 'questions array is required and must not be empty'
-      });
+      return res.status(400).json({ success: false, error: 'questions array is required and must not be empty' });
     }
 
-    console.log(`[Backend] Preparing to save ${questions.length} questions for pack ${pack_id} in ${language || 'English'}`);
-    
-    // Format questions for saving with all required fields
+    // Format questions for saving
     const questionsToSave = questions.map((q, index) => {
       const explanationText = q.explanation || q.reasoning || '';
+      const languageFields = mapLanguageFields(language, q.question_text || q.question || `Question ${index + 1}`, explanationText);
       
-      const questionData = {
+      return {
         pack_id,
         question_type: q.question_type || q.type || 'MCQ',
         has_diagram: false,
@@ -672,83 +435,32 @@ export const approveFromPreviewHandler = async (req, res) => {
         created_at: new Date().toISOString(),
         metadata: q.metadata || {},
         correct_answer: q.correct_answer || q.answer || '',
-        options: Array.isArray(q.options) ? q.options : []
+        options: Array.isArray(q.options) ? q.options : [],
+        ...languageFields
       };
-      
-      // Language-specific question text AND explanation
-      if (language === 'Sinhala') {
-        questionData.question_text = '';
-        questionData.question_text_si = q.question_text || q.question || `Question ${index + 1}`;
-        questionData.question_text_ta = null;
-        questionData.explanation = '';
-        questionData.explanation_si = explanationText;
-        questionData.explanation_ta = null;
-      } else if (language === 'Tamil') {
-        questionData.question_text = '';
-        questionData.question_text_si = null;
-        questionData.question_text_ta = q.question_text || q.question || `Question ${index + 1}`;
-        questionData.explanation = '';
-        questionData.explanation_si = null;
-        questionData.explanation_ta = explanationText;
-      } else {
-        // English (default)
-        questionData.question_text = q.question_text || q.question || `Question ${index + 1}`;
-        questionData.question_text_si = null;
-        questionData.question_text_ta = null;
-        questionData.explanation = explanationText;
-        questionData.explanation_si = null;
-        questionData.explanation_ta = null;
-      }
-      
-      // Log first question for debugging
-      if (index === 0) {
-        console.log('[Backend] First question to save (sample):', {
-          pack_id: questionData.pack_id,
-          question_type: questionData.question_type,
-          question_text: questionData.question_text.substring(0, 50) + '...',
-          correct_answer: questionData.correct_answer ? '***' : 'MISSING',
-          options_count: questionData.options.length,
-          difficulty: questionData.difficulty
-        });
-      }
-      
-      return questionData;
     });
 
-    console.log('[Backend] Saving questions to database...');
     const savedQuestions = await saveQuestions(questionsToSave);
-    console.log(`[Backend] Successfully saved ${savedQuestions.length} questions`);
 
     // Save summary if provided
     if (summaryToSave && Array.isArray(summaryToSave) && summaryToSave.length > 0) {
-      console.log('[Backend] Saving summary with', summaryToSave.length, 'bullets');
       await upsertSummaryByPack(pack_id, summaryToSave);
     }
 
-    // Prepare response to match frontend expectations
     const response = {
       success: true,
       questions: savedQuestions,
       count: savedQuestions.length,
-      pack_id: pack_id
+      pack_id
     };
 
-    // Include summary in response if it was saved
     if (summaryToSave && Array.isArray(summaryToSave) && summaryToSave.length > 0) {
-      response.saved_summary = {
-        bullets: summaryToSave,
-        pack_id: pack_id
-      };
+      response.saved_summary = { bullets: summaryToSave, pack_id };
     }
 
     res.status(201).json(response);
   } catch (error) {
-    console.error('[Backend] Approve from preview error:', {
-      message: error.message,
-      stack: error.stack,
-      response: error.response?.data
-    });
-    
+    console.error('[Backend] Approve from preview error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to approve questions',
@@ -756,4 +468,3 @@ export const approveFromPreviewHandler = async (req, res) => {
     });
   }
 };
-
