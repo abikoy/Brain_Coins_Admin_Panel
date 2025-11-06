@@ -1,8 +1,3 @@
-/**
- * BACKEND - Express Server
- * Main entry point for the Brain Coins backend API
- */
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -10,8 +5,8 @@ import questionRoutes from './routes/question.routes.js';
 import learningPackRoutes from './routes/learningPack.routes.js';
 import subjectRoutes from './routes/subject.routes.js';
 import contentRoutes from './routes/content.routes.js';
-
-dotenv.config();
+import analyticsRoutes from './routes/analytics.routes.js'; 
+dotenv.config({path: '../.env'});
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +30,7 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/learning-packs', learningPackRoutes);
 app.use('/api/subjects', subjectRoutes);
