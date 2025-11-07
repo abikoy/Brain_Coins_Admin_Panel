@@ -39,6 +39,7 @@ export const createLearningPack = async (packData) => {
         title_ta: packData.title_ta || null,
         difficulty: packData.difficulty || 'Medium',
         description: packData.description || '',
+        language: packData.language || 'English',
         is_active: packData.is_active !== false
       }])
       .select()

@@ -741,7 +741,7 @@ const GRADE_RANGE = {
 export const generateSummaryFromText = async (text, language = 'English') => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\nTASK:\nProduce 5-8 concise bullet points strictly grounded in the provided content. No preface or trailing text.\nCONTENT:\n${text}\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\n\n🚨 CRITICAL: DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary. Focus ONLY on the actual concepts and knowledge.\n\nTASK:\nProduce 5-8 concise bullet points strictly grounded in the provided content. No preface or trailing text.\nCONTENT:\n${text}\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
     const result = await model.generateContent(prompt);
     const textOut = result.response.text();
     const match = textOut.match(/\{[\s\S]*\}/);
@@ -830,7 +830,7 @@ export const generateLearningPackFromBase64 = async (base64Data, mimeType, userP
 export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English') => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\nTASK:\nProduce 5-8 concise bullet points strictly grounded in this document/image. No preface or trailing text.\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\n\n🚨 CRITICAL: DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary. Focus ONLY on the actual concepts and knowledge.\n\nTASK:\nProduce 5-8 concise bullet points strictly grounded in this document/image. No preface or trailing text.\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
     const imagePart = { inlineData: { data: base64Data, mimeType } };
     const result = await withRetry(() => model.generateContent([prompt, imagePart]));
     const textOut = result.response.text();
@@ -1576,6 +1576,15 @@ TASK:
 Generate questions strictly from the provided document/image content.
 ${typeRequirements}
 
+🚨 CRITICAL CONTENT RULES:
+- DO NOT mention figure numbers, page numbers, or textbook names in questions or summaries
+- DO NOT reference "Figure 1.2", "Page 45", "Chapter 3", or book titles
+- DO NOT include grade levels in question text
+- Focus ONLY on the actual concepts and knowledge
+- Write questions as if testing pure understanding, not document navigation
+- Example: Instead of "According to Figure 2.1, what is...", write "What is..."
+- Example: Instead of "On page 15, the text states...", write "The concept states..."
+
 Constraints:
 - All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}
 - Difficulty: ${difficulty}
@@ -1604,13 +1613,15 @@ Question Format Requirements:
    - correct_answer: "True" or "False"
    - explanation: WHY the statement is true or false (2-3 sentences with evidence)
 
-4. HOQ (Higher Order Question):
+4. HOQ (Higher Order Question - Open-ended):
    - question_type: "HOQ"
-   - question_text: An analytical/evaluative question
-   - correct_answer: Detailed explanation
-   - explanation: Additional context or reasoning supporting the answer (2-3 sentences)
+   - question_text: An analytical, evaluative, or creative question requiring extended response
+   - correct_answer: A comprehensive model answer (3-5 sentences) demonstrating deep understanding
+   - explanation: REQUIRED - Provide guidance on what makes a good answer, key points to include, and why this question is important (3-4 sentences in ${language})
+   - Example HOQ explanation: "A strong answer should discuss the main causes, their interconnections, and provide specific examples. Students should demonstrate critical thinking by analyzing both immediate and long-term effects. This question assesses the ability to synthesize information and form evidence-based conclusions."
 
 ⚠️ CRITICAL: ALL questions MUST include an "explanation" field in ${language}!
+⚠️ HOQ questions MUST have detailed explanations that guide students on how to approach the answer!
 
 OUTPUT FORMAT: Return ONLY a valid JSON array. Example for FIIB:
 [{
@@ -1734,6 +1745,22 @@ IMPORTANT: Respect the exact question type counts requested above!`;
           question: questionText.substring(0, 50),
           answer: answer,
           optionsCount: options.length
+        });
+      }
+
+      // Add True/False options for TF questions
+      if (finalType === 'TF') {
+        options = ['True', 'False'];
+        // Normalize answer to "True" or "False"
+        if (answer.toLowerCase().includes('true') || answer.toLowerCase() === 't') {
+          answer = 'True';
+        } else if (answer.toLowerCase().includes('false') || answer.toLowerCase() === 'f') {
+          answer = 'False';
+        }
+        console.log('[Backend Gemini] TF question validated:', {
+          question: questionText.substring(0, 50),
+          answer: answer,
+          options: options
         });
       }
 

@@ -10,6 +10,7 @@ import questionRoutes from './routes/question.routes.js';
 import learningPackRoutes from './routes/learningPack.routes.js';
 import subjectRoutes from './routes/subject.routes.js';
 import contentRoutes from './routes/content.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
 
 dotenv.config();
 
@@ -39,6 +40,7 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/learning-packs', learningPackRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // 404 handler
 app.use((req, res) => {

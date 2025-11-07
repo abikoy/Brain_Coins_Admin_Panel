@@ -363,6 +363,7 @@ const ContentManager = ({ questions, setQuestions }) => {
         subject_id: subject,
         grade: parseInt(grade),
         difficulty: 'Medium',
+        language: firstSelectedPack.language || genLanguage || 'English',
         is_active: true
       });
       
@@ -421,6 +422,7 @@ const ContentManager = ({ questions, setQuestions }) => {
         subject_id: subject,
         grade: parseInt(grade),
         difficulty: 'Medium',
+        language: firstSelectedPack.language || genLanguage || 'English',
         is_active: true
       });
       

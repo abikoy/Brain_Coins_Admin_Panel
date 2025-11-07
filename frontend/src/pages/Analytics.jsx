@@ -1,34 +1,142 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/shared/GlassCard';
 import StudentProgressChart from '../components/analytics/StudentProgressChart';
 import StudentListTable from '../components/analytics/StudentListTable';
 import Button from '../components/ui/Button';
-import { Calendar, Users, TrendingUp, Award } from 'lucide-react';
+import { Calendar, Users, TrendingUp, Crown, RefreshCw } from 'lucide-react';
+import analyticsService from '../api/analyticsService';
+import PremiumManagementDialog from '../components/analytics/PremiumManagementDialog';
 
-const Analytics = ({ students, progressData }) => {
-  const [timeFilter, setTimeFilter] = useState('week');
+const Analytics = () => {
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [premiumDialog, setPremiumDialog] = useState({
+    isOpen: false,
+    student: null
+  });
+  // Fetch analytics data using the service
+  const fetchAnalyticsData = async () => {
+    try {
+      setRefreshing(true);
+      
+      // Fetch all data in parallel using the service
+      const [statsResult, studentsResult, progressResult] = await Promise.all([
+        analyticsService.getDashboardStats(),
+        analyticsService.getStudents({ limit: 50 }),
+        analyticsService.getStudentProgress('week') // Always use 'week'
+      ]);
 
-  const stats = [
-    { label: 'Total Students', value: students.length, icon: Users, color: 'text-blue-500' },
-    { label: 'Avg Progress', value: '67%', icon: TrendingUp, color: 'text-green-500' },
-    { label: 'Active Today', value: '24', icon: Calendar, color: 'text-purple-500' },
-    { label: 'Completed', value: '156', icon: Award, color: 'text-cyan-500' },
-  ];
+      setAnalyticsData(statsResult);
+      setStudents(studentsResult.students || []);
 
-  const recentActivity = [
-    { student: 'John Doe', action: 'Completed MCQ Test', time: '5 mins ago', score: 85 },
-    { student: 'Jane Smith', action: 'Answered 10 questions', time: '12 mins ago', score: 92 },
-    { student: 'Mike Johnson', action: 'Started new module', time: '25 mins ago', score: 78 },
-    { student: 'Sarah Williams', action: 'Completed Summary', time: '1 hour ago', score: 88 },
-  ];
+      // Transform progress data into recent activity
+      const transformedActivity = progressResult.slice(0, 5).map(progress => ({
+        student: progress.studentName,
+        action: `Progress in ${progress.subject}`,
+        time: formatTimeAgo(progress.lastUpdated),
+        score: progress.progress
+      }));
+      setRecentActivity(transformedActivity);
+
+    } catch (error) {
+      console.error('Error fetching analytics data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+    // Handle premium management
+  const handleManagePremium = (student) => {
+    setPremiumDialog({
+      isOpen: true,
+      student: student
+    });
+  };
+
+  const handlePremiumSuccess = () => {
+    // Refresh data to show updated premium status
+    fetchAnalyticsData();
+  };
+
+  const closePremiumDialog = () => {
+    setPremiumDialog({
+      isOpen: false,
+      student: null
+    });
+  };
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, []);
+
+  // Format time ago function
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInMinutes = Math.floor((now - time) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} mins ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`;
+    return `${Math.floor(diffInMinutes / 1440)} days ago`;
+  };
+
+  // Stats data from real API
+  const stats = analyticsData ? [
+    { 
+      label: 'Total Students', 
+      value: analyticsData.totalStudents || 0, 
+      icon: Users, 
+      color: 'text-blue-500' 
+    },
+    { 
+      label: 'Avg Progress', 
+      value: `${analyticsData.averageProgress || 0}%`, 
+      icon: TrendingUp, 
+      color: 'text-green-500' 
+    },
+    { 
+      label: 'Active Today', 
+      value: analyticsData.activeToday || 0, 
+      icon: Calendar, 
+      color: 'text-purple-500' 
+    },
+    { 
+      label: 'Premium Students', 
+      value: analyticsData.premiumStudents || 0, 
+      icon: Crown, 
+      color: 'text-amber-500' 
+    },
+  ] : [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-royal-purple"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-2">
-          Analytics Dashboard
-        </h2>
-        <p className="text-gray-600">Monitor student performance and progress</p>
+      {/* Header with Refresh Button */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-2">
+            Analytics Dashboard
+          </h2>
+          <p className="text-gray-600">Monitor student performance and weekly progress</p>
+        </div>
+        <Button
+          onClick={fetchAnalyticsData}
+          disabled={refreshing}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
+        </Button>
       </div>
 
       {/* Stats Grid */}
@@ -51,50 +159,53 @@ const Analytics = ({ students, progressData }) => {
         })}
       </div>
 
-      {/* Progress Chart */}
+      {/* Progress Chart - No time filter buttons */}
       <GlassCard>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-          <h3 className="text-xl font-semibold mb-4 sm:mb-0">Student Performance</h3>
-          <div className="flex space-x-2">
-            {['day', 'week', 'month'].map((filter) => (
-              <Button
-                key={filter}
-                variant={timeFilter === filter ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setTimeFilter(filter)}
-              >
-                {filter.charAt(0).toUpperCase() + filter.slice(1)}
-              </Button>
-            ))}
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Weekly Student Progress</h3>
+          <div className="text-sm text-gray-500">
+            Last 7 days
           </div>
         </div>
-        <StudentProgressChart data={progressData} timeFilter={timeFilter} />
+        <StudentProgressChart />
       </GlassCard>
 
       {/* Student List */}
       <GlassCard>
         <h3 className="text-xl font-semibold mb-4">Registered Students</h3>
-        <StudentListTable students={students} />
+        <StudentListTable students={students} onManagePremium={handleManagePremium} />
       </GlassCard>
 
       {/* Recent Activity */}
       <GlassCard>
         <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
         <div className="space-y-3">
-          {recentActivity.map((activity, index) => (
-            <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg hover:bg-gradient-glass transition-colors gap-2">
-              <div className="flex-1">
-                <p className="font-medium">{activity.student}</p>
-                <p className="text-sm text-gray-600">{activity.action}</p>
+          {recentActivity.length > 0 ? (
+            recentActivity.map((activity, index) => (
+              <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg hover:bg-gradient-glass transition-colors gap-2">
+                <div className="flex-1">
+                  <p className="font-medium">{activity.student}</p>
+                  <p className="text-sm text-gray-600">{activity.action}</p>
+                </div>
+                <div className="sm:text-right">
+                  <p className="text-sm font-semibold text-royal-purple">
+                    Progress: {activity.score}%
+                  </p>
+                  <p className="text-xs text-gray-500">{activity.time}</p>
+                </div>
               </div>
-              <div className="sm:text-right">
-                <p className="text-sm font-semibold text-royal-purple">Score: {activity.score}</p>
-                <p className="text-xs text-gray-500">{activity.time}</p>
-              </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-gray-500 text-center py-4">No recent activity this week</p>
+          )}
         </div>
       </GlassCard>
+      <PremiumManagementDialog
+        student={premiumDialog.student}
+        isOpen={premiumDialog.isOpen}
+        onClose={closePremiumDialog}
+        onSuccess={handlePremiumSuccess}
+      />
     </div>
   );
 };
