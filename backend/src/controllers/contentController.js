@@ -1,5 +1,6 @@
 import { generateStructuredMaterialFromFile } from '../services/geminiService.js';
 
+
 // POST /api/content/structured-from-file
 export const structuredFromFileHandler = async (req, res) => {
   try {

@@ -5,20 +5,6 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Helper: Normalize question to UI shape
-const normalizeQuestion = (q) => ({
-  ...q,
-  id: q.id,
-  type: q.type || q.question_type || 'MCQ',
-  question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
-  answer: q.answer || q.correct_answer || '',
-  options: Array.isArray(q.options) ? q.options : [],
-  pairs: Array.isArray(q.pairs) ? q.pairs : [],
-  diagram: q.diagram || undefined,
-  reasoning: q.reasoning || undefined,
-  generated: q.generated !== undefined ? q.generated : true
-});
-
 /**
  * Generate questions from uploaded file
  * @param {string} fileUrl - Public URL of uploaded file
@@ -40,6 +26,14 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     if (!pack_id) {
       throw new Error('Please select a learning pack');
     }
+
+    console.log('[Frontend API] Calling backend to generate questions:', {
+      fileUrl,
+      fileType,
+      pack_id,
+      count,
+      difficulty
+    });
 
     const response = await fetch(`${API_BASE_URL}/questions/generate-from-file`, {
       method: 'POST',
@@ -65,7 +59,20 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     }
 
     const data = await response.json();
-    const normalized = (data.questions || []).map(normalizeQuestion);
+
+    console.log('[Frontend API] Questions generated:', data.count);
+
+    // Normalize to UI shape
+    const normalized = (data.questions || []).map(q => ({
+      ...q,
+      type: q.type || q.question_type || 'MCQ',
+      question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+      answer: q.answer || q.correct_answer || '',
+      options: Array.isArray(q.options) ? q.options : [],
+      pairs: Array.isArray(q.pairs) ? q.pairs : [],
+      diagram: q.diagram || undefined,
+      reasoning: q.reasoning || undefined,
+    }));
 
     return {
       questions: normalized,
@@ -126,6 +133,8 @@ export const upsertSummaryByPack = async (pack_id, bullets) => {
  */
 export const createQuestion = async (payload) => {
   try {
+    console.log('[Frontend API] Creating question:', payload);
+
     const response = await fetch(`${API_BASE_URL}/questions`, {
       method: 'POST',
       headers: {
@@ -140,7 +149,20 @@ export const createQuestion = async (payload) => {
     }
 
     const data = await response.json();
-    return normalizeQuestion({ ...data.question, generated: false });
+    const q = data.question || {};
+    const normalized = {
+      ...q,
+      id: q.id,
+      type: q.type || q.question_type || 'MCQ',
+      question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+      answer: q.answer || q.correct_answer || '',
+      options: Array.isArray(q.options) ? q.options : [],
+      pairs: Array.isArray(q.pairs) ? q.pairs : [],
+      diagram: q.diagram || undefined,
+      reasoning: q.reasoning || undefined,
+      generated: q.generated !== undefined ? q.generated : false,
+    };
+    return normalized;
   } catch (error) {
     console.error('[Frontend API] Create question error:', error);
     throw error;
@@ -161,6 +183,8 @@ export const generateQuestionsFromText = async (content, options = {}) => {
       types = ['MCQ', 'FIIB', 'TF', 'HOQ', 'Summary']
     } = options;
 
+    console.log('[Frontend API] Generating questions from text');
+
     const response = await fetch(`${API_BASE_URL}/questions/generate`, {
       method: 'POST',
       headers: {
@@ -180,6 +204,9 @@ export const generateQuestionsFromText = async (content, options = {}) => {
     }
 
     const data = await response.json();
+
+    console.log('[Frontend API] Questions generated:', data.count);
+
     return data.questions;
 
   } catch (error) {
@@ -196,6 +223,8 @@ export const generateQuestionsFromText = async (content, options = {}) => {
  */
 export const updateQuestion = async (questionId, updates) => {
   try {
+    console.log('[Frontend API] Updating question:', questionId, updates);
+
     const response = await fetch(`${API_BASE_URL}/questions/${questionId}`, {
       method: 'PATCH',
       headers: {
@@ -210,7 +239,23 @@ export const updateQuestion = async (questionId, updates) => {
     }
 
     const data = await response.json();
-    return normalizeQuestion(data.question);
+    console.log('[Frontend API] Question updated successfully');
+
+    const q = data.question || {};
+    // Normalize to UI shape
+    const normalized = {
+      ...q,
+      id: q.id,
+      type: q.type || q.question_type || 'MCQ',
+      question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+      answer: q.answer || q.correct_answer || '',
+      options: Array.isArray(q.options) ? q.options : [],
+      pairs: Array.isArray(q.pairs) ? q.pairs : [],
+      diagram: q.diagram || undefined,
+      reasoning: q.reasoning || undefined,
+      generated: q.generated !== undefined ? q.generated : true,
+    };
+    return normalized;
   } catch (error) {
     console.error('[Frontend API] Update question error:', error);
     throw error;
@@ -225,6 +270,8 @@ export const updateQuestion = async (questionId, updates) => {
  */
 export const updateQuestionDifficulty = async (questionId, difficulty) => {
   try {
+    console.log('[Frontend API] Updating difficulty:', questionId, difficulty);
+
     const response = await fetch(`${API_BASE_URL}/questions/${questionId}/difficulty`, {
       method: 'PATCH',
       headers: {
@@ -239,7 +286,23 @@ export const updateQuestionDifficulty = async (questionId, difficulty) => {
     }
 
     const data = await response.json();
-    return normalizeQuestion(data.question);
+    console.log('[Frontend API] Difficulty updated successfully');
+
+    const q = data.question || {};
+    // Normalize to UI shape
+    const normalized = {
+      ...q,
+      id: q.id,
+      type: q.type || q.question_type || 'MCQ',
+      question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+      answer: q.answer || q.correct_answer || '',
+      options: Array.isArray(q.options) ? q.options : [],
+      pairs: Array.isArray(q.pairs) ? q.pairs : [],
+      diagram: q.diagram || undefined,
+      reasoning: q.reasoning || undefined,
+      generated: q.generated !== undefined ? q.generated : true,
+    };
+    return normalized;
   } catch (error) {
     console.error('[Frontend API] Update difficulty error:', error);
     throw error;
@@ -253,6 +316,8 @@ export const updateQuestionDifficulty = async (questionId, difficulty) => {
  */
 export const deleteQuestion = async (questionId) => {
   try {
+    console.log('[Frontend API] Deleting question:', questionId);
+
     const response = await fetch(`${API_BASE_URL}/questions/${questionId}`, {
       method: 'DELETE'
     });
@@ -261,6 +326,8 @@ export const deleteQuestion = async (questionId) => {
       const errorData = await response.json();
       throw new Error(errorData.error || 'Failed to delete question');
     }
+
+    console.log('[Frontend API] Question deleted successfully');
   } catch (error) {
     console.error('[Frontend API] Delete question error:', error);
     throw error;
@@ -283,6 +350,7 @@ export const previewFromFile = async (fileUrl, fileType, options = {}) => {
     bloom_level: options.bloom_level
   };
   
+  console.log('[Frontend API] Preview payload:', payload);
   const res = await fetch(`${API_BASE_URL}/questions/preview-from-file`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -295,7 +363,17 @@ export const previewFromFile = async (fileUrl, fileType, options = {}) => {
   }
   const data = await res.json();
   const pv = data?.preview || {};
-  const normalizedQuestions = Array.isArray(pv.questions) ? pv.questions.map(normalizeQuestion) : [];
+  const normalizedQuestions = Array.isArray(pv.questions) ? pv.questions.map(q => ({
+    ...q,
+    type: q.type || q.question_type || 'MCQ',
+    question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+    answer: q.answer || q.correct_answer || '',
+    options: Array.isArray(q.options) ? q.options : [],
+    pairs: Array.isArray(q.pairs) ? q.pairs : [],
+    diagram: q.diagram || undefined,
+    reasoning: q.reasoning || undefined,
+    generated: true
+  })) : [];
   return {
     detected_metadata: pv.detected_metadata || {},
     summary_bullets: Array.isArray(pv.summary_bullets) ? pv.summary_bullets : [],
@@ -317,7 +395,17 @@ export const approveFromPreview = async ({ pack_id, questions, summary_bullets, 
     throw new Error(err.error || 'Failed to approve items');
   }
   const data = await res.json();
-  const normalized = (data.questions || []).map(normalizeQuestion);
+  const normalized = (data.questions || []).map(q => ({
+    ...q,
+    type: q.type || q.question_type || 'MCQ',
+    question: q.question || q.question_text || q.question_text_si || q.question_text_ta || '',
+    answer: q.answer || q.correct_answer || '',
+    options: Array.isArray(q.options) ? q.options : [],
+    pairs: Array.isArray(q.pairs) ? q.pairs : [],
+    diagram: q.diagram || undefined,
+    reasoning: q.reasoning || undefined,
+    generated: true
+  }));
   return { questions: normalized, saved_summary: data.saved_summary, count: data.count, pack_id: data.pack_id };
 };
 

@@ -44,13 +44,18 @@ const CreateLearningPackModal = ({ open, onOpenChange, onCreated }) => {
     try {
       setSaving(true);
       setError('');
+      
+      // Convert grade to "Grade 6", "Grade 7", etc. format
+      const formattedGrade = `Grade ${form.grade}`;
+      
       const created = await createLearningPack({
         subject_id: form.subject_id,
-        grade: Number(form.grade),
+        grade: formattedGrade, // ← CHANGED: Now "Grade 6" instead of 6
         title: form.title,
         difficulty: form.difficulty,
         description: form.description
       });
+      
       onCreated?.(created);
       onOpenChange(false);
       setForm({ subject_id: '', grade: '', title: '', difficulty: 'Medium', description: '' });
@@ -84,7 +89,15 @@ const CreateLearningPackModal = ({ open, onOpenChange, onCreated }) => {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Grade</label>
-            <Input type="number" min="6" max="11" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} />
+            <Input 
+              type="number" 
+              min="6" 
+              max="11" 
+              value={form.grade} 
+              onChange={(e) => setForm({ ...form, grade: e.target.value })} 
+              placeholder="Enter 6-11"
+            />
+            <p className="text-xs text-gray-500 mt-1">Will be stored as "Grade {form.grade || '6'}"</p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Title</label>

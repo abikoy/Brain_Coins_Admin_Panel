@@ -146,12 +146,14 @@ export const deleteStudent = async (studentId) => {
  */
 export const saveQuestions = async (questions) => {
   try {
+    console.log('[Backend DB] Saving', questions.length, 'questions to database');
+
     // Prepare questions for database with your schema
     const questionsToSave = questions.map(q => ({
       pack_id: q.pack_id,
-      question_text: q.question_text || q.question || '', // ← ALWAYS set question_text
-      question_text_si: q.question_text_si || null,
-      question_text_ta: q.question_text_ta || null,
+      question_text: q.question_text || q.question || '',
+      question_text_si: q.question_text_si || q.question_si || null,
+      question_text_ta: q.question_text_ta || q.question_ta || null,
       question_type: q.question_type || q.type || 'MCQ',
       options: Array.isArray(q.options) ? q.options : [],
       correct_answer: q.correct_answer || q.answer || '',
@@ -176,6 +178,7 @@ export const saveQuestions = async (questions) => {
       throw error;
     }
 
+    console.log('[Backend DB] Successfully saved', data.length, 'questions');
     return data;
   } catch (error) {
     console.error('[Backend DB] Save questions failed:', error);
@@ -252,6 +255,8 @@ export const getAllQuestions = async (filters = {}) => {
  */
 export const updateQuestion = async (questionId, updates) => {
   try {
+    console.log('[Backend DB] Updating question:', questionId, updates);
+
     const { data, error } = await supabaseAdmin
       .from('questions')
       .update(updates)
@@ -264,6 +269,7 @@ export const updateQuestion = async (questionId, updates) => {
       throw error;
     }
 
+    console.log('[Backend DB] Question updated successfully');
     return data;
   } catch (error) {
     console.error('[Backend DB] Update question failed:', error);
@@ -279,6 +285,8 @@ export const updateQuestion = async (questionId, updates) => {
  */
 export const updateQuestionDifficulty = async (questionId, difficulty) => {
   try {
+    console.log('[Backend DB] Updating difficulty:', questionId, difficulty);
+
     const { data, error } = await supabaseAdmin
       .from('questions')
       .update({ difficulty })
@@ -291,6 +299,7 @@ export const updateQuestionDifficulty = async (questionId, difficulty) => {
       throw error;
     }
 
+    console.log('[Backend DB] Difficulty updated successfully');
     return data;
   } catch (error) {
     console.error('[Backend DB] Update difficulty failed:', error);

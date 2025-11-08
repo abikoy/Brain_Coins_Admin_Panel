@@ -9,7 +9,11 @@ router.get('/dashboard', analyticsController.getDashboardOverview);
 router.get('/students', analyticsController.getStudents);
 router.get('/progress', analyticsController.getStudentProgress);
 router.get('/premium', analyticsController.getPremiumAnalytics);
+
 router.get('/logs', analyticsController.getSystemLogs)
+
+router.get('/logs', analyticsController.getSystemLogs);
+
 router.get('/students/:id', analyticsController.getStudentDetails);
 router.patch('/students/:id/premium', analyticsController.updateStudentPremiumStatus);
 router.post('/students/:id/subscription', analyticsController.createManualSubscription);

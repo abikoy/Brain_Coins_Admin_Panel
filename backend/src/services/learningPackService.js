@@ -33,12 +33,13 @@ export const createLearningPack = async (packData) => {
       .from('learning_packs')
       .insert([{
         subject_id: packData.subject_id,
-        grade: packData.grade,
+        grade: packData.grade, 
         title: packData.title,
         title_si: packData.title_si || null,
         title_ta: packData.title_ta || null,
         difficulty: packData.difficulty || 'Medium',
         description: packData.description || '',
+        language: packData.language || 'en',
         is_active: packData.is_active !== false
       }])
       .select()
@@ -51,7 +52,6 @@ export const createLearningPack = async (packData) => {
     throw error;
   }
 };
-
 /**
  * Get learning pack by ID with subject details
  * @param {string} packId - Learning pack ID
@@ -125,10 +125,3 @@ export const deleteLearningPack = async (packId) => {
   }
 };
 
-export default {
-  getLearningPacksBySubject,
-  createLearningPack,
-  getLearningPackWithSubject,
-  updateLearningPack,
-  deleteLearningPack
-};

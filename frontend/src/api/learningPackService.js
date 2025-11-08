@@ -81,7 +81,7 @@ export const analyzeDocument = async (fileUrl, fileType, file) => {
   }
   
   const data = await res.json();
-  return data.data || [];
+  return data; // Return full response to include language detection
 };
 
 export default { 
