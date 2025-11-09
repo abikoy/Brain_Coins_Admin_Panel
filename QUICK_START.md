@@ -1,12 +1,11 @@
-# ⚡ Quick Start - Deploy to Vercel in 10 Minutes
+# ⚡ Quick Start - Deploy Frontend to Vercel
 
-## 🎯 What You Need
+## ✅ Backend Already Deployed!
 
-1. **GitHub Account** - Create at github.com
-2. **Vercel Account** - Create at vercel.com (use GitHub login)
-3. **Your API Keys:**
-   - Supabase URL & Service Role Key (from Supabase dashboard)
-   - Gemini API Key (from aistudio.google.com)
+**Your Backend URL:** `https://brain-coins-admin-panel-egap.vercel.app`
+**Status:** Working ✅
+
+**Now let's deploy the frontend!**
 
 ---
 
@@ -18,84 +17,32 @@
 
 **File:** `frontend/.env.production`
 ```
-VITE_API_URL=https://brain-coins-backend.vercel.app/api
+VITE_API_URL=https://brain-coins-admin-panel-egap.vercel.app/api
 ```
 
-**Note:** You can change `brain-coins-backend` to any name you want!
+✅ **Use your actual backend URL above!**
 
 ---
 
-### ✅ STEP 2: Push to GitHub
+### ✅ STEP 2: Commit and Push .env File
 
 ```bash
 # Open terminal in project folder
 cd "c:\Users\hp\Documents\Brain Coins"
 
-# Initialize git (if not done)
-git init
-
-# Add all files
-git add .
+# Add the .env file
+git add frontend/.env.production
 
 # Commit
-git commit -m "Ready for deployment"
+git commit -m "Add production environment variables"
 
-# Create repository on GitHub.com, then:
-git remote add origin https://github.com/YOUR_USERNAME/brain-coins.git
-git branch -M main
-git push -u origin main
+# Push to GitHub
+git push origin main
 ```
 
 ---
 
-### ✅ STEP 3: Deploy Backend (5 minutes)
-
-1. Go to **https://vercel.com/new**
-2. Click **"Import Git Repository"**
-3. Select your **brain-coins** repository
-4. Configure:
-   ```
-   Project Name: brain-coins-backend
-   Framework: Other
-   Root Directory: backend
-   Build Command: (leave empty)
-   Output Directory: (leave empty)
-   ```
-
-5. **Add Environment Variables:**
-   ```
-   SUPABASE_URL = (paste your Supabase URL)
-   SUPABASE_SERVICE_ROLE_KEY = (paste your service role key)
-   GEMINI_API_KEY = (paste your Gemini API key)
-   NODE_ENV = production
-   PORT = 3000
-   ```
-
-6. Click **"Deploy"**
-7. Wait 2-3 minutes
-8. **COPY YOUR BACKEND URL** (e.g., `https://brain-coins-backend.vercel.app`)
-
----
-
-### ✅ STEP 4: Update Frontend .env
-
-**Edit:** `frontend/.env.production`
-
-Replace with YOUR backend URL:
-```
-VITE_API_URL=https://YOUR-BACKEND-URL.vercel.app/api
-```
-
-**Commit and push:**
-```bash
-git add frontend/.env.production
-git commit -m "Update API URL"
-git push
-```
-
----
-
-### ✅ STEP 5: Deploy Frontend (5 minutes)
+### ✅ STEP 3: Deploy Frontend (5 minutes)
 
 1. Go to **https://vercel.com/new**
 2. Click **"Import Git Repository"**
@@ -111,7 +58,7 @@ git push
 
 5. **Add Environment Variable:**
    ```
-   VITE_API_URL = https://YOUR-BACKEND-URL.vercel.app/api
+   VITE_API_URL = https://brain-coins-admin-panel-egap.vercel.app/api
    ```
 
 6. Click **"Deploy"**
@@ -120,7 +67,7 @@ git push
 
 ---
 
-### ✅ STEP 6: Update Backend CORS
+### ✅ STEP 4: Update Backend CORS
 
 **Edit:** `backend/src/server.js` (line 24)
 
