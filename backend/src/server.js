@@ -13,11 +13,31 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+// CORS Configuration - Support multiple origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  process.env.FRONTEND_URL,
+  // Add your Vercel frontend URL here after deployment
+  // 'https://brain-coins.vercel.app',
+  // 'https://your-custom-domain.com'
+].filter(Boolean); // Remove undefined values
 
 // Middleware
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is allowed or matches Vercel preview pattern
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -68,7 +88,7 @@ app.listen(PORT, () => {
 ║                                                           ║
 ║   Server running on: http://localhost:${PORT}              ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   Frontend URL: ${FRONTEND_URL}                  ║
+║   Allowed Origins: ${allowedOrigins.length} configured    ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
