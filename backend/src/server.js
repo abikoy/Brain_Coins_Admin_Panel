@@ -20,8 +20,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   process.env.FRONTEND_URL,
-  'https://brain-coins-admin-panel-a4or-l7isbl0qj-abikoys-projects.vercel.app/',
-  'https://brain-coins-admin-panel-a4or.vercel.app/'
+  'https://brain-coins-admin-panel-a4or-l7isbl0qj-abikoys-projects.vercel.app',
+  'https://brain-coins-admin-panel-a4or.vercel.app'
 ].filter(Boolean);
 
 // Middleware
