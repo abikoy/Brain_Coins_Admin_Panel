@@ -460,3 +460,76 @@ export const approveFromPreviewHandler = async (req, res) => {
     });
   }
 };
+
+// POST /api/questions/:id/diagram - Upload diagram for question
+export const uploadQuestionDiagramHandler = async (req, res) => {
+  const multer = (await import('multer')).default;
+  const { uploadQuestionDiagram } = await import('../services/questionDiagramService.js');
+  
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp', 'image/bmp'];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only images are allowed.'));
+      }
+    }
+  });
+
+  upload.single('diagram')(req, res, async (err) => {
+    try {
+      if (err) {
+        return res.status(400).json({ success: false, error: err.message });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No file uploaded' });
+      }
+
+      const { id: questionId } = req.params;
+      
+      const result = await uploadQuestionDiagram(
+        questionId,
+        req.file.buffer,
+        req.file.originalname
+      );
+
+      res.json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+      console.error('[Backend] Upload diagram error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to upload diagram'
+      });
+    }
+  });
+};
+
+// DELETE /api/questions/:id/diagram - Remove diagram from question
+export const deleteQuestionDiagramHandler = async (req, res) => {
+  try {
+    const { removeQuestionDiagram } = await import('../services/questionDiagramService.js');
+    const { id: questionId } = req.params;
+
+    await removeQuestionDiagram(questionId);
+
+    res.json({
+      success: true,
+      message: 'Diagram removed successfully'
+    });
+
+  } catch (error) {
+    console.error('[Backend] Delete diagram error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to delete diagram'
+    });
+  }
+};

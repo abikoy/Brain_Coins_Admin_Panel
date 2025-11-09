@@ -52,4 +52,14 @@ router.delete('/:id', deleteQuestionHandler);
 router.get('/summaries/:pack_id', getSummaryByPackHandler);
 router.put('/summaries/:pack_id', upsertSummaryByPackHandler);
 
+// Diagram upload/delete
+router.post('/:id/diagram', async (req, res, next) => {
+  const { uploadQuestionDiagramHandler } = await import('../controllers/questionController.js');
+  uploadQuestionDiagramHandler(req, res, next);
+});
+router.delete('/:id/diagram', async (req, res, next) => {
+  const { deleteQuestionDiagramHandler } = await import('../controllers/questionController.js');
+  deleteQuestionDiagramHandler(req, res, next);
+});
+
 export default router;

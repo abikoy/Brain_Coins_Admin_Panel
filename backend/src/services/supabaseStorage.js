@@ -74,13 +74,18 @@ export const uploadFile = async (file, fileName = null) => {
       throw new Error(error.message || 'Failed to upload file');
     }
 
-    // Get public URL
-    const { data: urlData } = supabaseStorage
+    // Get signed URL with 1 year expiry
+    const { data: urlData, error: urlError } = await supabaseStorage
       .storage
       .from(BUCKET_NAME)
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 31536000); // 1 year in seconds
 
-    const fileUrl = urlData.publicUrl;
+    if (urlError) {
+      console.error('[Backend Storage] Failed to create signed URL:', urlError);
+      throw new Error('Failed to create signed URL');
+    }
+
+    const fileUrl = urlData.signedUrl;
 
     // Determine file type
     const fileType = getFileType(uniqueFileName);

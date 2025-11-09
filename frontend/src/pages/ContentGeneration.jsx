@@ -5,7 +5,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import Input from '../components/ui/Input';
-import { Upload, Sparkles, Edit, Plus, FileText, Trash2, AlertCircle, ChevronDown } from 'lucide-react';
+import { Upload, Sparkles, Edit, Plus, FileText, Trash2, AlertCircle, ChevronDown, Image, X } from 'lucide-react';
 import {
   generateQuestionsFromFile,
   updateQuestion as updateQuestionAPI,
@@ -17,6 +17,7 @@ import {
   previewFromFile,
   approveFromPreview
 } from '../api/questionService';
+import { uploadQuestionDiagram, deleteQuestionDiagram } from '../api/questionDiagramService';
 import { getSubjects } from '../api/subjectService';
 import { analyzeDocument } from '../api/learningPackService';
 import LearningPackSelector from '../components/LearningPackSelector';
@@ -71,8 +72,13 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     type: 'MCQ',
     difficulty: 'Easy',
     question: '',
-    answer: ''
+    answer: '',
+    options: ['', '', '', ''] // 4 options for MCQ/FIIB
   });
+  const [diagramFile, setDiagramFile] = useState(null);
+  const [diagramPreview, setDiagramPreview] = useState(null);
+  const [editDiagramFile, setEditDiagramFile] = useState(null);
+  const [editDiagramPreview, setEditDiagramPreview] = useState(null);
   const languageMap = {
     'English': 'en',
     'english': 'en',
@@ -560,6 +566,18 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         options: editingQuestion.options
       });
 
+      // Upload diagram if provided
+      if (editDiagramFile && editingQuestion.id) {
+        try {
+          const result = await uploadQuestionDiagram(editingQuestion.id, editDiagramFile);
+          updatedQuestion.diagram_path = result.diagramPath;
+          updatedQuestion.has_diagram = true;
+        } catch (diagramError) {
+          console.error('[ContentManager] Diagram upload error:', diagramError);
+          alert('Question updated but diagram upload failed: ' + diagramError.message);
+        }
+      }
+
       // Update local state with response from server
       setQuestions(questions.map(q =>
         q.id === updatedQuestion.id ? updatedQuestion : q
@@ -567,9 +585,67 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       setIsEditModalOpen(false);
       setEditingQuestion(null);
+      setEditDiagramFile(null);
+      setEditDiagramPreview(null);
     } catch (error) {
       console.error('[ContentManager] Save edit error:', error);
       alert('Failed to save changes: ' + error.message);
+    }
+  };
+
+  // Handle option change for MCQ/FIIB
+  const handleOptionChange = (index, value, isEdit = false) => {
+    if (isEdit) {
+      const newOptions = [...(editingQuestion.options || ['', '', '', ''])];
+      newOptions[index] = value;
+      setEditingQuestion({ ...editingQuestion, options: newOptions });
+    } else {
+      const newOptions = [...newQuestion.options];
+      newOptions[index] = value;
+      setNewQuestion({ ...newQuestion, options: newOptions });
+    }
+  };
+
+  // Handle diagram file selection
+  const handleDiagramChange = (e, isEdit = false) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml', 'image/webp', 'image/bmp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Invalid file type. Please upload an image (PNG, JPG, GIF, SVG, WebP, BMP)');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size exceeds 5MB limit');
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (isEdit) {
+        setEditDiagramFile(file);
+        setEditDiagramPreview(reader.result);
+      } else {
+        setDiagramFile(file);
+        setDiagramPreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Remove diagram
+  const handleRemoveDiagram = (isEdit = false) => {
+    if (isEdit) {
+      setEditDiagramFile(null);
+      setEditDiagramPreview(null);
+    } else {
+      setDiagramFile(null);
+      setDiagramPreview(null);
     }
   };
 
@@ -583,15 +659,30 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         pack_id: selectedPackId,
         type: newQuestion.type,
         difficulty: newQuestion.difficulty,
-        question: newQuestion.question, // This will be mapped to question_text in backend
+        question: newQuestion.question,
         answer: newQuestion.answer,
         options: newQuestion.options || [],
         language: genLanguage,
         blooms_taxonomy: genBloom
       });
+
+      // Upload diagram if provided
+      if (diagramFile && created.id) {
+        try {
+          const result = await uploadQuestionDiagram(created.id, diagramFile);
+          created.diagram_path = result.diagramPath;
+          created.has_diagram = true;
+        } catch (diagramError) {
+          console.error('[ContentManager] Diagram upload error:', diagramError);
+          alert('Question created but diagram upload failed: ' + diagramError.message);
+        }
+      }
+
       setQuestions([...questions, created]);
       setIsAddModalOpen(false);
-      setNewQuestion({ type: 'MCQ', difficulty: 'Easy', question: '', answer: '' });
+      setNewQuestion({ type: 'MCQ', difficulty: 'Easy', question: '', answer: '', options: ['', '', '', ''] });
+      setDiagramFile(null);
+      setDiagramPreview(null);
     } catch (err) {
       console.error('[ContentManager] Create manual question error:', err);
       alert('Failed to create question: ' + (err.message || 'Unknown error'));
@@ -1376,51 +1467,129 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       {/* Edit Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent onClose={() => setIsEditModalOpen(false)}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-green-50 to-blue-50" onClose={() => {
+          setIsEditModalOpen(false);
+          setEditDiagramFile(null);
+          setEditDiagramPreview(null);
+        }}>
           <DialogHeader>
-            <DialogTitle>Edit Question</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-gray-800">Edit Question</DialogTitle>
           </DialogHeader>
           {editingQuestion && (
-            <div className="space-y-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Type</label>
-                <select
-                  value={editingQuestion.type}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, type: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                >
-                  {['MCQ', 'FIIB', 'TF', 'HOQ'].map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
+            <div className="space-y-6 mt-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Type</label>
+                  <select
+                    value={editingQuestion.type}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, type: e.target.value })}
+                    className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                  >
+                    {['MCQ', 'FIIB', 'TF', 'HOQ'].map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">Difficulty</label>
+                  <select
+                    value={editingQuestion.difficulty}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, difficulty: e.target.value })}
+                    className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                  >
+                    {['Easy', 'Intermediate', 'Hard'].map(diff => (
+                      <option key={diff} value={diff}>{diff}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Difficulty</label>
-                <select
-                  value={editingQuestion.difficulty}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, difficulty: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2"
-                >
-                  {['Easy', 'Intermediate', 'Hard'].map(diff => (
-                    <option key={diff} value={diff}>{diff}</option>
-                  ))}
-                </select>
+
+              {/* Diagram Upload */}
+              <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
+                <label className="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-2">
+                  <Image className="h-5 w-5 text-green-600" />
+                  Diagram (Optional)
+                </label>
+                <p className="text-xs text-gray-500 mb-3">Upload an image if this question requires a diagram (Max 5MB)</p>
+                
+                {!editDiagramPreview ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleDiagramChange(e, true)}
+                      className="hidden"
+                      id="edit-diagram-upload"
+                    />
+                    <label
+                      htmlFor="edit-diagram-upload"
+                      className="cursor-pointer bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Choose Image
+                    </label>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <img
+                      src={editDiagramPreview}
+                      alt="Diagram preview"
+                      className="max-w-full h-auto max-h-64 rounded-lg border-2 border-gray-200"
+                    />
+                    <button
+                      onClick={() => handleRemoveDiagram(true)}
+                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
+
               <div>
-                <label className="block text-sm font-medium mb-2">Question</label>
-                <Input
+                <label className="block text-sm font-semibold mb-2 text-gray-700">Question</label>
+                <textarea
                   value={editingQuestion.question}
                   onChange={(e) => setEditingQuestion({ ...editingQuestion, question: e.target.value })}
+                  rows={4}
+                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all resize-none"
                 />
               </div>
+
+              {/* Options for MCQ and FIIB */}
+              {(editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB') && (
+                <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+                  <label className="block text-sm font-semibold mb-3 text-gray-700">Options (4 required)</label>
+                  <div className="space-y-3">
+                    {[0, 1, 2, 3].map((index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600 w-8">{String.fromCharCode(65 + index)}.</span>
+                        <input
+                          type="text"
+                          value={(editingQuestion.options || ['', '', '', ''])[index] || ''}
+                          onChange={(e) => handleOptionChange(index, e.target.value, true)}
+                          placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                          className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium mb-2">Answer</label>
-                <Input
+                <label className="block text-sm font-semibold mb-2 text-gray-700">
+                  {editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 'Answer'}
+                </label>
+                <textarea
                   value={editingQuestion.answer}
                   onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
+                  placeholder={editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Enter A, B, C, or D' : 'Enter the answer'}
+                  rows={editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 1 : 3}
+                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all resize-none"
                 />
               </div>
-              <Button onClick={handleSaveEdit} className="w-full">Save Changes</Button>
+              <Button onClick={handleSaveEdit} className="w-full py-3 text-lg font-semibold bg-green-600 hover:bg-green-700">Save Changes</Button>
             </div>
           )}
         </DialogContent>
@@ -1450,52 +1619,128 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       {/* Add Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent onClose={() => setIsAddModalOpen(false)}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-blue-50 to-purple-50" onClose={() => {
+          setIsAddModalOpen(false);
+          setDiagramFile(null);
+          setDiagramPreview(null);
+        }}>
           <DialogHeader>
-            <DialogTitle>Add New Question</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-gray-800">Add New Question</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Type</label>
-              <select
-                value={newQuestion.type}
-                onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2"
-              >
-                {['MCQ', 'FIIB', 'TF', 'HOQ', 'Summary'].map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
+          <div className="space-y-6 mt-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">Type</label>
+                <select
+                  value={newQuestion.type}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                >
+                  {['MCQ', 'FIIB', 'TF', 'HOQ'].map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">Difficulty</label>
+                <select
+                  value={newQuestion.difficulty}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
+                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                >
+                  {['Easy', 'Intermediate', 'Hard'].map(diff => (
+                    <option key={diff} value={diff}>{diff}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Difficulty</label>
-              <select
-                value={newQuestion.difficulty}
-                onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2"
-              >
-                {['Easy', 'Intermediate', 'Hard'].map(diff => (
-                  <option key={diff} value={diff}>{diff}</option>
-                ))}
-              </select>
+
+            {/* Diagram Upload */}
+            <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
+              <label className="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-2">
+                <Image className="h-5 w-5 text-blue-600" />
+                Diagram (Optional)
+              </label>
+              <p className="text-xs text-gray-500 mb-3">Upload an image if this question requires a diagram (Max 5MB)</p>
+              
+              {!diagramPreview ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleDiagramChange(e, false)}
+                    className="hidden"
+                    id="diagram-upload"
+                  />
+                  <label
+                    htmlFor="diagram-upload"
+                    className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Choose Image
+                  </label>
+                </div>
+              ) : (
+                <div className="relative">
+                  <img
+                    src={diagramPreview}
+                    alt="Diagram preview"
+                    className="max-w-full h-auto max-h-64 rounded-lg border-2 border-gray-200"
+                  />
+                  <button
+                    onClick={() => handleRemoveDiagram(false)}
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">Question</label>
-              <Input
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Question</label>
+              <textarea
                 value={newQuestion.question}
                 onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
                 placeholder="Enter your question"
+                rows={4}
+                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
               />
             </div>
+            {/* Options for MCQ and FIIB */}
+            {(newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB') && (
+              <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+                <label className="block text-sm font-semibold mb-3 text-gray-700">Options (4 required)</label>
+                <div className="space-y-3">
+                  {[0, 1, 2, 3].map((index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-600 w-8">{String.fromCharCode(65 + index)}.</span>
+                      <input
+                        type="text"
+                        value={newQuestion.options[index] || ''}
+                        onChange={(e) => handleOptionChange(index, e.target.value, false)}
+                        placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                        className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-medium mb-2">Answer</label>
-              <Input
+              <label className="block text-sm font-semibold mb-2 text-gray-700">
+                {newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 'Answer'}
+              </label>
+              <textarea
                 value={newQuestion.answer}
                 onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })}
-                placeholder="Enter the answer"
+                placeholder={newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Enter A, B, C, or D' : 'Enter the answer'}
+                rows={newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 1 : 3}
+                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
               />
             </div>
-            <Button onClick={handleAddQuestion} className="w-full">Add Question</Button>
+            <Button onClick={handleAddQuestion} className="w-full py-3 text-lg font-semibold">Add Question</Button>
           </div>
         </DialogContent>
       </Dialog>
