@@ -72,4 +72,19 @@
     border: 1px solid rgba(255, 255, 255, 0.25);
     box-shadow: 0 8px 32px 0 rgba(124, 58, 237, 0.15);
   }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out;
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
 }

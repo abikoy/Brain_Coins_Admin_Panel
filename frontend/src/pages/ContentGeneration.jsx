@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import Input from '../components/ui/Input';
+import Toast from '../components/ui/Toast';
 import { Upload, Sparkles, Edit, Plus, FileText, Trash2, AlertCircle, ChevronDown, Image, X } from 'lucide-react';
 import {
   generateQuestionsFromFile,
@@ -79,6 +80,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const [diagramPreview, setDiagramPreview] = useState(null);
   const [editDiagramFile, setEditDiagramFile] = useState(null);
   const [editDiagramPreview, setEditDiagramPreview] = useState(null);
+  const [toast, setToast] = useState(null);
   const languageMap = {
     'English': 'en',
     'english': 'en',
@@ -549,9 +551,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       await deleteQuestionAPI(questionId);
       setQuestions(questions.filter(q => q.id !== questionId));
+      setToast({ message: '🗑️ Question deleted successfully!', type: 'success' });
     } catch (error) {
       console.error('[ContentManager] Delete error:', error);
-      alert('Failed to delete question: ' + error.message);
+      setToast({ message: 'Failed to delete question: ' + error.message, type: 'error' });
     }
   };
 
@@ -587,9 +590,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setEditingQuestion(null);
       setEditDiagramFile(null);
       setEditDiagramPreview(null);
+      setToast({ message: '✅ Question updated successfully!', type: 'success' });
     } catch (error) {
       console.error('[ContentManager] Save edit error:', error);
-      alert('Failed to save changes: ' + error.message);
+      setToast({ message: 'Failed to save changes: ' + error.message, type: 'error' });
     }
   };
 
@@ -652,7 +656,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const handleAddQuestion = async () => {
     try {
       if (!selectedPackId) {
-        alert('Please select a learning pack first');
+        setToast({ message: '⚠️ Please select a learning pack first', type: 'warning' });
         return;
       }
       const created = await createQuestionAPI({
@@ -683,9 +687,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setNewQuestion({ type: 'MCQ', difficulty: 'Easy', question: '', answer: '', options: ['', '', '', ''] });
       setDiagramFile(null);
       setDiagramPreview(null);
+      setToast({ message: '✨ Question created successfully!', type: 'success' });
     } catch (err) {
       console.error('[ContentManager] Create manual question error:', err);
-      alert('Failed to create question: ' + (err.message || 'Unknown error'));
+      setToast({ message: 'Failed to create question: ' + (err.message || 'Unknown error'), type: 'error' });
     }
   };
 
@@ -1795,6 +1800,15 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           setSelectedPackId(pack.id);
         }}
       />
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

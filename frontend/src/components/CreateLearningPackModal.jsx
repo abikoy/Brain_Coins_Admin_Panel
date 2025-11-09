@@ -94,7 +94,24 @@ const CreateLearningPackModal = ({ open, onOpenChange, onCreated }) => {
               min="6" 
               max="11" 
               value={form.grade} 
-              onChange={(e) => setForm({ ...form, grade: e.target.value })} 
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                // Only allow values between 6 and 11
+                if (value >= 6 && value <= 11) {
+                  setForm({ ...form, grade: value });
+                } else if (e.target.value === '') {
+                  setForm({ ...form, grade: '' });
+                }
+              }}
+              onBlur={(e) => {
+                // On blur, ensure value is within range
+                const value = parseInt(e.target.value);
+                if (isNaN(value) || value < 6) {
+                  setForm({ ...form, grade: 6 });
+                } else if (value > 11) {
+                  setForm({ ...form, grade: 11 });
+                }
+              }}
               placeholder="Enter 6-11"
             />
             <p className="text-xs text-gray-500 mt-1">Will be stored as "Grade {form.grade || '6'}"</p>

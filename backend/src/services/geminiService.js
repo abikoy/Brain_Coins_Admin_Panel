@@ -452,7 +452,7 @@ If you validated the TOC (Step 0.2) and it matches the document:
 3. Don't just use TOC titles - read the actual chapter content
 4. Create one pack per chapter with:
    - Title from TOC
-   - MEDIUM-length summary from actual chapter content (80-120 words ONLY)
+   - SHORT, PRECISE summary from actual chapter content (40-60 words MAXIMUM)
    - Detected language
 5. If TOC shows 15 chapters, create 15 packs; if 20 chapters, create 20 packs
 
@@ -486,10 +486,10 @@ If no clear chapters or TOC:
 ### STEP 3: Create Learning Packs
 For EACH identified chapter:
 - **title**: Extract the EXACT chapter title from the document (in detected language)
-- **content**: Write a MEDIUM-length summary (80-120 words) covering the main concepts (in detected language)
+- **content**: Write a SHORT, PRECISE summary (40-60 words MAXIMUM) covering ONLY the key concepts (in detected language)
 - **language**: The detected language
 
-⚠️ IMPORTANT: Keep summaries concise and focused - 80-120 words only!
+⚠️ CRITICAL: Keep summaries SHORT and PRECISE - 40-60 words MAXIMUM! Focus on key points only!
 
 ### IF NO CLEAR CHAPTERS EXIST:
 Create EXACTLY ONE comprehensive learning pack that covers all main themes of the document.
