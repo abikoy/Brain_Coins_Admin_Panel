@@ -1,6 +1,7 @@
 import React from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
+import { ContentGenerationProvider } from './context/ContentGenerationContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 
@@ -41,7 +42,9 @@ const App = () => {
   return (
     <AuthProvider>
       <DataProvider>
-        <AppContent />
+        <ContentGenerationProvider>
+          <AppContent />
+        </ContentGenerationProvider>
       </DataProvider>
     </AuthProvider>
   );

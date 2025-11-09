@@ -452,7 +452,7 @@ If you validated the TOC (Step 0.2) and it matches the document:
 3. Don't just use TOC titles - read the actual chapter content
 4. Create one pack per chapter with:
    - Title from TOC
-   - Summary from actual chapter content (150-300 words)
+   - MEDIUM-length summary from actual chapter content (80-120 words ONLY)
    - Detected language
 5. If TOC shows 15 chapters, create 15 packs; if 20 chapters, create 20 packs
 
@@ -486,8 +486,10 @@ If no clear chapters or TOC:
 ### STEP 3: Create Learning Packs
 For EACH identified chapter:
 - **title**: Extract the EXACT chapter title from the document (in detected language)
-- **content**: Write a 150-300 word summary of that chapter's key concepts (in detected language)
+- **content**: Write a MEDIUM-length summary (80-120 words) covering the main concepts (in detected language)
 - **language**: The detected language
+
+⚠️ IMPORTANT: Keep summaries concise and focused - 80-120 words only!
 
 ### IF NO CLEAR CHAPTERS EXIST:
 Create EXACTLY ONE comprehensive learning pack that covers all main themes of the document.
@@ -1741,7 +1743,7 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
       }
     });
   } else {
-    typeRequirements = `\n\nGenerate ${count} questions using these types: ${types.join(', ')}`;
+    typeRequirements = `\n\nGenerate EXACTLY ${count} questions using these types: ${types.join(', ')}`;
   }
 
   const prompt = `SYSTEM:
@@ -1771,11 +1773,18 @@ ${language === 'Tamil' ? '✅ Tamil: "முதல் அத்தியாய�
 3. Would a native speaker recognize these as proper words?
 
 If ANY answer is NO, you MUST re-read the image and try again.
+
+⚠️ CRITICAL: Questions with garbage characters will be REJECTED. Generate ONLY clean Unicode!
+⚠️ If you generate garbage, the user will receive FEWER questions than requested!
+⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
 
 TASK:
 Generate questions strictly from the provided document/image content.
 ${typeRequirements}
+
+⚠️ IMPORTANT: Generate EXACTLY the requested number of questions. Do NOT generate extra.
+⚠️ ALL questions must be clean and valid - garbage questions will be rejected!
 
 🚨 CRITICAL CONTENT RULES:
 - DO NOT mention figure numbers, page numbers, or textbook names in questions or summaries
@@ -1817,9 +1826,9 @@ Question Format Requirements:
 4. HOQ (Higher Order Question - Open-ended):
    - question_type: "HOQ"
    - question_text: An analytical, evaluative, or creative question requiring extended response
-   - correct_answer: A comprehensive model answer (3-5 sentences) demonstrating deep understanding
-   - explanation: REQUIRED - Provide guidance on what makes a good answer, key points to include, and why this question is important (3-4 sentences in ${language})
-   - Example HOQ explanation: "A strong answer should discuss the main causes, their interconnections, and provide specific examples. Students should demonstrate critical thinking by analyzing both immediate and long-term effects. This question assesses the ability to synthesize information and form evidence-based conclusions."
+   - correct_answer: A SHORT, concise model answer (1-2 sentences ONLY) demonstrating key understanding
+   - explanation: REQUIRED - Brief guidance on key points to include (2 sentences in ${language})
+   - Example HOQ explanation: "A good answer should identify the main causes and provide one specific example. This question assesses critical thinking and analysis skills."
 
 ⚠️ CRITICAL: ALL questions MUST include an "explanation" field in ${language}!
 ⚠️ HOQ questions MUST have detailed explanations that guide students on how to approach the answer!

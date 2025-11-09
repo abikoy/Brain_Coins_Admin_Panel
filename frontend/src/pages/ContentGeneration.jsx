@@ -21,25 +21,50 @@ import { getSubjects } from '../api/subjectService';
 import { analyzeDocument } from '../api/learningPackService';
 import LearningPackSelector from '../components/LearningPackSelector';
 import CreateLearningPackModal from '../components/CreateLearningPackModal';
+import { useContentGeneration } from '../context/ContentGenerationContext';
 
 const ContentGeneration = ({ questions, setQuestions }) => {
-  const [isGenerating, setIsGenerating] = useState(false);
+  // Use context for persistent state
+  const {
+    uploadedFile,
+    setUploadedFile,
+    uploadedFileUrl,
+    setUploadedFileUrl,
+    uploadedFileType,
+    setUploadedFileType,
+    suggestedPacks,
+    setSuggestedPacks,
+    selectedPackIndex,
+    setSelectedPackIndex,
+    detectedLanguage,
+    setDetectedLanguage,
+    preview,
+    setPreview,
+    summaryBullets,
+    setSummaryBullets,
+    isGenerating,
+    setIsGenerating,
+    isAnalyzing,
+    setIsAnalyzing,
+    generationError,
+    setGenerationError,
+    showUploadForm,
+    setShowUploadForm,
+    questionTypeCounts,
+    setQuestionTypeCounts,
+    questionTypeDifficulties,
+    setQuestionTypeDifficulties,
+    resetGenerationState
+  } = useContentGeneration();
+
+  // Local UI state (doesn't need to persist)
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [showUploadForm, setShowUploadForm] = useState(false);
-
-  // Learning pack generation state
-  const [suggestedPacks, setSuggestedPacks] = useState([]);
-  const [selectedPackIndex, setSelectedPackIndex] = useState(null);
-
   const [isGeneratingPacks, setIsGeneratingPacks] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [generationError, setGenerationError] = useState('');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [generatedCount, setGeneratedCount] = useState(0);
-  const [summaryBullets, setSummaryBullets] = useState([]);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
   const [newQuestion, setNewQuestion] = useState({
@@ -118,7 +143,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     HOQ: { count: 1, difficulty: 'Hard', enabled: false }
   });
 
-  const [preview, setPreview] = useState(null);
+  // preview is now from context
   const [selectedIds, setSelectedIds] = useState({});
 
   // Available options
@@ -213,9 +238,12 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
 
-      // Auto-detect language
+      // Auto-detect and update language in both local and context state
       if (packs.length > 0 && packs[0].language) {
-        setGenLanguage(packs[0].language);
+        const detectedLang = packs[0].language;
+        setGenLanguage(detectedLang);
+        setDetectedLanguage(detectedLang);
+        console.log(`[Frontend] Auto-detected language: ${detectedLang}`);
       }
 
     } catch (error) {
@@ -497,6 +525,27 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setGenerationError(error.message || 'Failed to generate questions. Please try again.');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Open edit modal with question data
+  const handleEditQuestion = (question) => {
+    setEditingQuestion(question);
+    setIsEditModalOpen(true);
+  };
+
+  // Delete question
+  const handleDeleteQuestion = async (questionId) => {
+    if (!confirm('Are you sure you want to delete this question?')) {
+      return;
+    }
+
+    try {
+      await deleteQuestionAPI(questionId);
+      setQuestions(questions.filter(q => q.id !== questionId));
+    } catch (error) {
+      console.error('[ContentManager] Delete error:', error);
+      alert('Failed to delete question: ' + error.message);
     }
   };
 
@@ -998,9 +1047,19 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     onClick={handlePreview}
                     disabled={isGenerating || !uploadedFile || selectedPackIndex === null}
                     variant="outline"
-                    title={selectedPackIndex === null ? 'Select at least one learning pack first' : 'Preview questions before saving'}
+                    title={selectedPackIndex === null ? 'Select at least one learning pack first' : 'Generate questions for review'}
                   >
-                    Preview
+                    {isGenerating ? (
+                      <>
+                        <span className="inline-block animate-spin mr-2">⚡</span>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate
+                      </>
+                    )}
                   </Button>
                   <Button
                     onClick={handleApprove}
@@ -1009,33 +1068,11 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                       ? 'bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
-                    title={!preview ? 'Click Preview first to generate questions' : 'Save selected questions to database'}
+                    title={!preview ? 'Click Generate first to create questions' : 'Save selected questions to database'}
                   >
                     {preview && preview.questions && preview.questions.length > 0 ? '✓ ' : ''}Approve & Save
                   </Button>
                 </div>
-
-                <div className="mt-4 text-left text-sm text-gray-600">
-                  <p>Or use legacy direct-save:</p>
-                </div>
-                <Button
-                  onClick={handleGenerateQuestions}
-                  disabled={isGenerating || !uploadedFile || selectedPackIndex === null}
-                  className="mt-2"
-                  title={selectedPackIndex === null ? 'Select at least one learning pack first' : 'Generate and save questions directly'}
-                >
-                  {isGenerating ? (
-                    <>
-                      <span className="inline-block animate-spin mr-2">⚡</span>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Generate Questions
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
           </GlassCard>
@@ -1159,8 +1196,28 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                       </div>
                     )}
 
-                    {/* Answer for TF and HOQ */}
-                    {(q.type === 'TF' || q.type === 'HOQ') && q.answer && (
+                    {/* TF options */}
+                    {q.type === 'TF' && (
+                      <div className="mt-2">
+                        <div className="flex gap-2">
+                          <span className={`text-sm px-3 py-1 rounded border ${q.answer === 'True'
+                            ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                            : 'bg-gray-50 border-gray-300 text-gray-700'
+                            }`}>
+                            True {q.answer === 'True' && '✓'}
+                          </span>
+                          <span className={`text-sm px-3 py-1 rounded border ${q.answer === 'False'
+                            ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                            : 'bg-gray-50 border-gray-300 text-gray-700'
+                            }`}>
+                            False {q.answer === 'False' && '✓'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Answer for HOQ */}
+                    {q.type === 'HOQ' && q.answer && (
                       <p className="text-sm text-gray-600 mt-1">
                         <span className="font-medium">Answer:</span> {q.answer}
                       </p>
@@ -1287,43 +1344,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 )}
 
                 {/* MATCH type: show pairs grid */}
-                {question.type === 'MATCH' && Array.isArray(question.pairs) && question.pairs.length > 0 && (
-                  <div className="mb-2 overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr>
-                          <th className="text-left px-3 py-2 text-gray-600">Left</th>
-                          <th className="text-left px-3 py-2 text-gray-600">Right</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {question.pairs.map((pair, idx) => (
-                          <tr key={idx} className="border-t">
-                            <td className="px-3 py-2">{pair.left}</td>
-                            <td className="px-3 py-2">{pair.right}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* DIAGRAM type: show title and parts */}
-                {question.type === 'DIAGRAM' && question.diagram && (
-                  <div className="mb-2">
-                    {question.diagram.title && (
-                      <p className="text-sm font-medium mb-1">Diagram: {question.diagram.title}</p>
-                    )}
-                    {Array.isArray(question.diagram.parts) && question.diagram.parts.length > 0 && (
-                      <ul className="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                        {question.diagram.parts.map((p, i) => (
-                          <li key={i}>{p}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-
+            
                 {/* Answer line - show for TF, HOQ, and FIIB if not already shown in options */}
                 {question.answer && question.type !== 'MCQ' && question.type !== 'IMAGE_MCQ' && (
                   <p className="text-sm text-gray-600 mt-2">
