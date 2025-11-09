@@ -452,7 +452,7 @@ If you validated the TOC (Step 0.2) and it matches the document:
 3. Don't just use TOC titles - read the actual chapter content
 4. Create one pack per chapter with:
    - Title from TOC
-   - SHORT, PRECISE summary from actual chapter content (40-60 words MAXIMUM)
+   - SHORT, PRECISE summary from actual chapter content (10-15 words MAXIMUM)
    - Detected language
 5. If TOC shows 15 chapters, create 15 packs; if 20 chapters, create 20 packs
 
@@ -486,10 +486,10 @@ If no clear chapters or TOC:
 ### STEP 3: Create Learning Packs
 For EACH identified chapter:
 - **title**: Extract the EXACT chapter title from the document (in detected language)
-- **content**: Write a SHORT, PRECISE summary (40-60 words MAXIMUM) covering ONLY the key concepts (in detected language)
+- **content**: Write a SHORT, PRECISE summary (10-15 words MAXIMUM) covering ONLY the key concepts (in detected language)
 - **language**: The detected language
 
-⚠️ CRITICAL: Keep summaries SHORT and PRECISE - 40-60 words MAXIMUM! Focus on key points only!
+⚠️ CRITICAL: Keep summaries SHORT and PRECISE - 10-15 words MAXIMUM! Focus on key points only!
 
 ### IF NO CLEAR CHAPTERS EXIST:
 Create EXACTLY ONE comprehensive learning pack that covers all main themes of the document.
@@ -1371,6 +1371,39 @@ export const generateQuestions = async (content, options = {}) => {
 SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey requested language; align to Bloom's level; ground strictly in provided context.
 
+🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA AND TAMIL:
+${language === 'Sinhala' || language === 'Tamil' ? `
+⚠️ ABSOLUTE REQUIREMENT: You MUST output PROPER UNICODE characters for ${language}. NO EXCEPTIONS!
+
+**FORBIDDEN OUTPUT** (These are GARBAGE - DO NOT PRODUCE):
+❌ "msróvhla", "y\`Èkafõ", ";s%fldaKdldr", "fkdjk", "uqyqK;g", "________", "hehs", "lshkq", ",efõ"
+❌ "wdOdrlh", "✓YS¾Ihwe,", "odrh;s%fldaKdldr", "uqyqK;"
+❌ "wrh", "'r'", "jQ", "f.da,hl", "mßudj", "2/3", "πr³", "iQ;%fhka", ",efí"
+❌ "f.da,fha", "mßudj", "fiùfï", "ksjerÈ", "iQ;%h", "4/3", "πr³", "fõ"
+
+**REQUIRED OUTPUT** (Proper ${language} Unicode):
+${language === 'Sinhala' ? `
+✅ "පළමු", "දෙවන", "තුන්වන", "ගණිතය", "විද්‍යාව", "ඉතිහාසය"
+✅ "පරිච්ඡේදය", "පාඩම", "ප්‍රශ්නය", "පිළිතුර", "විකල්පය"
+✅ "සත්‍ය", "අසත්‍ය", "නිවැරදි", "වැරදි", "පැහැදිලි කිරීම"
+✅ Unicode range: U+0D80 to U+0DFF ONLY
+` : `
+✅ "முதல்", "இரண்டாவது", "மூன்றாவது", "கணிதம்", "அறிவியல்", "வரலாறு"
+✅ "அத்தியாயம்", "பாடம்", "கேள்வி", "பதில்", "விருப்பம்"
+✅ "உண்மை", "தவறு", "சரியான", "தவறான", "விளக்கம்"
+✅ Unicode range: U+0B80 to U+0BFF ONLY
+`}
+
+**SELF-VALIDATION BEFORE RESPONDING**:
+Before you output anything, check:
+1. Does my output contain characters from the CORRECT Unicode range (${language === 'Sinhala' ? 'U+0D80-U+0DFF' : 'U+0B80-U+0BFF'})?
+2. Do the words look like real ${language} words (not Latin gibberish)?
+3. Would a native speaker recognize these as proper words?
+4. Are there ANY Latin characters mixed in (like "msróvhla" or "f.da,hl")? If YES, REJECT and try again!
+
+If ANY answer is NO, you MUST re-read the content and try again with PROPER Unicode.
+` : ''}
+
 TASK:
 Generate EXACTLY ${count} questions strictly from the provided content.
 
@@ -1378,7 +1411,7 @@ Content (use only this):
 ${content}
 
 Constraints:
-- All text must be in ${language}. For Sinhala or Tamil, output clean Unicode.
+- All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use ONLY proper Unicode characters - NO Latin characters allowed!' : ''}
 - Difficulty: ${difficulty}
 - Bloom level: ${bloom_level}
 - Allowed types: MCQ, FIIB, TF, HOQ (ignore any other types)
@@ -1452,8 +1485,59 @@ Example for FIIB:
 
     const questions = JSON.parse(jsonMatch[0]);
 
+    // Helper function to detect garbage characters for Sinhala/Tamil
+    const hasGarbageCharacters = (text, lang) => {
+      if (!text) return false;
+      
+      if (lang === 'Sinhala') {
+        // Check for common garbage patterns in Sinhala
+        const garbagePatterns = [
+          /[a-zA-Z]{3,}/, // Latin characters (3+ consecutive)
+          /[;%`]/,        // Common garbage symbols
+          /msró|fkd|uqyq|hehs|lshkq|,efõ|wdOdr|odrh|wrh|jQ|mßud|iQ;%|ksjer|fiù/i
+        ];
+        return garbagePatterns.some(pattern => pattern.test(text));
+      }
+      
+      if (lang === 'Tamil') {
+        // Check for common garbage patterns in Tamil
+        const garbagePatterns = [
+          /[a-zA-Z]{3,}/, // Latin characters (3+ consecutive)
+          /[;%`]/         // Common garbage symbols
+        ];
+        return garbagePatterns.some(pattern => pattern.test(text));
+      }
+      
+      return false;
+    };
+
     // Validate and fix FIIB questions to ensure they have options
     const validatedQuestions = questions.map(q => {
+      // Check for garbage characters in Sinhala/Tamil
+      if (language === 'Sinhala' || language === 'Tamil') {
+        const fieldsToCheck = [q.question, q.answer, ...(q.options || [])];
+        const hasGarbage = fieldsToCheck.some(field => hasGarbageCharacters(field, language));
+        
+        if (hasGarbage) {
+          console.error('[Backend] GARBAGE CHARACTERS DETECTED in question:', {
+            language,
+            question: q.question?.substring(0, 100),
+            answer: q.answer?.substring(0, 50)
+          });
+          
+          // Log this as an error for monitoring
+          logGeminiParsingError(
+            new Error('Garbage characters detected in generated question'),
+            {
+              apiEndpoint: 'generateQuestions',
+              language,
+              questionText: q.question,
+              answerText: q.answer
+            }
+          ).catch(console.error);
+        }
+      }
+      
       if (q.type === 'FIIB') {
         if (!Array.isArray(q.options) || q.options.length === 0) {
           console.warn('[Backend] FIIB question missing options, generating defaults:', q.question);

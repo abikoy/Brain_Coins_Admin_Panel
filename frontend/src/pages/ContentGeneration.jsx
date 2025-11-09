@@ -81,6 +81,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const [editDiagramFile, setEditDiagramFile] = useState(null);
   const [editDiagramPreview, setEditDiagramPreview] = useState(null);
   const [toast, setToast] = useState(null);
+  const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const languageMap = {
     'English': 'en',
     'english': 'en',
@@ -560,6 +562,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   const handleSaveEdit = async () => {
     try {
+      setIsSavingEdit(true);
       // Call backend API to update in database
       const updatedQuestion = await updateQuestionAPI(editingQuestion.id, {
         type: editingQuestion.type,
@@ -594,6 +597,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     } catch (error) {
       console.error('[ContentManager] Save edit error:', error);
       setToast({ message: 'Failed to save changes: ' + error.message, type: 'error' });
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -659,6 +664,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         setToast({ message: '⚠️ Please select a learning pack first', type: 'warning' });
         return;
       }
+      
+      setIsAddingQuestion(true);
       const created = await createQuestionAPI({
         pack_id: selectedPackId,
         type: newQuestion.type,
@@ -691,6 +698,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     } catch (err) {
       console.error('[ContentManager] Create manual question error:', err);
       setToast({ message: 'Failed to create question: ' + (err.message || 'Unknown error'), type: 'error' });
+    } finally {
+      setIsAddingQuestion(false);
     }
   };
 
@@ -1594,7 +1603,13 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all resize-none"
                 />
               </div>
-              <Button onClick={handleSaveEdit} className="w-full py-3 text-lg font-semibold bg-green-600 hover:bg-green-700">Save Changes</Button>
+              <Button 
+                onClick={handleSaveEdit} 
+                disabled={isSavingEdit}
+                className="w-full py-3 text-lg font-semibold bg-green-600 hover:bg-green-700"
+              >
+                {isSavingEdit ? 'Saving...' : 'Save Changes'}
+              </Button>
             </div>
           )}
         </DialogContent>
@@ -1745,7 +1760,13 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
               />
             </div>
-            <Button onClick={handleAddQuestion} className="w-full py-3 text-lg font-semibold">Add Question</Button>
+            <Button 
+              onClick={handleAddQuestion} 
+              disabled={isAddingQuestion}
+              className="w-full py-3 text-lg font-semibold"
+            >
+              {isAddingQuestion ? 'Adding...' : 'Add Question'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
