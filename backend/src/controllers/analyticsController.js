@@ -1,10 +1,7 @@
 
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin as supabase } from '../services/supabaseService.js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+console.log('✅ Analytics Controller: Using shared Supabase client');
 
 class AnalyticsController {
   // Get real-time stats for frontend cards
@@ -18,7 +15,10 @@ class AnalyticsController {
         .from('profiles')
         .select('*', { count: 'exact', head: true });
 
-      if (totalError) throw totalError;
+      if (totalError) {
+        console.error('❌ Error fetching total students:', totalError);
+        throw totalError;
+      }
 
       // Get premium students count
       const { count: premiumStudents, error: premiumError } = await supabase
@@ -67,10 +67,16 @@ class AnalyticsController {
       });
 
     } catch (error) {
-      console.error('❌ Real-time Stats Error:', error);
+      console.error('❌ Real-time Stats Error:', {
+        message: error.message,
+        details: error.stack,
+        hint: error.hint || '',
+        code: error.code || ''
+      });
       res.status(500).json({
         success: false,
-        error: 'Failed to fetch real-time stats'
+        error: 'Failed to fetch real-time stats',
+        details: error.message
       });
     }
   }
@@ -161,8 +167,23 @@ class AnalyticsController {
       console.log('📈 Fetching student progress...');
       const { timeRange = 'week' } = req.query;
 
+      // Calculate date filter based on timeRange
       let dateFilter = new Date();
-      dateFilter.setDate(dateFilter.getDate() - 7); // Always 1 week
+      switch (timeRange) {
+        case 'week':
+          dateFilter.setDate(dateFilter.getDate() - 7);
+          break;
+        case 'month':
+          dateFilter.setMonth(dateFilter.getMonth() - 1);
+          break;
+        case 'year':
+          dateFilter.setFullYear(dateFilter.getFullYear() - 1);
+          break;
+        default:
+          dateFilter.setDate(dateFilter.getDate() - 7);
+      }
+      
+      console.log(`📊 Fetching progress for timeRange: ${timeRange}, from: ${dateFilter.toISOString()}`);
 
       // Get progress data
       const { data: progressData, error: progressError } = await supabase

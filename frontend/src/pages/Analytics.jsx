@@ -13,6 +13,7 @@ const Analytics = () => {
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [timeRange, setTimeRange] = useState('week'); // week, month, year
   const [premiumDialog, setPremiumDialog] = useState({
     isOpen: false,
     student: null
@@ -26,7 +27,7 @@ const Analytics = () => {
       const [statsResult, studentsResult, progressResult] = await Promise.all([
         analyticsService.getDashboardStats(),
         analyticsService.getStudents({ limit: 50 }),
-        analyticsService.getStudentProgress('week') // Always use 'week'
+        analyticsService.getStudentProgress(timeRange) // Use selected timeRange
       ]);
 
       setAnalyticsData(statsResult);
@@ -69,7 +70,7 @@ const Analytics = () => {
   };
   useEffect(() => {
     fetchAnalyticsData();
-  }, []);
+  }, [timeRange]); // Re-fetch when timeRange changes
 
   // Format time ago function
   const formatTimeAgo = (timestamp) => {
@@ -159,13 +160,47 @@ const Analytics = () => {
         })}
       </div>
 
-      {/* Progress Chart - No time filter buttons */}
+      {/* Progress Chart with Time Filter Buttons */}
       <GlassCard>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold">Weekly Student Progress</h3>
-          <div className="text-sm text-gray-500">
-            Last 7 days
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+          <h3 className="text-xl font-semibold">Student Progress</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setTimeRange('week')}
+              className={`px-4 py-2 text-sm rounded-md font-medium transition-all duration-200 ${
+                timeRange === 'week'
+                  ? 'bg-gradient-primary text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setTimeRange('month')}
+              className={`px-4 py-2 text-sm rounded-md font-medium transition-all duration-200 ${
+                timeRange === 'month'
+                  ? 'bg-gradient-primary text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Month
+            </button>
+            <button
+              onClick={() => setTimeRange('year')}
+              className={`px-4 py-2 text-sm rounded-md font-medium transition-all duration-200 ${
+                timeRange === 'year'
+                  ? 'bg-gradient-primary text-white shadow-md'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Year
+            </button>
           </div>
+        </div>
+        <div className="text-sm text-gray-500 mb-4">
+          {timeRange === 'week' && 'Last 7 days'}
+          {timeRange === 'month' && 'Last 30 days'}
+          {timeRange === 'year' && 'Last 365 days'}
         </div>
         <StudentProgressChart />
       </GlassCard>

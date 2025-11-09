@@ -351,10 +351,56 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
       prompt = `You are an expert educational content creator for the Sri Lankan local syllabus (Grades 6-11) with advanced multilingual capabilities in English, Sinhala, and Tamil.
 
 ⚠️ ABSOLUTE RULES - VIOLATION WILL RESULT IN REJECTION:
-1. Generate MAXIMUM 10 learning packs - NEVER exceed this limit
-2. Each pack must have a REAL, meaningful title from the document
-3. Use ONLY clean Unicode - NO garbage characters, NO corrupted text
-4. ALL content must be in the DETECTED language (English/Sinhala/Tamil)
+1. **FIRST**: Check if this is a TABLE OF CONTENTS page - if yes, extract chapter titles ONLY
+2. Create ONE learning pack per ACTUAL chapter found in the document
+3. Each pack must have a REAL, meaningful title from the document
+4. Use ONLY clean Unicode - NO garbage characters, NO corrupted text
+5. ALL content must be in the DETECTED language (English/Sinhala/Tamil)
+6. DO NOT create a pack for every page - analyze the ENTIRE document structure first
+7. If document has 15 chapters, create 15 packs; if 3 chapters, create 3 packs
+
+---
+
+### STEP 0: DOCUMENT STRUCTURE ANALYSIS (DO THIS FIRST!)
+
+🔍 **CRITICAL**: Before creating packs, analyze the ENTIRE document:
+
+**STEP 0.1: Is this a Table of Contents?**
+- Look for: "Contents", "Table of Contents", "Index", "පටුන", "අන්තර්ගතය", "உள்ளடக்கம்"
+- Check if you see a list of chapter titles with page numbers
+- **IMPORTANT**: If you find a TOC, you MUST also scan the REST of the document
+
+**STEP 0.2: TOC VALIDATION (CRITICAL!)**
+If you found a Table of Contents:
+1. **Count TOC entries**: How many chapters are listed? (e.g., 5 chapters)
+2. **Scan remaining pages**: Look through ALL pages after the TOC
+3. **Verify chapter presence**: Check if those chapters actually exist in the document
+4. **Compare content volume**: 
+   - If TOC lists 5 chapters but document has 50+ pages of content → TOC is valid ✅
+   - If TOC lists 10 chapters but document only has 3 pages → TOC is INVALID ❌
+   - If TOC is just 1 page and rest is blank → TOC is INVALID ❌
+
+**STEP 0.3: Decision Logic**
+- **If TOC is VALID** (matches actual document structure):
+  → Extract chapter titles from TOC
+  → Scan actual content to create meaningful summaries
+  → Create packs based on TOC structure
+  
+- **If TOC is INVALID or INCOMPLETE** (doesn't match document):
+  → IGNORE the TOC
+  → Analyze the full document content
+  → Detect chapters from actual content (not from TOC)
+  → Create packs based on what you actually see
+
+**STEP 0.4: Document Type Detection (if no valid TOC):**
+1. **Single Chapter Document**: If you see only ONE main topic → Create 1 pack
+2. **Multi-Chapter Textbook**: If you see clear chapter divisions → Create 1 pack per chapter (ALL chapters)
+3. **Exercise/Worksheet**: If mostly problems/exercises → Create 1 pack summarizing topics
+4. **Reference Material**: If dense content without chapters → Create 2-3 thematic packs
+
+⚠️ **NEVER** treat each page as a separate chapter!
+⚠️ **ALWAYS** verify TOC against actual document content!
+⚠️ **ALWAYS** create packs for ALL actual chapters found (whether 3, 10, 15, or 20 chapters)
 
 ---
 
@@ -395,22 +441,47 @@ Before you output anything, check:
 
 If ANY answer is NO, you MUST re-read the image and try again.
 
-### STEP 2: STANDARDIZED PACK CREATION
+### STEP 2: INTELLIGENT PACK CREATION
 
-⚠️ **CRITICAL RULE**: Create EXACTLY ONE learning pack per document.
+⚠️ **CRITICAL RULES**:
 
-**ONLY create multiple packs if:**
-1. The document EXPLICITLY has multiple distinct chapters/units (e.g., "Chapter 1", "Chapter 2", "Chapter 3")
-2. Each chapter is clearly separated with headings
-3. Each chapter covers a DIFFERENT topic
+**SCENARIO A: VALID TABLE OF CONTENTS FOUND**
+If you validated the TOC (Step 0.2) and it matches the document:
+1. Extract ALL chapter/section titles from the TOC
+2. **IMPORTANT**: Scan the actual chapter content pages to create accurate summaries
+3. Don't just use TOC titles - read the actual chapter content
+4. Create one pack per chapter with:
+   - Title from TOC
+   - Summary from actual chapter content (150-300 words)
+   - Detected language
+5. If TOC shows 15 chapters, create 15 packs; if 20 chapters, create 20 packs
 
-**Chapter markers to look for:**
-- English: "Chapter 1", "Unit 1", "Lesson 1", "Section 1.1"
-- Sinhala: "පරිච්ඡේදය 1", "පාඩම 1", "ඒකකය 1"
-- Tamil: "அத்தியாயம் 1", "பாடம் 1", "அலகு 1"
+**SCENARIO B: INVALID/INCOMPLETE TOC OR NO TOC**
+If TOC doesn't match document OR no TOC exists:
+1. **Scan the ENTIRE document**: Look through all pages
+2. **Count chapters by markers**:
+   - English: "Chapter 1", "Unit 1", "Lesson 1", "Section 1.1", "Part 1"
+   - Sinhala: "පරිච්ඡේදය 1", "පාඩම 1", "ඒකකය 1", "කොටස 1"
+   - Tamil: "அத்தியாயம் 1", "பாடம் 1", "அலகு 1", "பகுதி 1"
 
-**DEFAULT BEHAVIOR**: If you see ONE chapter or unclear structure → Create ONE pack with a comprehensive summary.
-**MAXIMUM**: 10 packs total (only if document has 10+ clear chapters)
+3. **Decision Logic:**
+   - **0-1 chapters found**: Create 1 comprehensive pack covering all content
+   - **2+ chapters found**: Create 1 pack per chapter (ALL chapters, no limit)
+   - **Example**: If 15 chapters exist, create 15 packs
+   - **Example**: If 3 chapters exist, create 3 packs
+
+**SCENARIO C: UNCLEAR STRUCTURE**
+If no clear chapters or TOC:
+- Analyze main topics/themes
+- Create 1-3 thematic packs based on content
+- NEVER create a pack for every page
+
+**GOLDEN RULES**: 
+- ✅ ALWAYS verify TOC against actual content
+- ✅ ALWAYS create packs for ALL actual chapters found
+- ✅ ALWAYS read actual content (not just TOC)
+- ❌ NEVER create a pack for every page
+- ❌ NEVER trust TOC without verification
 
 ### STEP 3: Create Learning Packs
 For EACH identified chapter:
@@ -426,20 +497,72 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
 ✓ NO random characters like "fkdñ,a fnod yeÿ iyd h'"
 ✓ NO corrupted text or encoding errors
 ✓ Use proper Unicode for Sinhala (0D80-0DFF) and Tamil (0B80-0BFF)
-✓ Maximum 10 packs - reject if more
+✓ Create packs for ALL actual chapters (no arbitrary limit)
+✓ Language field MUST match the actual content language
 
-### OUTPUT FORMAT:
+### OUTPUT FORMAT EXAMPLES:
+
+**Example 1: Sinhala Math Textbook (Multiple Chapters)**
 <BEGIN_JSON>
 [
   {
-    "title": "පළමු පරිච්ඡේදය: සංඛ්‍යා පද්ධති",
-    "content": "මෙම පරිච්ඡේදයෙන් සංඛ්‍යා පද්ධති පිළිබඳ මූලික සංකල්ප විස්තර කෙරේ...",
+    "title": "පරිච්ඡේදය 1: සංඛ්‍යා පද්ධති",
+    "content": "මෙම පරිච්ඡේදයෙන් සංඛ්‍යා පද්ධති පිළිබඳ මූලික සංකල්ප විස්තර කෙරේ. ස්වභාවික සංඛ්‍යා, පූර්ණ සංඛ්‍යා සහ තාර්කික සංඛ්‍යා ගැන සාකච්ඡා කෙරේ.",
+    "language": "Sinhala"
+  },
+  {
+    "title": "පරිච්ඡේදය 2: වීජ ගණිතය",
+    "content": "වීජ ගණිතයේ මූලික සංකල්ප හඳුන්වා දෙයි. විචල්‍යයන්, සමීකරණ සහ අසමානතා විසඳීම පිළිබඳ විස්තර කෙරේ.",
     "language": "Sinhala"
   }
 ]
 <END_JSON>
 
-⚠️ REMEMBER: Maximum 10 packs, clean Unicode only, real chapter titles!`;
+**Example 2: Tamil Science Document (Single Topic)**
+<BEGIN_JSON>
+[
+  {
+    "title": "அத்தியாயம் 1: ஒளியியல்",
+    "content": "இந்த அத்தியாயம் ஒளியின் பண்புகள் மற்றும் நடத்தை பற்றி விவரிக்கிறது. பிரதிபலிப்பு, ஒளிவிலகல் மற்றும் ஒளி சிதறல் பற்றிய கருத்துக்கள் விளக்கப்படுகின்றன.",
+    "language": "Tamil"
+  }
+]
+<END_JSON>
+
+**Example 3: English Textbook (Table of Contents Detected)**
+<BEGIN_JSON>
+[
+  {
+    "title": "Chapter 1: Introduction to Biology",
+    "content": "This chapter introduces the fundamental concepts of biology, including cell structure, living organisms, and basic life processes.",
+    "language": "English"
+  },
+  {
+    "title": "Chapter 2: Cell Biology",
+    "content": "Detailed study of cell structure and function, including organelles, cell membrane, and cellular processes.",
+    "language": "English"
+  }
+]
+<END_JSON>
+
+⚠️ FINAL CHECKLIST:
+1. ✓ Scanned the ENTIRE document (not just first page)?
+2. ✓ If TOC found, verified it against actual content?
+3. ✓ Detected correct language (English/Sinhala/Tamil)?
+4. ✓ Used proper Unicode characters?
+5. ✓ Created packs for ALL actual chapters found?
+6. ✓ Titles are meaningful and from the document?
+7. ✓ Content summaries based on ACTUAL content (not just TOC)?
+8. ✓ Content summaries are in the detected language?
+9. ✓ Did NOT create a pack for every page?
+
+⚠️ REMEMBER: 
+- Verify TOC against actual document
+- Analyze ENTIRE document structure
+- Create packs for ALL chapters
+- Use actual content for summaries
+- Clean Unicode only
+- Correct language detection!`;
 
       let result;
       try {
@@ -530,7 +653,7 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
 
           return true;
         })
-        .slice(0, 10) // Enforce maximum 10 packs
+        // No slice limit - create packs for ALL valid chapters found
         .map((p, idx) => {
           const title = String(p.title || `Chapter ${idx + 1}`);
           const content = String(p.content || '');
