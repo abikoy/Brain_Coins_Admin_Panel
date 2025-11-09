@@ -1,5 +1,3 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import multer from 'multer';
 import {
   getLearningPacksBySubject,
@@ -8,15 +6,9 @@ import {
 } from '../services/learningPackService.js';
 import { generateLearningPacksFromBase64, generateQuestions } from '../services/geminiService.js';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
-const ensureUploadDir = () => fs.mkdir(UPLOAD_DIR, { recursive: true });
-
-// Multer configuration
+// Multer configuration - Use memory storage for Vercel (serverless)
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }
 });
 
@@ -115,18 +107,14 @@ const createLearningPackHandler = async (req, res) => {
 };
 // Analyze document and generate learning packs using Gemini
 const analyzeDocumentHandler = async (req, res) => {
-  await ensureUploadDir();
   upload.single('file')(req, res, async (err) => {
     try {
       if (err) return res.status(400).json({ success: false, error: err.message });
       if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
-      const fileBuffer = await fs.readFile(req.file.path);
-      const base64Data = fileBuffer.toString('base64');
+      // With memory storage, file buffer is directly available
+      const base64Data = req.file.buffer.toString('base64');
       const packs = await generateLearningPacksFromBase64(base64Data, req.file.mimetype);
-
-      // Clean up uploaded file
-      await fs.unlink(req.file.path).catch(console.error);
 
       // Normalize packs with duration calculation
       const learningPacks = Array.isArray(packs) && packs.length > 0
