@@ -14,16 +14,15 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS Configuration - Support multiple origins
+// CORS Configuration - Allow multiple origins including Vercel deployments
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174',
   process.env.FRONTEND_URL,
-  // Add your Vercel frontend URL here after deployment
-  // 'https://brain-coins.vercel.app',
-  // 'https://your-custom-domain.com'
-].filter(Boolean); // Remove undefined values
+  'https://brain-coins-admin-panel-a4or-l7isbl0qj-abikoys-projects.vercel.app/',
+  'https://brain-coins-admin-panel-a4or.vercel.app/'
+].filter(Boolean);
 
 // Middleware
 app.use(cors({
@@ -35,13 +34,14 @@ app.use(cors({
     if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -88,7 +88,7 @@ app.listen(PORT, () => {
 ║                                                           ║
 ║   Server running on: http://localhost:${PORT}              ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   Allowed Origins: ${allowedOrigins.length} configured    ║
+║   CORS: ${allowedOrigins.length} origins + *.vercel.app  ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
