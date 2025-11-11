@@ -9,7 +9,41 @@ import { supabase } from './supabaseClient';
 const BUCKET_NAME = 'content-uploads';
 
 /**
- * Upload file to Supabase Storage
+ * Check and refresh session if token is expired
+ * @private
+ * @returns {Promise<{session: any, error: Error}>}
+ */
+const checkAndRefreshSession = async () => {
+  const { data, error } = await supabase.auth.getSession();
+  
+  if (error || !data?.session) {
+    console.error('[Auth] No valid session found:', error);
+    return { session: null, error: error || new Error('No active session') };
+  }
+
+  // Check if token is expired or about to expire in the next 60 seconds
+  const expiresAt = data.session.expires_at * 1000; // Convert to milliseconds
+  const now = Date.now();
+  const buffer = 60 * 1000; // 60 seconds buffer
+
+  if (expiresAt < now + buffer) {
+    console.log('[Auth] Token expired or about to expire, refreshing...');
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    
+    if (refreshError) {
+      console.error('[Auth] Failed to refresh session:', refreshError);
+      return { session: null, error: refreshError };
+    }
+    
+    console.log('[Auth] Session refreshed successfully');
+    return { session: refreshData.session, error: null };
+  }
+
+  return { session: data.session, error: null };
+};
+
+/**
+ * Upload file to Supabase Storage with automatic session refresh
  * @param {File} file - File object from input element
  * @returns {Promise<{filePath: string, fileUrl: string, fileType: string}>}
  * @throws {Error} - Upload error including RLS failures
@@ -27,19 +61,18 @@ export const uploadFile = async (file) => {
       throw new Error('File size exceeds 50MB limit');
     }
 
-    // CRITICAL: Check if user is authenticated before upload
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    // Check and refresh session if needed
+    const { session, error: sessionError } = await checkAndRefreshSession();
     
-    console.log('[Frontend Storage] Session check:', {
-      hasSession: !!sessionData?.session,
-      user: sessionData?.session?.user?.email,
-      error: sessionError
-    });
-
-    if (!sessionData?.session) {
-      console.error('[Frontend Storage] No active session found!');
-      throw new Error('You must be logged in to upload files. Please refresh the page and sign in again.');
+    if (sessionError || !session) {
+      console.error('[Frontend Storage] Session check failed:', sessionError);
+      throw new Error('Your session has expired. Please refresh the page and log in again.');
     }
+    
+    console.log('[Frontend Storage] Session verified:', {
+      user: session.user?.email,
+      expiresAt: new Date(session.expires_at * 1000).toISOString()
+    });
 
     // Generate unique file name
     const timestamp = Date.now();
@@ -55,17 +88,47 @@ export const uploadFile = async (file) => {
       size: file.size,
       type: file.type,
       path: filePath,
-      authenticatedAs: sessionData.session.user.email
+      authenticatedAs: session.user.email
     });
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase
-      .storage
-      .from(BUCKET_NAME)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      });
+    // Upload to Supabase Storage with retry on token expiration
+    let uploadAttempts = 0;
+    const maxUploadAttempts = 2;
+    let data = null;
+    let error = null;
+
+    while (uploadAttempts < maxUploadAttempts) {
+      const uploadResult = await supabase
+        .storage
+        .from(BUCKET_NAME)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      data = uploadResult.data;
+      error = uploadResult.error;
+      
+      // If it's a token expiration error and we have retries left, refresh and retry
+      if (error && (error.message?.includes('exp') || error.message?.includes('claim') || error.statusCode === 401) && uploadAttempts < maxUploadAttempts - 1) {
+        console.log(`[Upload] Token error detected, refreshing and retrying (attempt ${uploadAttempts + 1})`);
+        uploadAttempts++;
+        
+        // Refresh session
+        const refreshResult = await checkAndRefreshSession();
+        if (refreshResult.error) {
+          console.error('[Upload] Failed to refresh session for retry:', refreshResult.error);
+          break; // Can't refresh, exit loop
+        }
+        
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 500));
+        continue;
+      }
+      
+      // Either success or non-token error, exit loop
+      break;
+    }
 
     if (error) {
       // Check for RLS (Row Level Security) errors

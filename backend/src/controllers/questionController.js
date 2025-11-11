@@ -131,19 +131,46 @@ export const generatePreviewFromFileHandler = async (req, res) => {
     const totalRequested = requestedTypes.reduce((sum, t) => sum + normalizedCounts[t], 0);
 
     // Generate questions
-    const gen = await generateQuestionsFromFile(fileUrl, fileType, {
-      count: totalRequested,
-      difficulty: difficulty || 'Medium',
-      types: requestedTypes,
-      counts: normalizedCounts,
-      language: language || 'English',
-      grade: grade || 'Unknown',
-      subject: subject || 'Unknown',
-      bloom_level: bloom_level || 'Understand'
+    console.log('[Preview] Generating questions with params:', {
+      fileUrl: fileUrl.substring(0, 100),
+      fileType,
+      totalRequested,
+      difficulty,
+      requestedTypes,
+      language
     });
 
+    let gen;
+    try {
+      gen = await generateQuestionsFromFile(fileUrl, fileType, {
+        count: totalRequested,
+        difficulty: difficulty || 'Medium',
+        types: requestedTypes,
+        counts: normalizedCounts,
+        language: language || 'English',
+        grade: grade || 'Unknown',
+        subject: subject || 'Unknown',
+        bloom_level: bloom_level || 'Understand'
+      });
+    } catch (genError) {
+      console.error('[Preview] ❌ Error from generateQuestionsFromFile:', {
+        message: genError.message,
+        stack: genError.stack
+      });
+      return res.status(500).json({ 
+        success: false, 
+        error: `Question generation failed: ${genError.message}. Please check your file and try again.` 
+      });
+    }
+
+    console.log('[Preview] Generated questions count:', gen?.length || 0);
+
     if (!Array.isArray(gen) || gen.length === 0) {
-      return res.status(500).json({ success: false, error: 'Failed to generate any questions. Please try again.' });
+      console.error('[Preview] No questions generated. Response:', gen);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'No questions were generated from the file. The content may be too short or unclear. Please try a different file.' 
+      });
     }
 
     // Group and select questions by type

@@ -444,7 +444,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         description: selectedPack.content || selectedPack.description,
         subject_id: subject,
         grade: `Grade ${parseInt(grade)}`, // ← CHANGE THIS to "Grade 6", "Grade 7", etc.
-        difficulty: 'Medium',
+        difficulty: selectedPack.difficulty || 'Medium', // Use difficulty from pack (set by user via dropdown)
         language: getLanguageCode(selectedPack.language || genLanguage || 'English'),
         is_active: true
       });
@@ -502,21 +502,21 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         title: selectedPack.title,
         description: selectedPack.content || selectedPack.description,
         subject_id: subject,
-        grade: `Grade ${parseInt(grade)}`, // ← CHANGE THIS to "Grade 6", "Grade 7", etc.
-        difficulty: 'Medium',
+        grade: `Grade ${parseInt(grade)}`,
+        difficulty: selectedPack.difficulty || 'Medium', // Use difficulty from pack (set by user via dropdown)
         language: getLanguageCode(selectedPack.language || genLanguage || 'English'),
         is_active: true
       });
 
       const packId = newPack.id;
 
-      // Call backend API to generate questions
-      const { questions: generatedQuestions, summary_bullets } = await generateQuestionsFromFile(
-        uploadedFile.fileUrl,
-        uploadedFile.fileType,
+      const { generateQuestionsFromFile } = await import('../api/questionService');
+      const { generatedQuestions, summary_bullets } = await generateQuestionsFromFile(
+        uploadedFile.url,
+        uploadedFile.type,
         {
           pack_id: packId,
-          count: 5,
+          count: genCount,
           difficulty: 'Intermediate',
           types: ['MCQ', 'FIIB', 'TF', 'HOQ'],
           language: genLanguage,
@@ -873,6 +873,25 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600 whitespace-nowrap">
                       {pack.language || 'English'}
                     </span>
+                  </div>
+
+                  {/* Difficulty Dropdown */}
+                  <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                    <label className="text-xs font-medium text-gray-600 block mb-1">Difficulty:</label>
+                    <select
+                      value={pack.difficulty || 'Medium'}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        const newPacks = [...suggestedPacks];
+                        newPacks[index] = { ...newPacks[index], difficulty: e.target.value };
+                        setSuggestedPacks(newPacks);
+                      }}
+                      className="text-xs px-2 py-1 border border-gray-300 rounded bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 w-full"
+                    >
+                      <option value="Easy">Easy</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Hard">Hard</option>
+                    </select>
                   </div>
 
                   {cleanTopics.length > 0 && (

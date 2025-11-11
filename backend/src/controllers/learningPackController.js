@@ -116,7 +116,7 @@ const analyzeDocumentHandler = async (req, res) => {
       const base64Data = req.file.buffer.toString('base64');
       const packs = await generateLearningPacksFromBase64(base64Data, req.file.mimetype);
 
-      // Normalize packs with duration calculation
+      // Normalize packs with duration calculation and difficulty
       const learningPacks = Array.isArray(packs) && packs.length > 0
         ? packs.map((p, i) => {
           const content = String(p.content || '');
@@ -125,18 +125,20 @@ const analyzeDocumentHandler = async (req, res) => {
           const duration = Math.max(5, Math.ceil(wordCount / 200) * 5);
 
           return {
-            title: String(p.title || `Chapter ${i + 1}`),
+            title: String(p.title || `Learning Pack ${i + 1}`),
             content: content,
             order: p.order || (i + 1),
             language: p.language || 'English',
+            difficulty: p.difficulty || 'Medium', // Include difficulty from AI or default to Medium
             duration: duration
           };
         })
         : [{
-          title: 'Chapter 1: Document Content',
+          title: 'Learning Pack 1: Document Content',
           content: 'No content available',
           order: 1,
           language: 'English',
+          difficulty: 'Medium',
           duration: 10
         }];
 

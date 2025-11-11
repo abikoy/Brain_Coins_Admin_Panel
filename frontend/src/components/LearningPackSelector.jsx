@@ -35,7 +35,7 @@ const LearningPackSelector = ({ selectedPackId, onSelect, refreshToken }) => {
         <option value="">Select a pack...</option>
         {packs.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.title} (Grade {p.grade})
+            {p.title} (Grade {p.grade}) - {p.difficulty || 'Medium'}
           </option>
         ))}
       </select>

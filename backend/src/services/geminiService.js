@@ -268,7 +268,7 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
         if (chars > 0 && (chars + para.length > targetMax)) {
           const content = buf.join('\n\n');
           const firstLine = content.split('\n')[0] || '';
-          const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Chapter ${packs.length + 1}`;
+          const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Learning Pack ${packs.length + 1}`;
           packs.push({ title, content, order: packs.length + 1, language: 'English' });
           buf = [para];
           chars = para.length;
@@ -278,7 +278,7 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
           if (chars >= targetMin) {
             const content = buf.join('\n\n');
             const firstLine = content.split('\n')[0] || '';
-            const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Chapter ${packs.length + 1}`;
+            const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Learning Pack ${packs.length + 1}`;
             packs.push({ title, content, order: packs.length + 1, language: 'English' });
             buf = [];
             chars = 0;
@@ -288,7 +288,7 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
       if (buf.length) {
         const content = buf.join('\n\n');
         const firstLine = content.split('\n')[0] || '';
-        const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Chapter ${packs.length + 1}`;
+        const title = (firstLine.length > 8 && firstLine.length < 120) ? firstLine : `Learning Pack ${packs.length + 1}`;
         packs.push({ title, content, order: packs.length + 1, language: 'English' });
       }
       return packs;
@@ -342,13 +342,30 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
       } catch (e) {
         console.error('[Backend Gemini] Local fallback error:', e);
       }
-      return [{ title: 'Chapter 1: Document Content', content: 'Content not available', order: 1, language: 'English' }];
+      return [{ title: 'Learning Pack 1: Document Content', content: 'Content not available', order: 1, language: 'English' }];
     };
 
     if (isPdf || isImage || forceVisionAPI) {
       // Use Vision API for images, PDFs, and Sinhala/Tamil content
       const imagePart = { inlineData: { data: base64Data, mimeType } };
-      prompt = `You are an expert educational content creator for the Sri Lankan local syllabus (Grades 6-11) with advanced multilingual capabilities in English, Sinhala, and Tamil.
+      prompt = `🚨🚨🚨 CRITICAL: TAMIL/SINHALA TEXT MUST USE PROPER UNICODE! 🚨🚨🚨
+
+❌❌❌ THESE ARE GARBAGE - NEVER OUTPUT THESE ❌❌❌
+Tamil garbage: "¸USP", "©hUøP", "£õh¡À", "C»Á\\", "÷©ØSÔzu", "¨£µ¨£ÍÄ", "Gs÷PõøÁPøÍa"
+Sinhala garbage: ";d;aúl", "fkdñ,a fnod", "o¾Yl yd"
+
+✅✅✅ USE ONLY PROPER UNICODE ✅✅✅
+Tamil: "கணிதம்", "பாடம்", "பயிற்சி", "விளக்கம்", "கேள்விகள்"
+Sinhala: "ගණිතය", "පාඩම", "අභ්‍යාස", "විස්තරය", "ප්‍රශ්න"
+
+If you see Tamil/Sinhala script, you MUST:
+1. Use ONLY proper Unicode characters (U+0B80-U+0BFF for Tamil, U+0D80-U+0DFF for Sinhala)
+2. Set language field to "Tamil" or "Sinhala" (NOT "English")
+3. NO Latin letters mixed with symbols
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You are an expert educational content creator for the Sri Lankan local syllabus (Grades 6-11) with advanced multilingual capabilities in English, Sinhala, and Tamil.
 
 ⚠️ ABSOLUTE RULES - VIOLATION WILL RESULT IN REJECTION:
 1. **FIRST**: Check if this is a TABLE OF CONTENTS page - if yes, extract chapter titles ONLY
@@ -404,42 +421,89 @@ If you found a Table of Contents:
 
 ---
 
-### STEP 1: CRITICAL - PROPER UNICODE OCR
+### STEP 1: CRITICAL - ABSOLUTE UNICODE REQUIREMENT (NO EXCEPTIONS!)
 
-🚨 **ABSOLUTE REQUIREMENT**: You MUST output proper Unicode characters. NO EXCEPTIONS.
+🔴 **CRITICAL ENCODING RULE**: You MUST use PROPER UNICODE encoding. NO corrupted text allowed!
 
-**FORBIDDEN OUTPUT EXAMPLES** (These are GARBAGE - DO NOT PRODUCE):
-❌ ";d;aúl ixLHd" 
-❌ "o¾Yl yd ,>q.Kl"
-❌ "fkdñ,a fnod yeÿ"
-❌ ">k jia;=j,"
-❌ "iudka;r f¾Ld"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ WARNING: THESE ARE GARBAGE CHARACTERS - NEVER OUTPUT THESE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**REQUIRED OUTPUT EXAMPLES** (Proper Unicode):
-✅ Sinhala: "පළමු පරිච්ඡේදය", "ගණිතය", "සංඛ්‍යා පද්ධති", "වීජ ගණිතය"
-✅ Tamil: "முதல் அத்தியாயம்", "கணிதம்", "எண் முறைகள்", "இயற்கணிதம்"
-✅ English: "Chapter 1", "Mathematics", "Number Systems", "Algebra"
+❌ **FORBIDDEN - Tamil Garbage** (ISO-8859-1 encoding errors):
+   "¸USP", "©hUøP", "AmhÁønø¯", "£¯ß£kzv", "Gs÷PõøÁPøÍa"
+   "_¸UPÀ", "÷Áõ®", "Euõµn[PÎß", "ö\´²®", "Âuzøua"
+   "Po¨¦a", "£õh¡À", "C»Á\", "÷©ØSÔzu", "öPõÒ÷Áõ®"
+   "A¨÷£õx", "¨£µ¨£ÍÄ", "CønPµ®", "•U÷Põo", "\©õ¢uµU"
+   
+❌ **FORBIDDEN - Sinhala Garbage** (encoding errors):
+   ";d;aúl ixLHd", "o¾Yl yd ,>q.Kl", "fkdñ,a fnod yeÿ"
+   "kshu úÿ,s iy t<öu újdyl", "wmkhk ixLHd"
 
-**Language Detection**:
-1. Look at the script in the image
-2. If you see Sinhala script (rounded characters like ක ග ච ජ ට ඩ ණ ත ද න ප බ ම ය ර ල ව ශ ෂ ස හ ළ):
-   - Language = "Sinhala"
-   - Unicode range: U+0D80 to U+0DFF
-   - Output ONLY Sinhala Unicode characters
-3. If you see Tamil script (angular characters like க ங ச ஞ ட ண த ந ப ம ய ர ல வ ழ ள ற ன):
-   - Language = "Tamil"  
-   - Unicode range: U+0B80 to U+0BFF
-   - Output ONLY Tamil Unicode characters
-4. If you see Latin alphabet (A-Z, a-z):
-   - Language = "English"
+❌ **FORBIDDEN - Mixed/Corrupted**:
+   "lg P", "antilog", Any mix of Latin letters with accent marks that don't form real words
 
-**SELF-VALIDATION BEFORE RESPONDING**:
-Before you output anything, check:
-1. Does my output contain characters from the CORRECT Unicode range?
-2. Do the words look like real Sinhala/Tamil words (not Latin gibberish)?
-3. Would a native speaker recognize these as proper words?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ REQUIRED: PROPER UNICODE OUTPUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-If ANY answer is NO, you MUST re-read the image and try again.
+✅ **Tamil** (Unicode range U+0B80-U+0BFF):
+   Examples: "கணிதம்", "அத்தியாயம்", "பாடம்", "பயிற்சி"
+   "இயற்கணிதம்", "வடிவியல்", "எண்கள்", "முறைகள்"
+   "விளக்கம்", "கேள்விகள்", "தீர்வு", "சூத்திரம்"
+   
+✅ **Sinhala** (Unicode range U+0D80-U+0DFF):
+   Examples: "ගණිතය", "පරිච්ඡේදය", "පාඩම", "අභ්‍යාස"
+   "වීජ ගණිතය", "ජ්‍යාමිතිය", "සංඛ්‍යා", "ක්‍රම"
+   "විස්තරය", "ප්‍රශ්න", "විසඳුම", "සූත්‍රය"
+
+✅ **English** (ASCII/Latin):
+   Examples: "Mathematics", "Chapter", "Lesson", "Exercise"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 LANGUAGE DETECTION PROTOCOL:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**STEP 1.1: Identify Script**
+- Look at the actual shapes of characters in the image
+- **Tamil**: Angular/curved characters (க, ங, ச, ஞ, ட, ண, த, ந, ப, ம, ய, ர, ல, வ, ழ, ள, ற, ன)
+- **Sinhala**: Round/circular characters (ක, ග, ච, ජ, ට, ඩ, ණ, ත, ද, න, ප, බ, ම, ය, ර, ල, ව, ශ, ෂ, ස, හ, ළ)
+- **English**: Latin alphabet (A-Z, a-z)
+
+**STEP 1.2: Set Language and Encoding**
+- If Tamil detected:
+  → Set language = "Tamil"
+  → Use ONLY Unicode Tamil block (U+0B80-U+0BFF)
+  → Every character MUST be proper Tamil Unicode
+  
+- If Sinhala detected:
+  → Set language = "Sinhala"
+  → Use ONLY Unicode Sinhala block (U+0D80-U+0DFF)
+  → Every character MUST be proper Sinhala Unicode
+  
+- If English detected:
+  → Set language = "English"
+  → Use standard ASCII/Latin characters
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 MANDATORY SELF-VALIDATION (Do this BEFORE responding!):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before you output ANYTHING, ask yourself:
+
+1. ✓ Does my output contain ONLY proper Tamil (U+0B80-U+0BFF) or Sinhala (U+0D80-U+0DFF) Unicode?
+2. ✓ Are there ANY Latin letters mixed with accent marks (like ¨, ©, ø, ®, À, Á, etc.)?
+3. ✓ Would a native Tamil/Sinhala speaker be able to READ this text?
+4. ✓ Do the words look like REAL words in that language?
+5. ✓ Is the language field set to "Tamil" or "Sinhala" (NOT "English")?
+
+**If ANY answer is NO or uncertain:**
+→ STOP!
+→ Re-examine the image carefully
+→ Extract text again with proper Unicode encoding
+→ Verify each character is from the correct Unicode block
+→ Try again until ALL checks pass
+
+⚠️ **REMEMBER**: Garbage characters mean FAILED Unicode extraction. You MUST retry until you get clean Unicode!
 
 ### STEP 2: INTELLIGENT PACK CREATION
 
@@ -485,11 +549,14 @@ If no clear chapters or TOC:
 
 ### STEP 3: Create Learning Packs
 For EACH identified chapter:
-- **title**: Extract the EXACT chapter title from the document (in detected language)
+- **title**: Format as "Learning Pack 1", "Learning Pack 2", etc. (NOT "Chapter 1", "Chapter 2") followed by the actual chapter title from document (in detected language)
 - **content**: Write a SHORT, PRECISE summary (10-15 words MAXIMUM) covering ONLY the key concepts (in detected language)
-- **language**: The detected language
+- **language**: The detected language (MUST be "English", "Sinhala", or "Tamil" - use EXACT spelling)
 
-⚠️ CRITICAL: Keep summaries SHORT and PRECISE - 10-15 words MAXIMUM! Focus on key points only!
+⚠️ CRITICAL: 
+- Keep summaries SHORT and PRECISE - 10-15 words MAXIMUM! Focus on key points only!
+- Title format: "Learning Pack 1: [Chapter Title]" NOT "Chapter 1: [Title]"
+- Language MUST be one of: "English", "Sinhala", "Tamil" (exact spelling, capitalized)
 
 ### IF NO CLEAR CHAPTERS EXIST:
 Create EXACTLY ONE comprehensive learning pack that covers all main themes of the document.
@@ -508,12 +575,12 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
 <BEGIN_JSON>
 [
   {
-    "title": "පරිච්ඡේදය 1: සංඛ්‍යා පද්ධති",
+    "title": "Learning Pack 1: සංඛ්‍යා පද්ධති",
     "content": "මෙම පරිච්ඡේදයෙන් සංඛ්‍යා පද්ධති පිළිබඳ මූලික සංකල්ප විස්තර කෙරේ. ස්වභාවික සංඛ්‍යා, පූර්ණ සංඛ්‍යා සහ තාර්කික සංඛ්‍යා ගැන සාකච්ඡා කෙරේ.",
     "language": "Sinhala"
   },
   {
-    "title": "පරිච්ඡේදය 2: වීජ ගණිතය",
+    "title": "Learning Pack 2: වීජ ගණිතය",
     "content": "වීජ ගණිතයේ මූලික සංකල්ප හඳුන්වා දෙයි. විචල්‍යයන්, සමීකරණ සහ අසමානතා විසඳීම පිළිබඳ විස්තර කෙරේ.",
     "language": "Sinhala"
   }
@@ -524,7 +591,7 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
 <BEGIN_JSON>
 [
   {
-    "title": "அத்தியாயம் 1: ஒளியியல்",
+    "title": "Learning Pack 1: ஒளியியல்",
     "content": "இந்த அத்தியாயம் ஒளியின் பண்புகள் மற்றும் நடத்தை பற்றி விவரிக்கிறது. பிரதிபலிப்பு, ஒளிவிலகல் மற்றும் ஒளி சிதறல் பற்றிய கருத்துக்கள் விளக்கப்படுகின்றன.",
     "language": "Tamil"
   }
@@ -535,12 +602,12 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
 <BEGIN_JSON>
 [
   {
-    "title": "Chapter 1: Introduction to Biology",
+    "title": "Learning Pack 1: Introduction to Biology",
     "content": "This chapter introduces the fundamental concepts of biology, including cell structure, living organisms, and basic life processes.",
     "language": "English"
   },
   {
-    "title": "Chapter 2: Cell Biology",
+    "title": "Learning Pack 2: Cell Biology",
     "content": "Detailed study of cell structure and function, including organelles, cell membrane, and cellular processes.",
     "language": "English"
   }
@@ -613,11 +680,17 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
           const hasValidTitle = title.length > 3 && (hasEnglish || hasSinhala || hasTamil);
 
           // Specific garbage patterns for Sinhala/Tamil corruption
-          const hasGarbagePatterns = /fkd[ñ,a]|fnod|yeÿ|iyd|ksoi|mqkl|wdh|kfh|bEö|fjk|;d;a|o¾Y|,>q\.|>k jia|mDIaG|mßud|oaúm|ùÔh|iudka;r|f¾Ld|m%;s|fldgia/.test(title);
+          // These patterns indicate corrupted ISO-8859-1 or Windows-1252 encoding
+          const sinhalaGarbage = /fkd[ñ,a]|fnod|yeÿ|iyd|ksoi|mqkl|wdh|kfh|bEö|fjk|;d;a|o¾Y|,>q\.|>k jia|mDIaG|mßud|oaúm|ùÔh|iudka;r|f¾Ld|m%;s|fldgia/.test(title);
+          
+          // Tamil garbage patterns - these are the EXACT patterns user is seeing
+          const tamilGarbage = /[¸©£÷øÁÎß\u00a8\u00a9\u00b8\u00c0\u00c1\u00f8\u00ae\u00ce\u00df\u00f6\u00f7\u00f5][A-Za-z]|[A-Za-z][¸©£÷øÁÎß\u00a8\u00a9\u00b8\u00c0\u00c1\u00f8\u00ae\u00ce\u00df\u00f6\u00f7\u00f5]|C»Á|£õh|÷©Ø|¨£µ|Po¨|Gs÷|_¸UP|\u00c2uzøu/.test(title);
+          
+          const hasGarbagePatterns = sinhalaGarbage || tamilGarbage;
 
-          // For Tamil/Sinhala, be more lenient with garbage ratio due to combining characters
-          // For English, use stricter threshold
-          const garbageThreshold = (hasTamil || hasSinhala) ? 0.5 : 0.3;
+          // For Tamil/Sinhala, if garbage patterns are detected, automatically reject
+          // Even a single garbage pattern should disqualify the pack
+          const garbageThreshold = (hasTamil || hasSinhala) ? 0.3 : 0.3;
 
           // Reject if title is mostly garbage characters
           const garbageRatio = (title.match(/[^\p{L}\p{N}\s.,!?\-:;()'"]/gu) || []).length / title.length;
@@ -657,7 +730,7 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
         })
         // No slice limit - create packs for ALL valid chapters found
         .map((p, idx) => {
-          const title = String(p.title || `Chapter ${idx + 1}`);
+          const title = String(p.title || `Learning Pack ${idx + 1}`);
           const content = String(p.content || '');
           // Detect language from title and content if not provided
           const detectedLanguage = p.language || detectLanguageFromText(title + ' ' + content);
@@ -671,6 +744,19 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
         });
 
       console.log(`[Backend Gemini] Validated ${validPacks.length} packs from ${packs.length} generated`);
+      
+      // If no valid packs or too many filtered as garbage, return error to force retry
+      if (validPacks.length === 0) {
+        console.error(`[Backend Gemini] ❌ ALL ${packs.length} packs were filtered as garbage/invalid!`);
+        console.error('[Backend Gemini] Sample garbage titles:', packs.slice(0, 3).map(p => p.title?.substring(0, 60)));
+        throw new Error('Generated packs contain corrupted text. Please try uploading again or use a different file format.');
+      }
+      
+      const filteredPercentage = ((packs.length - validPacks.length) / packs.length) * 100;
+      if (filteredPercentage > 50) {
+        console.warn(`[Backend Gemini] ⚠️ Filtered ${filteredPercentage.toFixed(0)}% of packs as garbage`);
+      }
+      
       return validPacks;
     }
 
@@ -832,7 +918,7 @@ SOURCE TEXT (may be truncated):\n${textForChapters.substring(0, 120000)}`;
       })
       .slice(0, 10) // Enforce maximum 10 packs
       .map((p, idx) => {
-        const title = String(p.title || `Chapter ${idx + 1}`);
+        const title = String(p.title || `Learning Pack ${idx + 1}`);
         const content = String(p.content || '');
         // Detect language from title and content if not provided
         const detectedLanguage = p.language || detectLanguageFromText(title + ' ' + content);
@@ -1371,37 +1457,56 @@ export const generateQuestions = async (content, options = {}) => {
 SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey requested language; align to Bloom's level; ground strictly in provided context.
 
-🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA AND TAMIL:
+🚨 🚨 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA AND TAMIL 🚨 🚨 🚨
 ${language === 'Sinhala' || language === 'Tamil' ? `
-⚠️ ABSOLUTE REQUIREMENT: You MUST output PROPER UNICODE characters for ${language}. NO EXCEPTIONS!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ ABSOLUTE REQUIREMENT: You MUST output PROPER UNICODE characters for ${language}. 
+⚠️ ANY LATIN CHARACTERS = COMPLETE FAILURE
+⚠️ ANY GARBAGE CHARACTERS = COMPLETE FAILURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**FORBIDDEN OUTPUT** (These are GARBAGE - DO NOT PRODUCE):
-❌ "msróvhla", "y\`Èkafõ", ";s%fldaKdldr", "fkdjk", "uqyqK;g", "________", "hehs", "lshkq", ",efõ"
-❌ "wdOdrlh", "✓YS¾Ihwe,", "odrh;s%fldaKdldr", "uqyqK;"
-❌ "wrh", "'r'", "jQ", "f.da,hl", "mßudj", "2/3", "πr³", "iQ;%fhka", ",efí"
-❌ "f.da,fha", "mßudj", "fiùfï", "ksjerÈ", "iQ;%h", "4/3", "πr³", "fõ"
-
-**REQUIRED OUTPUT** (Proper ${language} Unicode):
+**❌❌❌ FORBIDDEN OUTPUT - THESE ARE GARBAGE - NEVER PRODUCE THESE ❌❌❌**
 ${language === 'Sinhala' ? `
-✅ "පළමු", "දෙවන", "තුන්වන", "ගණිතය", "විද්‍යාව", "ඉතිහාසය"
-✅ "පරිච්ඡේදය", "පාඩම", "ප්‍රශ්නය", "පිළිතුර", "විකල්පය"
-✅ "සත්‍ය", "අසත්‍ය", "නිවැරදි", "වැරදි", "පැහැදිලි කිරීම"
-✅ Unicode range: U+0D80 to U+0DFF ONLY
+❌ "msróvhla", "y\`Èkafõ", ";s%fldaKdldr", "fkdjk", "uqyqK;g", "hehs", "lshkq", ",efõ"
+❌ "wdOdrlh", "YS¾Ihwe", "odrh;s%fldaKdldr", "uqyqK;", "wrh", "jQ", "f.da,hl"
+❌ "mßudj", "iQ;%fhka", ",efí", "f.da,fha", "fiùfï", "ksjerÈ", "iQ;%h", "fõ"
+❌ ANY text with Latin letters (a-z, A-Z) mixed with symbols
 ` : `
-✅ "முதல்", "இரண்டாவது", "மூன்றாவது", "கணிதம்", "அறிவியல்", "வரலாறு"
-✅ "அத்தியாயம்", "பாடம்", "கேள்வி", "பதில்", "விருப்பம்"
-✅ "உண்மை", "தவறு", "சரியான", "தவறான", "விளக்கம்"
-✅ Unicode range: U+0B80 to U+0BFF ONLY
+❌ "¸USP", "©hUøP", "AmhÁønø¯", "£¯ß£kzv", "Gs÷PõøÁPøÍa", "_¸UPÀ", "÷Áõ®"
+❌ "Euõµn[PÎß", "ö\´²®", "Âuzøua", "Po¨¦a", "£õh¡À", "C»Á\", "÷©ØSÔzu"
+❌ "lg P", "antilog", "öPõÒ÷Áõ®", "A¨÷£õx", "Âv", "ö£Ö©õÚ[", "PõsP"
+❌ ANY text with Latin letters (a-z, A-Z) mixed with symbols
 `}
 
-**SELF-VALIDATION BEFORE RESPONDING**:
-Before you output anything, check:
-1. Does my output contain characters from the CORRECT Unicode range (${language === 'Sinhala' ? 'U+0D80-U+0DFF' : 'U+0B80-U+0BFF'})?
-2. Do the words look like real ${language} words (not Latin gibberish)?
-3. Would a native speaker recognize these as proper words?
-4. Are there ANY Latin characters mixed in (like "msróvhla" or "f.da,hl")? If YES, REJECT and try again!
+**✅✅✅ REQUIRED OUTPUT - ONLY USE THESE PROPER UNICODE CHARACTERS ✅✅✅**
+${language === 'Sinhala' ? `
+✅ "පළමු", "දෙවන", "තුන්වන", "සිව්වන", "පස්වන"
+✅ "ගණිතය", "විද්‍යාව", "ඉතිහාසය", "භූගෝල විද්‍යාව", "සිංහල"
+✅ "පරිච්ඡේදය", "පාඩම", "ප්‍රශ්නය", "පිළිතුර", "විකල්පය", "පැහැදිලි කිරීම"
+✅ "සත්‍ය", "අසත්‍ය", "නිවැරදි", "වැරදි", "නිවැරදි පිළිතුර"
+✅ ONLY characters from Unicode range: U+0D80 to U+0DFF
+✅ NO Latin letters (a-z, A-Z) allowed AT ALL
+` : `
+✅ "முதல்", "இரண்டாவது", "மூன்றாவது", "நான்காவது", "ஐந்தாவது"
+✅ "கணிதம்", "அறிவியல்", "வரலாறு", "புவியியல்", "தமிழ்"
+✅ "அத்தியாயம்", "பாடம்", "கேள்வி", "பதில்", "விருப்பம்", "விளக்கம்"
+✅ "உண்மை", "தவறு", "சரியான", "தவறான", "சரியான பதில்"
+✅ ONLY characters from Unicode range: U+0B80 to U+0BFF
+✅ NO Latin letters (a-z, A-Z) allowed AT ALL
+`}
 
-If ANY answer is NO, you MUST re-read the content and try again with PROPER Unicode.
+**🔍🔍🔍 MANDATORY SELF-VALIDATION BEFORE RESPONDING 🔍🔍🔍**
+Before you output ANYTHING, you MUST check EVERY SINGLE CHARACTER:
+1. ✓ Does EVERY character come from the CORRECT Unicode range (${language === 'Sinhala' ? 'U+0D80-U+0DFF' : 'U+0B80-U+0BFF'})?
+2. ✓ Are there ZERO Latin letters (a-z, A-Z) in my output?
+3. ✓ Do the words look like REAL ${language} words that a native speaker would recognize?
+4. ✓ Is there NO mixing of symbols and Latin characters (like "lg", "antilog", "A¨÷£õx")?
+5. ✓ Would a ${language} teacher approve this text?
+
+❌ If ANY answer is NO → STOP → Re-read the content → Try again with PROPER Unicode
+✅ If ALL answers are YES → Proceed with output
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
 
 TASK:
@@ -1430,20 +1535,27 @@ Question Format Requirements:
    - question_text: Sentence with ___ for blank testing important terms
    - correct_answer: Key term or concept
    - options: 4-6 related terms including correct answer
-   - explanation: Why this term fits
+   - explanation: Clear, direct explanation of why this term is correct (NO references to "file", "image", "document", or "uploaded content")
 
 3.  TF (True/False):
    - question_type: "TF"
    - question_text: Clear factual statement
    - correct_answer: "True" or "False"
-   - explanation: Evidence for why true/false 
+   - explanation: Clear, direct evidence for why true/false (NO references to "file", "image", "document", or "uploaded content")
 
 4. HOQ (Higher Order Question - Short Answer):
    - question_type: "HOQ"
    - question_text: Analytical/evaluative question requiring critical thinking
    - correct_answer: CONCISE answer (1-2 sentences, 15-25 words MAX)
-   - explanation: Key points and reasoning 
+   - explanation: Clear, direct key points and reasoning (NO references to "file", "image", "document", or "uploaded content")
    - ⚠️ HOQ answers MUST be SHORT - no essays!
+
+⚠️ CRITICAL FOR EXPLANATIONS:
+- Write explanations as if they are from a textbook
+- NEVER mention "based on the file", "according to the image", "from the document", "uploaded content"
+- Provide direct, factual explanations
+- Example GOOD: "Water boils at 100°C at sea level due to atmospheric pressure."
+- Example BAD: "Based on the uploaded file, water boils at 100°C."
 
 Output: JSON array only. Each item object must include:
 - type (MCQ|FIIB|TF|HOQ)
@@ -1462,13 +1574,28 @@ Example for FIIB:
 }
 `;
 
+    console.log('[generateQuestions] Calling Gemini API with:', {
+      language,
+      count,
+      difficulty,
+      types,
+      contentLength: content?.length || 0
+    });
+
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
+    console.log('[generateQuestions] Gemini response received, length:', text?.length || 0);
+
     // Parse JSON response
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
+      console.error('[generateQuestions] ❌ No JSON array found in response:', {
+        responsePreview: text.substring(0, 500),
+        responseLength: text.length
+      });
+      
       await logGeminiParsingError(
         new Error('Invalid response format from Gemini'),
         {
@@ -1480,10 +1607,12 @@ Example for FIIB:
           questionCount: options.count
         }
       );
-      throw new Error('Invalid response format from Gemini');
+      throw new Error('Invalid response format from Gemini - no JSON array found');
     }
 
+    console.log('[generateQuestions] JSON match found, parsing...');
     const questions = JSON.parse(jsonMatch[0]);
+    console.log('[generateQuestions] ✅ Parsed questions count:', questions?.length || 0);
 
     // Helper function to detect garbage characters for Sinhala/Tamil
     const hasGarbageCharacters = (text, lang) => {
@@ -1503,7 +1632,9 @@ Example for FIIB:
         // Check for common garbage patterns in Tamil
         const garbagePatterns = [
           /[a-zA-Z]{3,}/, // Latin characters (3+ consecutive)
-          /[;%`]/         // Common garbage symbols
+          /[;%`¸£©÷ø¨]/,  // Common garbage symbols
+          /USP|Á\|õh|Gs÷P|÷Áõ®|Euõµn|Po¨|ö\´|_¸UP|Âv|©hUøP|£¯ß£kzv/i, // Known Tamil garbage
+          /[©£÷ø¨õ]{5,}/ // Too many Tamil-looking garbage chars in sequence
         ];
         return garbagePatterns.some(pattern => pattern.test(text));
       }
@@ -1558,6 +1689,16 @@ Example for FIIB:
     return validatedQuestions;
 
   } catch (error) {
+    console.error('[generateQuestions] ❌ CRITICAL ERROR:', {
+      errorMessage: error.message,
+      errorName: error.name,
+      errorStack: error.stack?.substring(0, 500),
+      language: options.language,
+      questionTypes: options.types,
+      questionCount: options.count,
+      contentLength: content?.length || 0
+    });
+    
     await logGeminiApiError(error, {
       apiEndpoint: 'generateContent',
       prompt: prompt?.substring(0, 500),
@@ -1566,9 +1707,9 @@ Example for FIIB:
       questionCount: options.count,
       endpoint: 'generateQuestions'
     });
-    console.error('[Backend] Gemini generation error:', error);
-    // No mock fallback: return empty set so UI shows real state
-    return [];
+    
+    // Re-throw the error instead of returning empty array
+    throw new Error(`Question generation failed: ${error.message}`);
   }
 };
 
@@ -1698,19 +1839,35 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
         let text = '';
 
         try {
+          console.log(`[generateQuestionsFromFile] Extracting text for ${type}...`);
+          
           text = fileType === 'pdf' || fileType === 'image'
             ? await extractTextFromFile(base64Data, mimeType)
             : buffer.toString('utf-8');
 
-          typeQuestions = await generateQuestions(text, {
-            count: typeCount * 2, // Generate extra to ensure we get enough
-            difficulty,
-            types: [type], // Generate only this type
-            language,
-            bloom_level
-          });
+          console.log(`[generateQuestionsFromFile] Text extracted, length: ${text?.length || 0}`);
+
+          if (!text || text.trim().length === 0) {
+            console.error(`[generateQuestionsFromFile] ❌ No text extracted from file for ${type}`);
+            typeQuestions = [];
+          } else {
+            console.log(`[generateQuestionsFromFile] Generating ${typeCount * 2} ${type} questions...`);
+            
+            typeQuestions = await generateQuestions(text, {
+              count: typeCount * 2, // Generate extra to ensure we get enough
+              difficulty,
+              types: [type], // Generate only this type
+              language,
+              bloom_level
+            });
+            
+            console.log(`[generateQuestionsFromFile] ✅ Generated ${typeQuestions?.length || 0} ${type} questions`);
+          }
         } catch (extractError) {
-          console.error(`[Backend Gemini] Error extracting text for ${type}:`, extractError);
+          console.error(`[generateQuestionsFromFile] ❌ Error extracting/generating ${type}:`, {
+            errorMessage: extractError.message,
+            errorStack: extractError.stack?.substring(0, 300)
+          });
           // Skip this type if extraction fails - no mock questions
           typeQuestions = [];
         }
@@ -1788,6 +1945,16 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     return finalQuestions;
 
   } catch (error) {
+    console.error('[Backend Gemini] ❌ CRITICAL ERROR in generateQuestionsFromFile:', {
+      errorMessage: error.message,
+      errorStack: error.stack,
+      fileType,
+      fileUrl: fileUrl?.substring(0, 100),
+      language: options.language,
+      questionTypes: options.types,
+      questionCount: options.count
+    });
+    
     await logGeminiApiError(error, {
       apiEndpoint: 'generateQuestionsFromFile',
       fileType,
@@ -1796,9 +1963,9 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       questionCount: options.count,
       endpoint: 'generateQuestionsFromFile'
     });
-    console.error('[Backend Gemini] File processing error:', error);
-    // No mock fallback: return empty set
-    return [];
+    
+    // Re-throw the error so the controller can handle it properly
+    throw new Error(`Failed to generate questions: ${error.message}`);
   }
 };
 
