@@ -2359,6 +2359,8 @@ const getMimeType = (fileType, fileUrl) => {
   return mimeTypes[extension] || 'application/octet-stream';
 };
 
+export { detectLanguageFromText };
+
 export default {
   generateQuestions,
   generateQuestionsFromFile,

@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { ToggleLeft, ToggleRight, Crown, Package } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Package, Crown, Edit, Trash2 } from 'lucide-react';
 
 const LearningPacksTable = ({ 
   learningPacks, 
   onToggleStatus, 
-  onTogglePremium 
+  onTogglePremium, 
+  onBulkToggleStatus, 
+  onBulkTogglePremium, 
+  onEditPack, 
+  onDeletePack 
 }) => {
   const [selectedPacks, setSelectedPacks] = useState([]);
 
@@ -98,7 +102,7 @@ const LearningPacksTable = ({
                 </span>
               </td>
               <td className="py-3 px-4">
-                <div className="flex gap-3">
+                <div className="flex gap-2 flex-wrap">
                   <button
                     onClick={() => onToggleStatus(pack.id, !pack.is_active)}
                     className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
@@ -117,6 +121,28 @@ const LearningPacksTable = ({
                     <Crown className="h-4 w-4" />
                     {pack.is_premium ? 'Free' : 'Premium'}
                   </button>
+                  
+                  {onEditPack && (
+                    <button
+                      onClick={() => onEditPack(pack)}
+                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                      title="Edit Learning Pack"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </button>
+                  )}
+                  
+                  {onDeletePack && (
+                    <button
+                      onClick={() => onDeletePack(pack.id)}
+                      className="flex items-center gap-1 text-sm text-red-600 hover:text-red-800 transition-colors"
+                      title="Delete Learning Pack"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>

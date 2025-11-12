@@ -1,7 +1,7 @@
 import React from 'react';
 import { ToggleLeft, ToggleRight, Book } from 'lucide-react';
 
-const SubjectsTable = ({ subjects, onToggleStatus }) => {
+const SubjectsTable = ({ subjects, onToggleStatus, currentLanguageFilter }) => {
   if (!subjects.length) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -28,7 +28,11 @@ const SubjectsTable = ({ subjects, onToggleStatus }) => {
             <tr key={subject.id} className="border-b border-gray-100 hover:bg-gray-50">
               <td className="py-3 px-4">
                 <div>
-                  <p className="font-medium">{subject.name || 'No name'}</p>
+                  <p className="font-medium">
+                    {currentLanguageFilter === 'Sinhala' && subject.name_si ? subject.name_si :
+                     currentLanguageFilter === 'Tamil' && subject.name_ta ? subject.name_ta :
+                     subject.name || 'No name'}
+                  </p>
                   {subject.description && (
                     <p className="text-sm text-gray-500 truncate max-w-xs">
                       {subject.description}
@@ -38,9 +42,15 @@ const SubjectsTable = ({ subjects, onToggleStatus }) => {
               </td>
               <td className="py-3 px-4">
                 <div className="text-sm text-gray-600">
-                  {subject.name_si && <span>Sinhala</span>}
-                  {subject.name_ta && <span>{subject.name_si ? ', ' : ''}Tamil</span>}
-                  {!subject.name_si && !subject.name_ta && <span>English only</span>}
+                  {currentLanguageFilter ? (
+                    <span>{currentLanguageFilter}</span>
+                  ) : (
+                    <>
+                      {subject.name && <span>English</span>}
+                      {subject.name_si && <span>{subject.name ? ', ' : ''}Sinhala</span>}
+                      {subject.name_ta && <span>{(subject.name || subject.name_si) ? ', ' : ''}Tamil</span>}
+                    </>
+                  )}
                 </div>
               </td>
               <td className="py-3 px-4">

@@ -1,5 +1,6 @@
 // services/contentManagementService.js
 import { createClient } from '@supabase/supabase-js';
+import { detectLanguageFromText } from './geminiService.js';
 
 class ContentManagementService {
   constructor() {
@@ -12,6 +13,7 @@ class ContentManagementService {
   // GET ALL SUBJECTS
   async getSubjects(filters = {}) {
     try {
+      
       let query = this.supabase
         .from('subjects')
         .select('*', { count: 'exact' })
@@ -21,8 +23,16 @@ class ContentManagementService {
         query = query.or(`name.ilike.%${filters.search}%,name_si.ilike.%${filters.search}%,name_ta.ilike.%${filters.search}%`);
       }
 
+      // Filter by specific subject_id if provided
+      if (filters.subject_id) {
+        query = query.eq('id', filters.subject_id);
+      }
+
       if (filters.is_active !== undefined) {
         query = query.eq('is_active', filters.is_active);
+      } else {
+        // By default, only show active subjects
+        query = query.eq('is_active', true);
       }
 
       if (filters.page && filters.limit) {
@@ -31,20 +41,42 @@ class ContentManagementService {
       }
 
       const { data: subjects, error, count } = await query;
+      
 
       if (error) throw error;
 
+      // Apply language filtering if specified
+      let filteredSubjects = subjects || [];
+      if (filters.language) {
+        filteredSubjects = subjects.filter(subject => {
+          // Check if subject has content in the requested language
+          if (filters.language === 'en') {
+            // For English, check if name exists and is primarily English
+            return subject.name && detectLanguageFromText(subject.name) === 'English';
+          } else if (filters.language === 'si') {
+            // For Sinhala, check if name_si exists and has Sinhala content
+            return subject.name_si && detectLanguageFromText(subject.name_si) === 'Sinhala';
+          } else if (filters.language === 'ta') {
+            // For Tamil, check if name_ta exists and has Tamil content
+            return subject.name_ta && detectLanguageFromText(subject.name_ta) === 'Tamil';
+          }
+          return false;
+        });
+      }
+
       return {
         success: true,
-        data: subjects,
-        total: count
+        subjects: filteredSubjects,
+        total: filteredSubjects.length
       };
 
     } catch (error) {
       console.error('Get Subjects Error:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message,
+        subjects: [],
+        total: 0
       };
     }
   }
@@ -102,8 +134,16 @@ class ContentManagementService {
         query = query.eq('grade', filters.grade);
       }
 
+      // Add language filtering
+      if (filters.language) {
+        query = query.eq('language', filters.language);
+      }
+
       if (filters.is_active !== undefined) {
         query = query.eq('is_active', filters.is_active);
+      } else {
+        // By default, only show active learning packs
+        query = query.eq('is_active', true);
       }
 
       if (filters.is_premium !== undefined) {
@@ -127,6 +167,120 @@ class ContentManagementService {
 
     } catch (error) {
       console.error('Get Learning Packs Error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // GET HIERARCHICAL CONTENT DATA FOR FILTERING
+  async getContentHierarchy(filters = {}) {
+    try {
+      // Get ALL subjects first (not just those with learning packs)
+      let subjectsQuery = this.supabase
+        .from('subjects')
+        .select('id, name, name_si, name_ta, color, icon')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+      const { data: allSubjects, error: subjectsError } = await subjectsQuery;
+      if (subjectsError) throw subjectsError;
+
+      // Build base query for learning packs to get languages, grades, and learning packs
+      let packsQuery = this.supabase
+        .from('learning_packs')
+        .select(`
+          id,
+          title,
+          grade,
+          language,
+          subject_id,
+          is_active,
+          subjects(id, name, name_si, name_ta, color, icon)
+        `)
+        .eq('is_active', true);
+
+      // Apply filters step by step
+      if (filters.language) {
+        // Convert display language to database code
+        const langCode = filters.language === 'English' ? 'en' : 
+                        filters.language === 'Sinhala' ? 'si' : 
+                        filters.language === 'Tamil' ? 'ta' : filters.language;
+        packsQuery = packsQuery.eq('language', langCode);
+      }
+
+      if (filters.grade) {
+        packsQuery = packsQuery.eq('grade', filters.grade);
+      }
+
+      if (filters.subject_id) {
+        packsQuery = packsQuery.eq('subject_id', filters.subject_id);
+      }
+
+      const { data: packs, error: packsError } = await packsQuery;
+      if (packsError) throw packsError;
+
+      // Extract unique values for dropdown options
+      const languages = [...new Set(packs.map(p => {
+        // Convert database codes back to display names
+        return p.language === 'en' ? 'English' : 
+               p.language === 'si' ? 'Sinhala' : 
+               p.language === 'ta' ? 'Tamil' : p.language;
+      }))].sort();
+
+      const grades = [...new Set(packs.map(p => p.grade))].sort();
+      
+      // Use ALL subjects, not just those with learning packs
+      let subjects = allSubjects;
+
+      // Apply language filtering to subjects if specified
+      if (filters.language) {
+        const langCode = filters.language === 'English' ? 'en' : 
+                        filters.language === 'Sinhala' ? 'si' : 
+                        filters.language === 'Tamil' ? 'ta' : filters.language;
+        
+        subjects = subjects.filter(subject => {
+          if (!subject) return false;
+          
+          // Check if subject has content in the requested language
+          if (langCode === 'en') {
+            // For English, check if name exists and is primarily English
+            return subject.name && detectLanguageFromText(subject.name) === 'English';
+          } else if (langCode === 'si') {
+            // For Sinhala, check if name_si exists and has Sinhala content
+            return subject.name_si && detectLanguageFromText(subject.name_si) === 'Sinhala';
+          } else if (langCode === 'ta') {
+            // For Tamil, check if name_ta exists and has Tamil content
+            return subject.name_ta && detectLanguageFromText(subject.name_ta) === 'Tamil';
+          }
+          return false;
+        });
+      }
+
+      const learningPacks = packs.map(p => ({
+        id: p.id,
+        title: p.title,
+        subject_id: p.subject_id,
+        grade: p.grade,
+        language: p.language === 'en' ? 'English' : 
+                 p.language === 'si' ? 'Sinhala' : 
+                 p.language === 'ta' ? 'Tamil' : p.language
+      }));
+
+      return {
+        success: true,
+        data: {
+          languages,
+          grades,
+          subjects,
+          learningPacks,
+          totalPacks: packs.length
+        }
+      };
+
+    } catch (error) {
+      console.error('Get Content Hierarchy Error:', error);
       return {
         success: false,
         error: error.message
@@ -194,9 +348,96 @@ class ContentManagementService {
     }
   }
 
+  // UPDATE LEARNING PACK
+  async updateLearningPack(id, packData) {
+    try {
+      const { data: pack, error } = await this.supabase
+        .from('learning_packs')
+        .update({
+          ...packData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: pack,
+        message: 'Learning pack updated successfully'
+      };
+
+    } catch (error) {
+      console.error('Update Learning Pack Error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // DELETE LEARNING PACK
+  async deleteLearningPack(id) {
+    try {
+      const { data: pack, error } = await this.supabase
+        .from('learning_packs')
+        .delete()
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: pack,
+        message: 'Learning pack deleted successfully'
+      };
+
+    } catch (error) {
+      console.error('Delete Learning Pack Error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
   // GET ALL QUESTIONS
   async getQuestions(filters = {}) {
     try {
+      // If we need to filter by subject_id or grade, first get the matching learning pack IDs
+      let packIds = null;
+      if (filters.subject_id || filters.grade) {
+        let packsQuery = this.supabase
+          .from('learning_packs')
+          .select('id')
+          .eq('is_active', true);
+
+        if (filters.subject_id) {
+          packsQuery = packsQuery.eq('subject_id', filters.subject_id);
+        }
+
+        if (filters.grade) {
+          packsQuery = packsQuery.eq('grade', filters.grade);
+        }
+
+        const { data: matchingPacks, error: packsError } = await packsQuery;
+        if (packsError) throw packsError;
+
+        packIds = matchingPacks.map(p => p.id);
+        // If no matching packs found, return empty result
+        if (packIds.length === 0) {
+          return {
+            success: true,
+            data: [],
+            total: 0
+          };
+        }
+      }
+
       let query = this.supabase
         .from('questions')
         .select(`
@@ -213,6 +454,11 @@ class ContentManagementService {
         query = query.eq('pack_id', filters.pack_id);
       }
 
+      // Filter by pack IDs if we found matching packs
+      if (packIds) {
+        query = query.in('pack_id', packIds);
+      }
+
       if (filters.question_type) {
         query = query.eq('question_type', filters.question_type);
       }
@@ -223,6 +469,9 @@ class ContentManagementService {
 
       if (filters.is_active !== undefined) {
         query = query.eq('is_active', filters.is_active);
+      } else {
+        // By default, only show active questions
+        query = query.eq('is_active', true);
       }
 
       if (filters.page && filters.limit) {
@@ -234,10 +483,26 @@ class ContentManagementService {
 
       if (error) throw error;
 
+      // Apply language filtering if specified
+      let filteredQuestions = questions || [];
+      if (filters.language) {
+        filteredQuestions = questions.filter(question => {
+          // Detect language from question text
+          const questionText = question.question_text || question.question_text_si || question.question_text_ta || '';
+          const detectedLanguage = detectLanguageFromText(questionText);
+          const languageMap = {
+            'English': 'en',
+            'Sinhala': 'si',
+            'Tamil': 'ta'
+          };
+          return languageMap[detectedLanguage] === filters.language;
+        });
+      }
+
       return {
         success: true,
-        data: questions,
-        total: count
+        data: filteredQuestions,
+        total: count || filteredQuestions.length // Use database count for proper pagination
       };
 
     } catch (error) {
@@ -272,6 +537,63 @@ class ContentManagementService {
 
     } catch (error) {
       console.error('Toggle Question Status Error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // UPDATE QUESTION
+  async updateQuestion(id, questionData) {
+    try {
+      const { data: question, error } = await this.supabase
+        .from('questions')
+        .update({
+          ...questionData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: question,
+        message: 'Question updated successfully'
+      };
+
+    } catch (error) {
+      console.error('Update Question Error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // DELETE QUESTION
+  async deleteQuestion(id) {
+    try {
+      const { data: question, error } = await this.supabase
+        .from('questions')
+        .delete()
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: question,
+        message: 'Question deleted successfully'
+      };
+
+    } catch (error) {
+      console.error('Delete Question Error:', error);
       return {
         success: false,
         error: error.message

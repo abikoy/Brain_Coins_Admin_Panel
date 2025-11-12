@@ -6,19 +6,29 @@ class ContentManagementController {
   // GET SUBJECTS
   async getSubjects(req, res) {
     try {
+      
       const { 
-        page = 1, 
-        limit = 50, 
+        page, 
+        limit, 
         search = '',
-        is_active 
+        is_active,
+        language,
+        subject_id
       } = req.query;
 
       const filters = {
-        page: parseInt(page),
-        limit: parseInt(limit),
         search,
-        is_active: is_active !== undefined ? is_active === 'true' : undefined
+        is_active: is_active !== undefined ? is_active === 'true' : undefined,
+        language,
+        subject_id
       };
+      
+
+      // Only add pagination if both page and limit are provided
+      if (page && limit) {
+        filters.page = parseInt(page);
+        filters.limit = parseInt(limit);
+      }
 
       const result = await contentManagementService.getSubjects(filters);
 
@@ -31,10 +41,10 @@ class ContentManagementController {
 
       res.json({
         success: true,
-        data: result.data,
+        subjects: result.subjects,
         total: result.total,
-        page: parseInt(page),
-        totalPages: Math.ceil(result.total / limit)
+        page: filters.page || 1,
+        totalPages: filters.page && filters.limit ? Math.ceil(result.total / filters.limit) : 1
       });
 
     } catch (error) {
@@ -80,24 +90,30 @@ class ContentManagementController {
   async getLearningPacks(req, res) {
     try {
       const { 
-        page = 1, 
-        limit = 50, 
+        page, 
+        limit, 
         search = '',
         subject_id,
         grade,
+        language,
         is_active,
         is_premium
       } = req.query;
 
       const filters = {
-        page: parseInt(page),
-        limit: parseInt(limit),
         search,
         subject_id,
         grade,
+        language,
         is_active: is_active !== undefined ? is_active === 'true' : undefined,
         is_premium: is_premium !== undefined ? is_premium === 'true' : undefined
       };
+
+      // Only add pagination if both page and limit are provided
+      if (page && limit) {
+        filters.page = parseInt(page);
+        filters.limit = parseInt(limit);
+      }
 
       const result = await contentManagementService.getLearningPacks(filters);
 
@@ -121,6 +137,40 @@ class ContentManagementController {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch learning packs'
+      });
+    }
+  }
+
+  // GET CONTENT HIERARCHY FOR FILTERING
+  async getContentHierarchy(req, res) {
+    try {
+      const { language, grade, subject_id } = req.query;
+
+      const filters = {
+        language,
+        grade,
+        subject_id
+      };
+
+      const result = await contentManagementService.getContentHierarchy(filters);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result.data
+      });
+
+    } catch (error) {
+      console.error('Get Content Hierarchy Controller Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch content hierarchy'
       });
     }
   }
@@ -185,28 +235,99 @@ class ContentManagementController {
     }
   }
 
+  // UPDATE LEARNING PACK
+  async updateLearningPack(req, res) {
+    try {
+      const { id } = req.params;
+      const packData = req.body;
+      
+      const result = await contentManagementService.updateLearningPack(id, packData);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result.data,
+        message: result.message
+      });
+
+    } catch (error) {
+      console.error('Update Learning Pack Controller Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update learning pack'
+      });
+    }
+  }
+
+  // DELETE LEARNING PACK
+  async deleteLearningPack(req, res) {
+    try {
+      const { id } = req.params;
+      
+      const result = await contentManagementService.deleteLearningPack(id);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result.data,
+        message: result.message
+      });
+
+    } catch (error) {
+      console.error('Delete Learning Pack Controller Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to delete learning pack'
+      });
+    }
+  }
+
   // GET QUESTIONS
   async getQuestions(req, res) {
     try {
+      
       const { 
-        page = 1, 
-        limit = 50, 
+        page, 
+        limit, 
         search = '',
         pack_id,
         question_type,
         difficulty,
-        is_active
+        is_active,
+        language,
+        subject_id,
+        grade
       } = req.query;
 
       const filters = {
-        page: parseInt(page),
-        limit: parseInt(limit),
         search,
         pack_id,
         question_type,
         difficulty,
-        is_active: is_active !== undefined ? is_active === 'true' : undefined
+        is_active: is_active !== undefined ? is_active === 'true' : undefined,
+        language,
+        subject_id,
+        grade
       };
+      
+
+      // Only add pagination if both page and limit are provided
+      if (page && limit) {
+        filters.page = parseInt(page);
+        filters.limit = parseInt(limit);
+      }
 
       const result = await contentManagementService.getQuestions(filters);
 
@@ -219,10 +340,10 @@ class ContentManagementController {
 
       res.json({
         success: true,
-        data: result.data,
+        questions: result.data,
         total: result.total,
-        page: parseInt(page),
-        totalPages: Math.ceil(result.total / limit)
+        page: filters.page || 1,
+        totalPages: filters.limit ? Math.ceil(result.total / filters.limit) : Math.ceil(result.total / 10)
       });
 
     } catch (error) {
@@ -260,6 +381,65 @@ class ContentManagementController {
       res.status(500).json({
         success: false,
         error: 'Failed to toggle question status'
+      });
+    }
+  }
+
+  // UPDATE QUESTION
+  async updateQuestion(req, res) {
+    try {
+      const { id } = req.params;
+      const questionData = req.body;
+      
+      const result = await contentManagementService.updateQuestion(id, questionData);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result.data,
+        message: result.message
+      });
+
+    } catch (error) {
+      console.error('Update Question Controller Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update question'
+      });
+    }
+  }
+
+  // DELETE QUESTION
+  async deleteQuestion(req, res) {
+    try {
+      const { id } = req.params;
+      
+      const result = await contentManagementService.deleteQuestion(id);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result.data,
+        message: result.message
+      });
+
+    } catch (error) {
+      console.error('Delete Question Controller Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to delete question'
       });
     }
   }

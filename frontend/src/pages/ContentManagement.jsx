@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/shared/GlassCard';
 import Button from '../components/ui/Button';
+import Toast from '../components/ui/Toast';
 import { Book, Package, HelpCircle, RefreshCw, ToggleLeft, ToggleRight, Crown, Filter } from 'lucide-react';
-import contentManagementService from '../api/contentManagementService';
+import contentManagementService, { updateQuestion, deleteQuestion, updateLearningPack, deleteLearningPack } from '../api/contentManagementService';
 import SubjectsTable from '../components/contentmanagement/SubjectsTable';
 import LearningPacksTable from '../components/contentmanagement/LearningPacksTable';
 import QuestionsTable from '../components/contentmanagement/QuestionsTable';
+import ContentFilterBar from '../components/contentmanagement/ContentFilterBar';
+import Pagination from '../components/ui/Pagination';
+import QuestionEditModal from '../components/contentmanagement/QuestionEditModal';
+import LearningPackEditModal from '../components/contentmanagement/LearningPackEditModal';
 
 const ContentManagement = () => {
     const [activeTab, setActiveTab] = useState('subjects');
@@ -14,6 +19,32 @@ const ContentManagement = () => {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    
+    // Toast state
+    const [toast, setToast] = useState(null);
+    
+    // Filter state
+    const [filters, setFilters] = useState({});
+    const [filteredData, setFilteredData] = useState({
+        subjects: [],
+        learningPacks: [],
+        questions: []
+    });
+    
+    // Pagination state
+    const [pagination, setPagination] = useState({
+        learningPacks: { currentPage: 1, totalPages: 1, totalItems: 0 },
+        questions: { currentPage: 1, totalPages: 1, totalItems: 0 }
+    });
+    
+    // Question edit modal state
+    const [editingQuestion, setEditingQuestion] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    
+    // Learning pack edit modal state
+    const [editingLearningPack, setEditingLearningPack] = useState(null);
+    const [isPackEditModalOpen, setIsPackEditModalOpen] = useState(false);
+    
     const [stats, setStats] = useState({
         totalSubjects: 0,
         activeSubjects: 0,
@@ -25,34 +56,103 @@ const ContentManagement = () => {
     });
 
     // Fetch all content data
-    const fetchContentData = async () => {
+    const fetchContentData = async (currentFilters = {}, paginationOptions = {}) => {
         try {
             setRefreshing(true);
+            
+            // Build filters based on current selections
+            const filters = {};
+            
+            // Only add language filter if a specific language is selected
+            if (currentFilters.language && currentFilters.language !== 'All Languages') {
+                const apiLanguage = currentFilters.language === 'English' ? 'en' : 
+                                   currentFilters.language === 'Sinhala' ? 'si' : 
+                                   currentFilters.language === 'Tamil' ? 'ta' : 
+                                   currentFilters.language;
+                filters.language = apiLanguage;
+            }
+            
+            // Add other filters if they exist
+            if (currentFilters.grade && currentFilters.grade !== 'All Grades') {
+                filters.grade = currentFilters.grade;
+            }
+            
+            if (currentFilters.subject_id && currentFilters.subject_id !== 'All Subjects') {
+                filters.subject_id = currentFilters.subject_id;
+            }
+            
+            // For questions, also include pack_id if selected
+            const questionFilters = { ...filters };
+            if (currentFilters.pack_id && currentFilters.pack_id !== 'All Learning Packs') {
+                questionFilters.pack_id = currentFilters.pack_id;
+            }
+            
+            // Add pagination for learning packs and questions
+            const packsFilters = { 
+                ...filters, 
+                page: paginationOptions.learningPacksPage || pagination.learningPacks.currentPage,
+                limit: 10 // 10 items per page
+            };
+            
+            const questionsFilters = { 
+                ...questionFilters, 
+                page: paginationOptions.questionsPage || pagination.questions.currentPage,
+                limit: 10 // 10 items per page
+            };
+
+
 
             // Fetch all data in parallel
             const [subjectsResult, packsResult, questionsResult] = await Promise.all([
-                contentManagementService.getSubjects({ limit: 1000 }),
-                contentManagementService.getLearningPacks({ limit: 1000 }),
-                contentManagementService.getQuestions({ limit: 1000 })
+                contentManagementService.getSubjects(filters), // No pagination for subjects
+                contentManagementService.getLearningPacks(packsFilters),
+                contentManagementService.getQuestions(questionsFilters)
             ]);
+
+
 
             setSubjects(subjectsResult.subjects || []);
             setLearningPacks(packsResult.learningPacks || []);
             setQuestions(questionsResult.questions || []);
 
-            // Calculate stats
-            const activeSubjects = subjectsResult.subjects?.filter(s => s.is_active)?.length || 0;
-            const activePacks = packsResult.learningPacks?.filter(p => p.is_active)?.length || 0;
-            const premiumPacks = packsResult.learningPacks?.filter(p => p.is_premium)?.length || 0;
-            const activeQuestions = questionsResult.questions?.filter(q => q.is_active)?.length || 0;
+            // Backend now handles language filtering, so use results directly
+            const filteredSubjects = subjectsResult.subjects || [];
+            const filteredPacks = packsResult.learningPacks || [];
+            const filteredQuestions = questionsResult.questions || [];
+
+            setFilteredData({
+                subjects: filteredSubjects,
+                learningPacks: filteredPacks,
+                questions: filteredQuestions
+            });
+
+            // Update pagination state
+            setPagination({
+                learningPacks: {
+                    currentPage: packsResult.page || 1,
+                    totalPages: packsResult.totalPages || 1,
+                    totalItems: packsResult.total || 0
+                },
+                questions: {
+                    currentPage: questionsResult.page || 1,
+                    totalPages: questionsResult.totalPages || 1,
+                    totalItems: questionsResult.total || 0
+                }
+            });
+
+            // Calculate stats from filtered data
+            const activeSubjects = filteredSubjects?.filter(s => s.is_active)?.length || 0;
+            const activePacks = filteredPacks?.filter(p => p.is_active)?.length || 0;
+            const premiumPacks = filteredPacks?.filter(p => p.is_premium)?.length || 0;
+            const activeQuestions = filteredQuestions?.filter(q => q.is_active)?.length || 0;
 
             setStats({
-                totalSubjects: subjectsResult.total || 0,
+                totalSubjects: filteredSubjects.length,
                 activeSubjects,
-                totalPacks: packsResult.total || 0,
+                totalPacks: packsResult.total || filteredPacks.length, // Use total from API for accurate count
                 activePacks,
                 premiumPacks,
-                totalQuestions: questionsResult.total || 0,
+                totalQuestions: questionsResult.total || filteredQuestions.length, // Use total from API for accurate count
                 activeQuestions
             });
 
@@ -67,6 +167,31 @@ const ContentManagement = () => {
     useEffect(() => {
         fetchContentData();
     }, []);
+
+    // Refetch data when filters change
+    useEffect(() => {
+        if (Object.keys(filters).length > 0) {
+            fetchContentData(filters);
+        }
+    }, [filters]);
+
+    // Pagination handlers
+    const handleLearningPacksPageChange = (page) => {
+        fetchContentData(filters, { learningPacksPage: page });
+    };
+
+    const handleQuestionsPageChange = (page) => {
+        fetchContentData(filters, { questionsPage: page });
+    };
+
+    // Toast helper functions
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+    };
+
+    const hideToast = () => {
+        setToast(null);
+    };
 
     // Handle status toggles
     const handleToggleSubject = async (subjectId, isActive) => {
@@ -130,6 +255,68 @@ const ContentManagement = () => {
             fetchContentData();
         } catch (error) {
             console.error('Error bulk toggling learning packs premium:', error);
+        }
+    };
+
+    // Question editing handlers
+    const handleEditQuestion = (question) => {
+        setEditingQuestion(question);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveQuestion = async (questionId, questionData) => {
+        try {
+            await updateQuestion(questionId, questionData);
+            fetchContentData(filters); // Refresh data with current filters
+            showToast('Question updated successfully!', 'success');
+        } catch (error) {
+            console.error('Error updating question:', error);
+            showToast('Failed to update question. Please try again.', 'error');
+            throw error; // Re-throw to let modal handle the error
+        }
+    };
+
+    const handleDeleteQuestion = async (questionId) => {
+        if (window.confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
+            try {
+                await deleteQuestion(questionId);
+                fetchContentData(filters); // Refresh data with current filters
+                showToast('Question deleted successfully!', 'success');
+            } catch (error) {
+                console.error('Error deleting question:', error);
+                showToast('Failed to delete question. Please try again.', 'error');
+            }
+        }
+    };
+
+    // Learning pack editing handlers
+    const handleEditLearningPack = (learningPack) => {
+        setEditingLearningPack(learningPack);
+        setIsPackEditModalOpen(true);
+    };
+
+    const handleSaveLearningPack = async (packId, packData) => {
+        try {
+            await updateLearningPack(packId, packData);
+            fetchContentData(filters); // Refresh data with current filters
+            showToast('Learning pack updated successfully!', 'success');
+        } catch (error) {
+            console.error('Error updating learning pack:', error);
+            showToast('Failed to update learning pack. Please try again.', 'error');
+            throw error; // Re-throw to let modal handle the error
+        }
+    };
+
+    const handleDeleteLearningPack = async (packId) => {
+        if (window.confirm('Are you sure you want to delete this learning pack? This will also delete all associated questions. This action cannot be undone.')) {
+            try {
+                await deleteLearningPack(packId);
+                fetchContentData(filters); // Refresh data with current filters
+                showToast('Learning pack deleted successfully!', 'success');
+            } catch (error) {
+                console.error('Error deleting learning pack:', error);
+                showToast('Failed to delete learning pack. Please try again.', 'error');
+            }
         }
     };
 
@@ -207,6 +394,12 @@ const ContentManagement = () => {
                 })}
             </div>
 
+            {/* Hierarchical Filter Bar */}
+            <ContentFilterBar
+                filters={filters}
+                onFiltersChange={setFilters}
+            />
+
             {/* Tabs Navigation */}
             <GlassCard>
                 <div className="flex space-x-1 border-b border-gray-200">
@@ -236,30 +429,78 @@ const ContentManagement = () => {
                 <div className="mt-4">
                     {activeTab === 'subjects' && (
                         <SubjectsTable
-                            subjects={subjects}
+                            subjects={filteredData.subjects}
                             onToggleStatus={handleToggleSubject}
+                            currentLanguageFilter={filters.language}
                         />
                     )}
 
                     {activeTab === 'learning-packs' && (
-                        <LearningPacksTable
-                            learningPacks={learningPacks}
-                            onToggleStatus={handleToggleLearningPack}
-                            onTogglePremium={handleToggleLearningPackPremium}
-                            onBulkToggleStatus={handleBulkToggleLearningPacks}
-                            onBulkTogglePremium={handleBulkToggleLearningPacksPremium}
-                        />
+                        <>
+                            <LearningPacksTable
+                                learningPacks={filteredData.learningPacks}
+                                onToggleStatus={handleToggleLearningPack}
+                                onTogglePremium={handleToggleLearningPackPremium}
+                                onBulkToggleStatus={handleBulkToggleLearningPacks}
+                                onBulkTogglePremium={handleBulkToggleLearningPacksPremium}
+                                onEditPack={handleEditLearningPack}
+                                onDeletePack={handleDeleteLearningPack}
+                            />
+                            <Pagination
+                                currentPage={pagination.learningPacks.currentPage}
+                                totalPages={pagination.learningPacks.totalPages}
+                                totalItems={pagination.learningPacks.totalItems}
+                                itemsPerPage={10}
+                                onPageChange={handleLearningPacksPageChange}
+                            />
+                        </>
                     )}
 
                     {activeTab === 'questions' && (
-                        <QuestionsTable
-                            questions={questions}
-                            onToggleStatus={handleToggleQuestion}
-                            onBulkToggleStatus={handleBulkToggleQuestions}
-                        />
+                        <>
+                            <QuestionsTable
+                                questions={filteredData.questions}
+                                onToggleStatus={handleToggleQuestion}
+                                onBulkToggleStatus={handleBulkToggleQuestions}
+                                onEditQuestion={handleEditQuestion}
+                                onDeleteQuestion={handleDeleteQuestion}
+                            />
+                            <Pagination
+                                currentPage={pagination.questions.currentPage}
+                                totalPages={pagination.questions.totalPages}
+                                totalItems={pagination.questions.totalItems}
+                                itemsPerPage={10}
+                                onPageChange={handleQuestionsPageChange}
+                            />
+                        </>
                     )}
                 </div>
             </GlassCard>
+
+            {/* Question Edit Modal */}
+            <QuestionEditModal
+                question={editingQuestion}
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                onSave={handleSaveQuestion}
+            />
+
+            {/* Learning Pack Edit Modal */}
+            <LearningPackEditModal
+                learningPack={editingLearningPack}
+                isOpen={isPackEditModalOpen}
+                onClose={() => setIsPackEditModalOpen(false)}
+                onSave={handleSaveLearningPack}
+            />
+
+            {/* Toast Notification */}
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={hideToast}
+                />
+            )}
         </div>
     );
 };

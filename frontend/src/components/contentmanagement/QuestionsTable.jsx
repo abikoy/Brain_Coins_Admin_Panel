@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ToggleLeft, ToggleRight, HelpCircle } from 'lucide-react';
+import { ToggleLeft, ToggleRight, HelpCircle, Edit, Trash2 } from 'lucide-react';
 
-const QuestionsTable = ({ questions, onToggleStatus, onBulkToggleStatus }) => {
+const QuestionsTable = ({ questions, onToggleStatus, onBulkToggleStatus, onEditQuestion, onDeleteQuestion }) => {
   const [selectedQuestions, setSelectedQuestions] = useState([]);
 
   if (!questions.length) {
@@ -131,17 +131,41 @@ const QuestionsTable = ({ questions, onToggleStatus, onBulkToggleStatus }) => {
                   </span>
                 </td>
                 <td className="py-3 px-4">
-                  <button
-                    onClick={() => onToggleStatus(question.id, !question.is_active)}
-                    className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    {question.is_active ? (
-                      <ToggleRight className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4 text-gray-400" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onToggleStatus(question.id, !question.is_active)}
+                      className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      {question.is_active ? (
+                        <ToggleRight className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4 text-gray-400" />
+                      )}
+                      {question.is_active ? 'Disable' : 'Enable'}
+                    </button>
+                    
+                    {onEditQuestion && (
+                      <button
+                        onClick={() => onEditQuestion(question)}
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                        title="Edit Question"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Edit
+                      </button>
                     )}
-                    {question.is_active ? 'Disable' : 'Enable'}
-                  </button>
+                    
+                    {onDeleteQuestion && (
+                      <button
+                        onClick={() => onDeleteQuestion(question.id)}
+                        className="flex items-center gap-1 text-sm text-red-600 hover:text-red-800 transition-colors"
+                        title="Delete Question"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
