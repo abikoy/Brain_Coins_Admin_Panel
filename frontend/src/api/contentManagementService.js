@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 // SUBJECTS API
 export const getSubjects = async (options = {}) => {
   try {
-    const { page, limit, search = '', is_active, language, subject_id } = options;
+    const { page, limit, search = '', is_active, language, subject_id, grade } = options;
     
     const url = new URL(`${API_BASE_URL}/content-management/subjects`);
     // Only add pagination if explicitly requested
@@ -16,6 +16,7 @@ export const getSubjects = async (options = {}) => {
     if (is_active !== undefined) url.searchParams.set('is_active', is_active);
     if (language) url.searchParams.set('language', language);
     if (subject_id) url.searchParams.set('subject_id', subject_id);
+    if (grade) url.searchParams.set('grade', grade);
 
     const res = await fetch(url.toString(), {
       method: 'GET',
@@ -34,7 +35,8 @@ export const getSubjects = async (options = {}) => {
       subjects: data.subjects || [],
       total: data.total || 0,
       page: data.page || 1,
-      totalPages: data.totalPages || 1
+      totalPages: data.totalPages || 1,
+      overallStats: data.overallStats
     };
   } catch (error) {
     console.error('[Content Management API] Get subjects error:', error);
@@ -136,10 +138,11 @@ export const getLearningPacks = async (options = {}) => {
     
     const data = await res.json();
     return {
-      learningPacks: data.data || [],
+      learningPacks: data.learningPacks || data.data || [],
       total: data.total || 0,
       page: data.page || 1,
-      totalPages: data.totalPages || 1
+      totalPages: data.totalPages || 1,
+      overallStats: data.overallStats
     };
   } catch (error) {
     console.error('[Content Management API] Get learning packs error:', error);
@@ -283,10 +286,11 @@ export const getQuestions = async (options = {}) => {
     
     const data = await res.json();
     return {
-      questions: data.questions || [],
+      questions: data.questions || data.data || [],
       total: data.total || 0,
       page: data.page || 1,
-      totalPages: data.totalPages || 1
+      totalPages: data.totalPages || 1,
+      overallStats: data.overallStats
     };
   } catch (error) {
     console.error('[Content Management API] Get questions error:', error);

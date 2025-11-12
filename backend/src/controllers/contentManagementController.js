@@ -13,14 +13,16 @@ class ContentManagementController {
         search = '',
         is_active,
         language,
-        subject_id
+        subject_id,
+        grade
       } = req.query;
 
       const filters = {
         search,
         is_active: is_active !== undefined ? is_active === 'true' : undefined,
         language,
-        subject_id
+        subject_id,
+        grade
       };
       
 
@@ -44,7 +46,8 @@ class ContentManagementController {
         subjects: result.subjects,
         total: result.total,
         page: filters.page || 1,
-        totalPages: filters.page && filters.limit ? Math.ceil(result.total / filters.limit) : 1
+        totalPages: filters.page && filters.limit ? Math.ceil(result.total / filters.limit) : 1,
+        overallStats: result.overallStats
       });
 
     } catch (error) {
@@ -126,10 +129,11 @@ class ContentManagementController {
 
       res.json({
         success: true,
-        data: result.data,
+        learningPacks: result.learningPacks,
         total: result.total,
-        page: parseInt(page),
-        totalPages: Math.ceil(result.total / limit)
+        page: filters.page || 1,
+        totalPages: filters.page && filters.limit ? Math.ceil(result.total / filters.limit) : 1,
+        overallStats: result.overallStats
       });
 
     } catch (error) {
@@ -340,10 +344,11 @@ class ContentManagementController {
 
       res.json({
         success: true,
-        questions: result.data,
+        questions: result.questions,
         total: result.total,
         page: filters.page || 1,
-        totalPages: filters.limit ? Math.ceil(result.total / filters.limit) : Math.ceil(result.total / 10)
+        totalPages: filters.limit ? Math.ceil(result.total / filters.limit) : Math.ceil(result.total / 10),
+        overallStats: result.overallStats
       });
 
     } catch (error) {

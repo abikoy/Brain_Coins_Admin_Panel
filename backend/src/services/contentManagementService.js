@@ -13,6 +13,32 @@ class ContentManagementService {
   // GET ALL SUBJECTS
   async getSubjects(filters = {}) {
     try {
+      // If filtering by grade, first get subjects that have learning packs for that grade
+      let subjectIds = null;
+      if (filters.grade) {
+        // Database stores grades as "Grade 11", "Grade 10", etc.
+        const gradeFormatted = `Grade ${filters.grade}`;
+        
+        let packsQuery = this.supabase
+          .from('learning_packs')
+          .select('subject_id, grade, is_active')
+          .eq('grade', gradeFormatted);
+          // Don't filter by is_active here - we want subjects that have ANY learning packs for this grade
+
+        const { data: matchingPacks, error: packsError } = await packsQuery;
+        if (packsError) throw packsError;
+
+        subjectIds = [...new Set(matchingPacks.map(p => p.subject_id))];
+        
+        // If no subjects have learning packs for this grade, return empty result
+        if (subjectIds.length === 0) {
+          return {
+            success: true,
+            subjects: [],
+            total: 0
+          };
+        }
+      }
       
       let query = this.supabase
         .from('subjects')
@@ -28,12 +54,15 @@ class ContentManagementService {
         query = query.eq('id', filters.subject_id);
       }
 
+      // Filter by subjects that have learning packs for the specified grade
+      if (subjectIds) {
+        query = query.in('id', subjectIds);
+      }
+
       if (filters.is_active !== undefined) {
         query = query.eq('is_active', filters.is_active);
-      } else {
-        // By default, only show active subjects
-        query = query.eq('is_active', true);
       }
+      // Show both active and inactive subjects by default
 
       if (filters.page && filters.limit) {
         const offset = (filters.page - 1) * filters.limit;
@@ -64,10 +93,41 @@ class ContentManagementService {
         });
       }
 
+      // Get overall statistics for subjects (not just current page)
+      let statsQuery = this.supabase
+        .from('subjects')
+        .select('is_active');
+
+      // Apply same filters as main query (except pagination and status filters)
+      if (filters.search) {
+        statsQuery = statsQuery.or(`name.ilike.%${filters.search}%,name_si.ilike.%${filters.search}%,name_ta.ilike.%${filters.search}%`);
+      }
+      if (filters.subject_id) {
+        statsQuery = statsQuery.eq('id', filters.subject_id);
+      }
+      if (subjectIds) {
+        statsQuery = statsQuery.in('id', subjectIds);
+      }
+      // DON'T apply is_active filter to stats query - we want to count all items
+
+      const { data: allSubjectsStats, error: statsError } = await statsQuery;
+      if (statsError) {
+        console.error('Subjects stats query error:', statsError);
+      }
+      
+      const activeCount = allSubjectsStats?.filter(s => s.is_active === true)?.length || 0;
+      const totalCount = allSubjectsStats?.length || 0;
+      const inactiveCount = totalCount - activeCount;
+
       return {
         success: true,
         subjects: filteredSubjects,
-        total: filteredSubjects.length
+        total: filteredSubjects.length,
+        overallStats: {
+          total: totalCount,
+          active: activeCount,
+          inactive: inactiveCount
+        }
       };
 
     } catch (error) {
@@ -131,7 +191,9 @@ class ContentManagementService {
       }
 
       if (filters.grade) {
-        query = query.eq('grade', filters.grade);
+        // Database stores grades as "Grade 11", "Grade 10", etc.
+        const gradeFormatted = `Grade ${filters.grade}`;
+        query = query.eq('grade', gradeFormatted);
       }
 
       // Add language filtering
@@ -141,10 +203,8 @@ class ContentManagementService {
 
       if (filters.is_active !== undefined) {
         query = query.eq('is_active', filters.is_active);
-      } else {
-        // By default, only show active learning packs
-        query = query.eq('is_active', true);
       }
+      // Show both active and inactive learning packs by default
 
       if (filters.is_premium !== undefined) {
         query = query.eq('is_premium', filters.is_premium);
@@ -159,10 +219,47 @@ class ContentManagementService {
 
       if (error) throw error;
 
+      // Get overall statistics for learning packs (not just current page)
+      let statsQuery = this.supabase
+        .from('learning_packs')
+        .select('is_active, is_premium');
+
+      // Apply same filters as main query (except pagination and status filters)
+      if (filters.search) {
+        statsQuery = statsQuery.or(`title.ilike.%${filters.search}%,title_si.ilike.%${filters.search}%,title_ta.ilike.%${filters.search}%`);
+      }
+      if (filters.subject_id) {
+        statsQuery = statsQuery.eq('subject_id', filters.subject_id);
+      }
+      if (filters.grade) {
+        const gradeFormatted = `Grade ${filters.grade}`;
+        statsQuery = statsQuery.eq('grade', gradeFormatted);
+      }
+      if (filters.language) {
+        statsQuery = statsQuery.eq('language', filters.language);
+      }
+      // DON'T apply is_active or is_premium filters to stats query - we want to count all items
+
+      const { data: allPacksStats, error: statsError } = await statsQuery;
+      if (statsError) {
+        console.error('Learning packs stats query error:', statsError);
+      }
+      
+      const activeCount = allPacksStats?.filter(p => p.is_active === true)?.length || 0;
+      const premiumCount = allPacksStats?.filter(p => p.is_premium === true)?.length || 0;
+      const totalCount = allPacksStats?.length || 0;
+      const inactiveCount = totalCount - activeCount;
+
       return {
         success: true,
-        data: packs,
-        total: count
+        learningPacks: packs || [],
+        total: count || 0,
+        overallStats: {
+          total: totalCount,
+          active: activeCount,
+          inactive: inactiveCount,
+          premium: premiumCount
+        }
       };
 
     } catch (error) {
@@ -229,7 +326,8 @@ class ContentManagementService {
                p.language === 'ta' ? 'Tamil' : p.language;
       }))].sort();
 
-      const grades = [...new Set(packs.map(p => p.grade))].sort();
+      // Show ALL possible grades (6-11), not just grades with learning packs
+      const grades = [6, 7, 8, 9, 10, 11];
       
       // Use ALL subjects, not just those with learning packs
       let subjects = allSubjects;
@@ -413,15 +511,17 @@ class ContentManagementService {
       if (filters.subject_id || filters.grade) {
         let packsQuery = this.supabase
           .from('learning_packs')
-          .select('id')
-          .eq('is_active', true);
+          .select('id');
+          // Don't filter by is_active here - we want questions from ANY learning packs that match the criteria
 
         if (filters.subject_id) {
           packsQuery = packsQuery.eq('subject_id', filters.subject_id);
         }
 
         if (filters.grade) {
-          packsQuery = packsQuery.eq('grade', filters.grade);
+          // Database stores grades as "Grade 11", "Grade 10", etc.
+          const gradeFormatted = `Grade ${filters.grade}`;
+          packsQuery = packsQuery.eq('grade', gradeFormatted);
         }
 
         const { data: matchingPacks, error: packsError } = await packsQuery;
@@ -469,10 +569,8 @@ class ContentManagementService {
 
       if (filters.is_active !== undefined) {
         query = query.eq('is_active', filters.is_active);
-      } else {
-        // By default, only show active questions
-        query = query.eq('is_active', true);
       }
+      // Show both active and inactive questions by default
 
       if (filters.page && filters.limit) {
         const offset = (filters.page - 1) * filters.limit;
@@ -499,10 +597,47 @@ class ContentManagementService {
         });
       }
 
+      // Get overall statistics for questions (not just current page)
+      let statsQuery = this.supabase
+        .from('questions')
+        .select('is_active');
+
+      // Apply same filters as main query (except pagination and status filters)
+      if (packIds) {
+        statsQuery = statsQuery.in('pack_id', packIds);
+      }
+      if (filters.search) {
+        statsQuery = statsQuery.or(`question_text.ilike.%${filters.search}%,question_text_si.ilike.%${filters.search}%,question_text_ta.ilike.%${filters.search}%`);
+      }
+      if (filters.pack_id) {
+        statsQuery = statsQuery.eq('pack_id', filters.pack_id);
+      }
+      if (filters.question_type) {
+        statsQuery = statsQuery.eq('question_type', filters.question_type);
+      }
+      if (filters.difficulty) {
+        statsQuery = statsQuery.eq('difficulty', filters.difficulty);
+      }
+      // DON'T apply is_active filter to stats query - we want to count all items
+
+      const { data: allQuestionsStats, error: statsError } = await statsQuery;
+      if (statsError) {
+        console.error('Questions stats query error:', statsError);
+      }
+      
+      const activeCount = allQuestionsStats?.filter(q => q.is_active === true)?.length || 0;
+      const totalCount = allQuestionsStats?.length || 0;
+      const inactiveCount = totalCount - activeCount;
+
       return {
         success: true,
-        data: filteredQuestions,
-        total: count || filteredQuestions.length // Use database count for proper pagination
+        questions: filteredQuestions,
+        total: count || filteredQuestions.length,
+        overallStats: {
+          total: totalCount,
+          active: activeCount,
+          inactive: inactiveCount
+        }
       };
 
     } catch (error) {

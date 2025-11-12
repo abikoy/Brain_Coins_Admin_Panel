@@ -33,6 +33,7 @@ const ContentManagement = () => {
     
     // Pagination state
     const [pagination, setPagination] = useState({
+        subjects: { currentPage: 1, totalPages: 1, totalItems: 0 },
         learningPacks: { currentPage: 1, totalPages: 1, totalItems: 0 },
         questions: { currentPage: 1, totalPages: 1, totalItems: 0 }
     });
@@ -87,7 +88,13 @@ const ContentManagement = () => {
                 questionFilters.pack_id = currentFilters.pack_id;
             }
             
-            // Add pagination for learning packs and questions
+            // Add pagination for all tables
+            const subjectsFilters = { 
+                ...filters, 
+                page: paginationOptions.subjectsPage || pagination.subjects.currentPage,
+                limit: 10 // 10 items per page
+            };
+
             const packsFilters = { 
                 ...filters, 
                 page: paginationOptions.learningPacksPage || pagination.learningPacks.currentPage,
@@ -102,9 +109,10 @@ const ContentManagement = () => {
 
 
 
+
             // Fetch all data in parallel
             const [subjectsResult, packsResult, questionsResult] = await Promise.all([
-                contentManagementService.getSubjects(filters), // No pagination for subjects
+                contentManagementService.getSubjects(subjectsFilters), // Now with pagination
                 contentManagementService.getLearningPacks(packsFilters),
                 contentManagementService.getQuestions(questionsFilters)
             ]);
@@ -128,6 +136,11 @@ const ContentManagement = () => {
 
             // Update pagination state
             setPagination({
+                subjects: {
+                    currentPage: subjectsResult.page || 1,
+                    totalPages: subjectsResult.totalPages || 1,
+                    totalItems: subjectsResult.total || 0
+                },
                 learningPacks: {
                     currentPage: packsResult.page || 1,
                     totalPages: packsResult.totalPages || 1,
@@ -140,20 +153,38 @@ const ContentManagement = () => {
                 }
             });
 
-            // Calculate stats from filtered data
-            const activeSubjects = filteredSubjects?.filter(s => s.is_active)?.length || 0;
-            const activePacks = filteredPacks?.filter(p => p.is_active)?.length || 0;
-            const premiumPacks = filteredPacks?.filter(p => p.is_premium)?.length || 0;
-            const activeQuestions = filteredQuestions?.filter(q => q.is_active)?.length || 0;
+            // Use overall statistics from backend instead of calculating from current page data
+            
+            const subjectsStats = subjectsResult.overallStats || {
+                total: subjectsResult.total || 0,
+                active: filteredSubjects?.filter(s => s.is_active)?.length || 0,
+                inactive: 0
+            };
+            
+            const packsStats = packsResult.overallStats || {
+                total: packsResult.total || 0,
+                active: filteredPacks?.filter(p => p.is_active)?.length || 0,
+                inactive: 0,
+                premium: filteredPacks?.filter(p => p.is_premium)?.length || 0
+            };
+            
+            const questionsStats = questionsResult.overallStats || {
+                total: questionsResult.total || 0,
+                active: filteredQuestions?.filter(q => q.is_active)?.length || 0,
+                inactive: 0
+            };
 
             setStats({
-                totalSubjects: filteredSubjects.length,
-                activeSubjects,
-                totalPacks: packsResult.total || filteredPacks.length, // Use total from API for accurate count
-                activePacks,
-                premiumPacks,
-                totalQuestions: questionsResult.total || filteredQuestions.length, // Use total from API for accurate count
-                activeQuestions
+                totalSubjects: subjectsStats.total,
+                activeSubjects: subjectsStats.active,
+                inactiveSubjects: subjectsStats.inactive,
+                totalPacks: packsStats.total,
+                activePacks: packsStats.active,
+                inactivePacks: packsStats.inactive,
+                premiumPacks: packsStats.premium,
+                totalQuestions: questionsStats.total,
+                activeQuestions: questionsStats.active,
+                inactiveQuestions: questionsStats.inactive
             });
 
         } catch (error) {
@@ -176,6 +207,10 @@ const ContentManagement = () => {
     }, [filters]);
 
     // Pagination handlers
+    const handleSubjectsPageChange = (page) => {
+        fetchContentData(filters, { subjectsPage: page });
+    };
+
     const handleLearningPacksPageChange = (page) => {
         fetchContentData(filters, { learningPacksPage: page });
     };
@@ -327,21 +362,21 @@ const ContentManagement = () => {
             value: stats.totalSubjects,
             icon: Book,
             color: 'text-blue-500',
-            subtext: `${stats.activeSubjects} active`
+            subtext: `${stats.activeSubjects} active, ${stats.inactiveSubjects || 0} inactive`
         },
         {
             label: 'Learning Packs',
             value: stats.totalPacks,
             icon: Package,
             color: 'text-green-500',
-            subtext: `${stats.activePacks} active, ${stats.premiumPacks} premium`
+            subtext: `${stats.activePacks} active, ${stats.inactivePacks || 0} inactive, ${stats.premiumPacks} premium`
         },
         {
             label: 'Questions',
             value: stats.totalQuestions,
             icon: HelpCircle,
             color: 'text-purple-500',
-            subtext: `${stats.activeQuestions} active`
+            subtext: `${stats.activeQuestions} active, ${stats.inactiveQuestions || 0} inactive`
         },
     ];
 
@@ -428,11 +463,20 @@ const ContentManagement = () => {
                 {/* Tab Content */}
                 <div className="mt-4">
                     {activeTab === 'subjects' && (
-                        <SubjectsTable
-                            subjects={filteredData.subjects}
-                            onToggleStatus={handleToggleSubject}
-                            currentLanguageFilter={filters.language}
-                        />
+                        <>
+                            <SubjectsTable
+                                subjects={filteredData.subjects}
+                                onToggleStatus={handleToggleSubject}
+                                currentLanguageFilter={filters.language}
+                            />
+                            <Pagination
+                                currentPage={pagination.subjects.currentPage}
+                                totalPages={pagination.subjects.totalPages}
+                                totalItems={pagination.subjects.totalItems}
+                                itemsPerPage={10}
+                                onPageChange={handleSubjectsPageChange}
+                            />
+                        </>
                     )}
 
                     {activeTab === 'learning-packs' && (
