@@ -16,6 +16,8 @@ const normalizeQuestion = (q) => ({
   pairs: Array.isArray(q.pairs) ? q.pairs : [],
   diagram: q.diagram || undefined,
   reasoning: q.reasoning || undefined,
+  explanations: q.explanations || q.explanation || q.explanation_si || q.explanation_ta || '',
+  language: q.language || 'English',
   generated: q.generated !== undefined ? q.generated : true
 });
 

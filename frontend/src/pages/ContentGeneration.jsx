@@ -74,7 +74,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     difficulty: 'Easy',
     question: '',
     answer: '',
-    options: ['', '', '', ''] // 4 options for MCQ/FIIB
+    options: ['', '', '', ''], // 4 options for MCQ/FIIB, 2 for TF
+    language: 'English',
+    explanations: ''
   });
   const [diagramFile, setDiagramFile] = useState(null);
   const [diagramPreview, setDiagramPreview] = useState(null);
@@ -83,6 +85,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const [toast, setToast] = useState(null);
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [selectedPackIndices, setSelectedPackIndices] = useState([]); // Support multiple pack selection (up to 5)
   const languageMap = {
     'English': 'en',
     'english': 'en',
@@ -155,6 +158,33 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // preview is now from context
   const [selectedIds, setSelectedIds] = useState({});
+
+  // Toggle selection function for preview questions
+  const toggleSelection = (key) => {
+    setSelectedIds(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  // Select all or deselect all questions
+  const toggleSelectAll = () => {
+    if (!preview?.questions) return;
+    
+    const allSelected = preview.questions.every((q, i) => selectedIds[q.id || i]);
+    
+    if (allSelected) {
+      // Deselect all
+      setSelectedIds({});
+    } else {
+      // Select all
+      const newSelected = {};
+      preview.questions.forEach((q, i) => {
+        newSelected[q.id || i] = true;
+      });
+      setSelectedIds(newSelected);
+    }
+  };
 
   // Available options
   const languages = ['English', 'Sinhala', 'Tamil'];
@@ -264,8 +294,23 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     }
   };
 
-  // Toggle pack selection for question generation (card click)
+  // Toggle pack selection for question generation (card click) - support up to 5 packs
   const togglePackForQuestions = (index) => {
+    setSelectedPackIndices(prev => {
+      if (prev.includes(index)) {
+        // Remove if already selected
+        return prev.filter(i => i !== index);
+      } else if (prev.length < 5) {
+        // Add if less than 5 selected
+        return [...prev, index];
+      } else {
+        // Show warning if trying to select more than 5
+        setToast({ message: '⚠️ You can select up to 5 learning packs maximum', type: 'warning' });
+        return prev;
+      }
+    });
+    
+    // Keep the old single selection for backward compatibility
     setSelectedPackIndex(prev => prev === index ? null : index);
   };
 
@@ -460,6 +505,24 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         bloom_level: genBloom
       });
 
+      // Upload any pending diagrams for questions that were edited in preview
+      for (const savedQuestion of saved) {
+        const originalQuestion = chosen.find(q => 
+          (q.id && q.id.startsWith('gen-')) && 
+          q.question === savedQuestion.question
+        );
+        
+        if (originalQuestion && originalQuestion.pendingDiagram) {
+          try {
+            console.log('[Frontend] Uploading pending diagram for question:', savedQuestion.id);
+            await uploadQuestionDiagram(savedQuestion.id, originalQuestion.pendingDiagram);
+          } catch (diagramError) {
+            console.error('[Frontend] Failed to upload pending diagram:', diagramError);
+            // Don't fail the whole process for diagram upload errors
+          }
+        }
+      }
+
       setQuestions([...questions, ...saved]);
       if (Array.isArray(saved_summary?.bullets)) setSummaryBullets(saved_summary.bullets);
 
@@ -563,17 +626,76 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const handleSaveEdit = async () => {
     try {
       setIsSavingEdit(true);
-      // Call backend API to update in database
-      const updatedQuestion = await updateQuestionAPI(editingQuestion.id, {
-        type: editingQuestion.type,
-        difficulty: editingQuestion.difficulty,
-        question: editingQuestion.question,
-        answer: editingQuestion.answer,
-        options: editingQuestion.options
-      });
+      
+      // Check if this is a preview question (temporary ID) or a saved question (UUID)
+      const isPreviewQuestion = editingQuestion.id && editingQuestion.id.startsWith('gen-');
+      
+      // Prepare options - for TF questions, ensure we have default values if empty
+      let optionsToSave = editingQuestion.options || [];
+      if (editingQuestion.type === 'TF') {
+        optionsToSave = [
+          (editingQuestion.options || [])[0] || 'True',
+          (editingQuestion.options || [])[1] || 'False'
+        ];
+      }
+      
+      let updatedQuestion;
+      
+      if (isPreviewQuestion) {
+        // For preview questions, just update the local preview data
+        console.log('[Frontend] Updating preview question locally:', editingQuestion.id);
+        updatedQuestion = {
+          ...editingQuestion,
+          type: editingQuestion.type,
+          difficulty: editingQuestion.difficulty,
+          question: editingQuestion.question,
+          answer: editingQuestion.answer,
+          options: optionsToSave,
+          language: editingQuestion.language || 'English',
+          explanation: editingQuestion.explanations,
+          explanations: editingQuestion.explanations
+        };
+        
+        // Update the preview questions array
+        if (preview && preview.questions) {
+          const questionIndex = preview.questions.findIndex(q => {
+            // For questions with IDs, match directly
+            if (q.id) {
+              return q.id === editingQuestion.id;
+            }
+            // For questions without IDs, match by index-based ID
+            const arrayIndex = preview.questions.indexOf(q);
+            const generatedId = `gen-${arrayIndex}`;
+            return generatedId === editingQuestion.id || editingQuestion.id.endsWith(`-${arrayIndex}`);
+          });
+          if (questionIndex !== -1) {
+            const updatedQuestions = [...preview.questions];
+            updatedQuestions[questionIndex] = updatedQuestion;
+            setPreview({
+              ...preview,
+              questions: updatedQuestions
+            });
+            console.log('[Frontend] Preview question updated at index:', questionIndex);
+          } else {
+            console.warn('[Frontend] Could not find preview question to update:', editingQuestion.id);
+          }
+        }
+      } else {
+        // For saved questions, call backend API to update in database
+        console.log('[Frontend] Updating saved question in database:', editingQuestion.id);
+        updatedQuestion = await updateQuestionAPI(editingQuestion.id, {
+          type: editingQuestion.type,
+          difficulty: editingQuestion.difficulty,
+          question: editingQuestion.question,
+          answer: editingQuestion.answer,
+          options: optionsToSave,
+          language: getLanguageCode(editingQuestion.language || 'English'),
+          explanation: editingQuestion.explanations
+        });
+      }
 
-      // Upload diagram if provided
-      if (editDiagramFile && editingQuestion.id) {
+      // Upload diagram if provided (only for saved questions, not preview questions)
+      if (editDiagramFile && editingQuestion.id && !isPreviewQuestion) {
         try {
           const result = await uploadQuestionDiagram(editingQuestion.id, editDiagramFile);
           updatedQuestion.diagram_path = result.diagramPath;
@@ -582,6 +704,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           console.error('[ContentManager] Diagram upload error:', diagramError);
           alert('Question updated but diagram upload failed: ' + diagramError.message);
         }
+      } else if (editDiagramFile && isPreviewQuestion) {
+        // For preview questions, just store the diagram file locally for when the question is saved
+        console.log('[Frontend] Diagram will be uploaded when question is saved to database');
+        updatedQuestion.pendingDiagram = editDiagramFile;
       }
 
       // Update local state with response from server
@@ -593,7 +719,12 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setEditingQuestion(null);
       setEditDiagramFile(null);
       setEditDiagramPreview(null);
-      setToast({ message: '✅ Question updated successfully!', type: 'success' });
+      
+      // Show appropriate success message
+      const successMessage = isPreviewQuestion 
+        ? '✅ Preview question updated! Changes will be saved when you approve the questions.'
+        : '✅ Question updated successfully in database!';
+      setToast({ message: successMessage, type: 'success' });
     } catch (error) {
       console.error('[ContentManager] Save edit error:', error);
       setToast({ message: 'Failed to save changes: ' + error.message, type: 'error' });
@@ -666,15 +797,26 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       }
       
       setIsAddingQuestion(true);
+      
+      // Prepare options - for TF questions, ensure we have default values if empty
+      let optionsToSave = newQuestion.options || [];
+      if (newQuestion.type === 'TF') {
+        optionsToSave = [
+          newQuestion.options[0] || 'True',
+          newQuestion.options[1] || 'False'
+        ];
+      }
+      
       const created = await createQuestionAPI({
         pack_id: selectedPackId,
         type: newQuestion.type,
         difficulty: newQuestion.difficulty,
         question: newQuestion.question,
         answer: newQuestion.answer,
-        options: newQuestion.options || [],
-        language: genLanguage,
-        blooms_taxonomy: genBloom
+        options: optionsToSave,
+        language: getLanguageCode(newQuestion.language),
+        blooms_taxonomy: genBloom,
+        explanation: newQuestion.explanations
       });
 
       // Upload diagram if provided
@@ -691,7 +833,15 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       setQuestions([...questions, created]);
       setIsAddModalOpen(false);
-      setNewQuestion({ type: 'MCQ', difficulty: 'Easy', question: '', answer: '', options: ['', '', '', ''] });
+      setNewQuestion({ 
+        type: 'MCQ', 
+        difficulty: 'Easy', 
+        question: '', 
+        answer: '', 
+        options: ['', '', '', ''], 
+        language: 'English', 
+        explanations: '' 
+      });
       setDiagramFile(null);
       setDiagramPreview(null);
       setToast({ message: '✨ Question created successfully!', type: 'success' });
@@ -828,8 +978,34 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           const cleanTitle = cleanText(pack.title || `Learning Pack ${index + 1}`);
           const cleanDescription = cleanText(pack.content || pack.description || 'No description available');
 
+          // Generate single title in the detected language
+          const getLanguageSpecificTitle = (title, packLanguage) => {
+            // Extract number from title (e.g., "Learning Pack 1" -> "01")
+            const match = title.match(/(\d+)/);
+            const number = match ? match[1].padStart(2, '0') : (index + 1).toString().padStart(2, '0');
+            
+            // Return only the title in the detected language
+            if (packLanguage === 'Sinhala') {
+              return `ඉගෙනුම් ඇසුරුම ${number}`;
+            } else if (packLanguage === 'Tamil') {
+              return `கற்றல் தொகுப்பு ${number}`;
+            } else {
+              // Default to English
+              return `Learning Pack ${number}`;
+            }
+          };
 
-          const isSelectedForQuestions = selectedPackIndex === index;
+          const languageSpecificTitle = getLanguageSpecificTitle(cleanTitle, pack.language || 'English');
+          
+          // Debug logging for language detection
+          if (index === 0) {
+            console.log('[Frontend] Pack language detected:', pack.language, 'for pack:', cleanTitle);
+            console.log('[Frontend] Language-specific title:', languageSpecificTitle);
+          }
+
+
+          const isSelectedForQuestions = selectedPackIndices.includes(index);
+          const selectionNumber = selectedPackIndices.indexOf(index) + 1;
 
           // Clean topics
           const cleanTopics = (pack.topics || [])
@@ -851,12 +1027,17 @@ const ContentGeneration = ({ questions, setQuestions }) => {
               onClick={() => togglePackForQuestions(index)}
             >
               <div className="flex items-start">
+                {isSelectedForQuestions && (
+                  <div className="flex-shrink-0 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3">
+                    {selectionNumber}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <h4
                     className="font-medium text-gray-900 text-sm sm:text-base break-words"
-                    title={cleanTitle}
+                    title={languageSpecificTitle}
                   >
-                    {cleanTitle}
+                    {languageSpecificTitle}
                   </h4>
 
                   <p
@@ -1138,16 +1319,16 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   </p>
                 )}
 
-                {uploadedFile && selectedPackIndex === null && !generationError && (
+                {uploadedFile && selectedPackIndices.length === 0 && !generationError && (
                   <p className="text-xs text-amber-600 mb-4 font-medium">
-                    ⚠️ Click on learning pack cards above to select them for question generation (cards will turn GREEN)
+                    ⚠️ Click on learning pack cards above to select them for question generation (up to 5 packs, cards will turn GREEN with numbers)
                   </p>
                 )}
 
-                {selectedPackIndex !== null && !preview && (
+                {selectedPackIndices.length > 0 && !preview && (
                   <div className="mb-4 p-2 rounded-lg bg-green-50 border border-green-200">
                     <p className="text-xs text-green-700 font-semibold">
-                      ✓ Pack selected for question generation
+                      ✓ {selectedPackIndices.length} pack{selectedPackIndices.length > 1 ? 's' : ''} selected for question generation
                     </p>
                     <p className="text-xs text-green-600 mt-1">
                       You can now Preview or Generate Questions. After generation, you can select another pack.
@@ -1169,9 +1350,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 <div className="flex items-center justify-center gap-2">
                   <Button
                     onClick={handlePreview}
-                    disabled={isGenerating || !uploadedFile || selectedPackIndex === null}
+                    disabled={isGenerating || !uploadedFile || selectedPackIndices.length === 0}
                     variant="outline"
-                    title={selectedPackIndex === null ? 'Select at least one learning pack first' : 'Generate questions for review'}
+                    title={selectedPackIndices.length === 0 ? 'Select at least one learning pack first' : `Generate questions for ${selectedPackIndices.length} selected pack${selectedPackIndices.length > 1 ? 's' : ''}`}
                   >
                     {isGenerating ? (
                       <>
@@ -1274,22 +1455,50 @@ const ContentGeneration = ({ questions, setQuestions }) => {
               ) : (<p className="text-gray-500">No summary</p>)}
             </div>
           </div>
-          <div className="mb-2 text-sm text-gray-600">
-            Requested: {preview.totals?.requested || 0}, Generated: {preview.totals?.generated || 0}, Selected: {Object.values(selectedIds).filter(Boolean).length}
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Requested: {preview.totals?.requested || 0}, Generated: {preview.totals?.generated || 0}, Selected: {Object.values(selectedIds).filter(Boolean).length}
+            </div>
+            <button
+              onClick={toggleSelectAll}
+              className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            >
+              {preview.questions.every((q, i) => selectedIds[q.id || i]) ? 'Deselect All' : 'Select All'}
+            </button>
           </div>
           <div className="space-y-2 max-h-[360px] overflow-y-auto">
             {preview.questions.map((q, i) => {
               const key = q.id || i;
               return (
-                <label key={key} className="flex items-start gap-2 p-2 rounded border hover:border-royal-purple">
+                <div key={key} className="flex items-start gap-2 p-2 rounded border hover:border-royal-purple">
                   <input
                     type="checkbox"
                     checked={!!selectedIds[key]}
-                    onChange={(e) => setSelectedIds({ ...selectedIds, [key]: e.target.checked })}
+                    onChange={() => toggleSelection(key)}
                     className="mt-1"
                   />
                   <div className="flex-1">
-                    <div className="text-xs text-gray-500 mb-1">{q.type} · {q.difficulty || 'Intermediate'}</div>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="text-xs text-gray-500">{q.type} · {q.difficulty || 'Intermediate'}</div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          // Set up the question for editing
+                          setEditingQuestion({
+                            ...q,
+                            id: key,
+                            language: q.language || 'English',
+                            explanations: q.explanation || q.explanations || ''
+                          });
+                          setIsEditModalOpen(true);
+                        }}
+                        className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
+                        title="Edit this question before saving"
+                      >
+                        ✏️ Edit
+                      </button>
+                    </div>
                     <div className="font-medium mb-1">{q.question}</div>
 
                     {/* MCQ options */}
@@ -1324,18 +1533,25 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     {q.type === 'TF' && (
                       <div className="mt-2">
                         <div className="flex gap-2">
-                          <span className={`text-sm px-3 py-1 rounded border ${q.answer === 'True'
-                            ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
-                            : 'bg-gray-50 border-gray-300 text-gray-700'
-                            }`}>
-                            True {q.answer === 'True' && '✓'}
-                          </span>
-                          <span className={`text-sm px-3 py-1 rounded border ${q.answer === 'False'
-                            ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
-                            : 'bg-gray-50 border-gray-300 text-gray-700'
-                            }`}>
-                            False {q.answer === 'False' && '✓'}
-                          </span>
+                          {(() => {
+                            // Ensure we always have exactly 2 options for TF
+                            const options = q.options && q.options.length >= 2 
+                              ? q.options.slice(0, 2) 
+                              : ['True', 'False'];
+                            
+                            return options.map((option, index) => {
+                              const letter = String.fromCharCode(65 + index);
+                              const isCorrect = q.answer === letter || q.answer === option;
+                              return (
+                                <span key={index} className={`text-sm px-3 py-1 rounded border ${isCorrect
+                                  ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                                  : 'bg-gray-50 border-gray-300 text-gray-700'
+                                  }`}>
+                                  {option} {isCorrect && '✓'}
+                                </span>
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     )}
@@ -1348,14 +1564,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     )}
 
                     {/* Explanation - Show for ALL question types */}
-                    {q.explanation && (
+                    {(q.explanation || q.explanations) && (
                       <div className="mt-2 p-2 bg-blue-50 border-l-4 border-blue-400 rounded">
                         <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
-                        <p className="text-xs text-blue-700">{q.explanation}</p>
+                        <p className="text-xs text-blue-700">{q.explanation || q.explanations}</p>
                       </div>
                     )}
                   </div>
-                </label>
+                </div>
               );
             })}
           </div>
@@ -1425,7 +1641,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 <p className="font-medium mb-2">{question.question}</p>
 
                 {/* Display MCQ and IMAGE_MCQ options if available */}
-                {(question.type === 'MCQ' || question.type === 'IMAGE_MCQ') && question.options && question.options.length > 0 && (
+                {(question.type === 'MCQ' || question.type === 'IMAGE_MCQ') && question.type !== 'TF' && question.options && question.options.length > 0 && (
                   <div className="mb-2 space-y-1">
                     {question.options.map((option, index) => (
                       <div
@@ -1467,21 +1683,48 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   </div>
                 )}
 
+                {/* TF type: show True/False options */}
+                {question.type === 'TF' && (
+                  <div className="mb-2">
+                    <div className="flex gap-2">
+                      {(() => {
+                        // Ensure we always have exactly 2 options for TF
+                        const options = question.options && question.options.length >= 2 
+                          ? question.options.slice(0, 2) 
+                          : ['True', 'False'];
+                        
+                        return options.map((option, index) => {
+                          const letter = String.fromCharCode(65 + index);
+                          const isCorrect = question.answer === letter || question.answer === option;
+                          return (
+                            <span key={index} className={`text-sm px-3 py-1.5 rounded border ${isCorrect
+                              ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                              : 'bg-gray-50 border-gray-300 text-gray-700'
+                              }`}>
+                              {option} {isCorrect && '✓'}
+                            </span>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+
                 {/* MATCH type: show pairs grid */}
             
-                {/* Answer line - show for TF, HOQ, and FIIB if not already shown in options */}
-                {question.answer && question.type !== 'MCQ' && question.type !== 'IMAGE_MCQ' && (
+                {/* Answer line - show for HOQ and FIIB if not already shown in options */}
+                {question.answer && question.type !== 'MCQ' && question.type !== 'IMAGE_MCQ' && question.type !== 'TF' && (
                   <p className="text-sm text-gray-600 mt-2">
                     <span className="font-medium">Answer:</span> {question.answer}
                   </p>
                 )}
 
                 {/* Explanation - Show for ALL question types */}
-                {(question.explanation || question.explanation_si || question.explanation_ta) && (
+                {(question.explanation || question.explanations || question.explanation_si || question.explanation_ta) && (
                   <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
                     <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
                     <p className="text-sm text-blue-700">
-                      {question.explanation || question.explanation_si || question.explanation_ta}
+                      {question.explanation || question.explanations || question.explanation_si || question.explanation_ta}
                     </p>
                   </div>
                 )}
@@ -1515,7 +1758,21 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   <label className="block text-sm font-semibold mb-2 text-gray-700">Type</label>
                   <select
                     value={editingQuestion.type}
-                    onChange={(e) => setEditingQuestion({ ...editingQuestion, type: e.target.value })}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      let newOptions = editingQuestion.options || [];
+                      
+                      // Set default options based on question type
+                      if (newType === 'TF') {
+                        newOptions = ['True', 'False'];
+                      } else if (newType === 'MCQ' || newType === 'FIIB') {
+                        newOptions = ['', '', '', ''];
+                      } else {
+                        newOptions = [];
+                      }
+                      
+                      setEditingQuestion({ ...editingQuestion, type: newType, options: newOptions });
+                    }}
                     className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
                   >
                     {['MCQ', 'FIIB', 'TF', 'HOQ'].map(type => (
@@ -1535,6 +1792,20 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Language Selection */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">Language</label>
+                <select
+                  value={editingQuestion.language || 'English'}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, language: e.target.value })}
+                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                >
+                  {languages.map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Diagram Upload */}
@@ -1610,17 +1881,63 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 </div>
               )}
 
+              {/* Options for True/False */}
+              {editingQuestion.type === 'TF' && (
+                <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+                  <label className="block text-sm font-semibold mb-3 text-gray-700">True/False Options</label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-600 w-8">A.</span>
+                      <input
+                        type="text"
+                        value={(editingQuestion.options || [])[0] || ''}
+                        onChange={(e) => handleOptionChange(0, e.target.value, true)}
+                        placeholder="True"
+                        className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-600 w-8">B.</span>
+                      <input
+                        type="text"
+                        value={(editingQuestion.options || [])[1] || ''}
+                        onChange={(e) => handleOptionChange(1, e.target.value, true)}
+                        placeholder="False"
+                        className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-700">
-                  {editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 'Answer'}
+                  {editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 
+                   editingQuestion.type === 'TF' ? 'Correct Answer (A or B)' : 'Answer'}
                 </label>
                 <textarea
                   value={editingQuestion.answer}
                   onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
-                  placeholder={editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Enter A, B, C, or D' : 'Enter the answer'}
-                  rows={editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 1 : 3}
+                  placeholder={
+                    editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 
+                    editingQuestion.type === 'TF' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 'Enter the answer'
+                  }
+                  rows={editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' || editingQuestion.type === 'TF' ? 1 : 3}
                   className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all resize-none"
                 />
+              </div>
+
+              {/* Explanations Field */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">Explanations (Optional)</label>
+                <textarea
+                  value={editingQuestion.explanations || ''}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, explanations: e.target.value })}
+                  placeholder="Provide detailed explanations for the answer (optional)"
+                  rows={3}
+                  className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">This will help students understand why the answer is correct</p>
               </div>
               <Button 
                 onClick={handleSaveEdit} 
@@ -1662,6 +1979,15 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           setIsAddModalOpen(false);
           setDiagramFile(null);
           setDiagramPreview(null);
+          setNewQuestion({ 
+            type: 'MCQ', 
+            difficulty: 'Easy', 
+            question: '', 
+            answer: '', 
+            options: ['', '', '', ''], 
+            language: 'English', 
+            explanations: '' 
+          });
         }}>
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-gray-800">Add New Question</DialogTitle>
@@ -1672,7 +1998,21 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 <label className="block text-sm font-semibold mb-2 text-gray-700">Type</label>
                 <select
                   value={newQuestion.type}
-                  onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    let newOptions = newQuestion.options;
+                    
+                    // Set default options based on question type
+                    if (newType === 'TF') {
+                      newOptions = ['True', 'False'];
+                    } else if (newType === 'MCQ' || newType === 'FIIB') {
+                      newOptions = ['', '', '', ''];
+                    } else {
+                      newOptions = [];
+                    }
+                    
+                    setNewQuestion({ ...newQuestion, type: newType, options: newOptions });
+                  }}
                   className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
                 >
                   {['MCQ', 'FIIB', 'TF', 'HOQ'].map(type => (
@@ -1692,6 +2032,20 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Language Selection */}
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Language</label>
+              <select
+                value={newQuestion.language}
+                onChange={(e) => setNewQuestion({ ...newQuestion, language: e.target.value })}
+                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              >
+                {languages.map(lang => (
+                  <option key={lang} value={lang}>{lang}</option>
+                ))}
+              </select>
             </div>
 
             {/* Diagram Upload */}
@@ -1767,17 +2121,63 @@ const ContentGeneration = ({ questions, setQuestions }) => {
               </div>
             )}
 
+            {/* Options for True/False */}
+            {newQuestion.type === 'TF' && (
+              <div className="bg-white p-4 rounded-lg border-2 border-gray-200">
+                <label className="block text-sm font-semibold mb-3 text-gray-700">True/False Options</label>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600 w-8">A.</span>
+                    <input
+                      type="text"
+                      value={newQuestion.options[0] || ''}
+                      onChange={(e) => handleOptionChange(0, e.target.value, false)}
+                      placeholder="True"
+                      className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-600 w-8">B.</span>
+                    <input
+                      type="text"
+                      value={newQuestion.options[1] || ''}
+                      onChange={(e) => handleOptionChange(1, e.target.value, false)}
+                      placeholder="False"
+                      className="flex-1 rounded-lg border-2 border-gray-300 px-4 py-2 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-semibold mb-2 text-gray-700">
-                {newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 'Answer'}
+                {newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 
+                 newQuestion.type === 'TF' ? 'Correct Answer (A or B)' : 'Answer'}
               </label>
               <textarea
                 value={newQuestion.answer}
                 onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })}
-                placeholder={newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Enter A, B, C, or D' : 'Enter the answer'}
-                rows={newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 1 : 3}
+                placeholder={
+                  newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 
+                  newQuestion.type === 'TF' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 'Enter the answer'
+                }
+                rows={newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' || newQuestion.type === 'TF' ? 1 : 3}
                 className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
               />
+            </div>
+
+            {/* Explanations Field */}
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Explanations (Optional)</label>
+              <textarea
+                value={newQuestion.explanations}
+                onChange={(e) => setNewQuestion({ ...newQuestion, explanations: e.target.value })}
+                placeholder="Provide detailed explanations for the answer (optional)"
+                rows={3}
+                className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">This will help students understand why the answer is correct</p>
             </div>
             <Button 
               onClick={handleAddQuestion} 

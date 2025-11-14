@@ -345,14 +345,37 @@ export const getAllQuestionsHandler = async (req, res) => {
 export const updateQuestionHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const { id: _ignore, created_at, pack_id, question: uiQuestion, answer: uiAnswer, type: uiType, ...rest } = req.body;
+    const { 
+      id: _ignore, 
+      created_at, 
+      pack_id, 
+      question: uiQuestion, 
+      answer: uiAnswer, 
+      type: uiType,
+      language,
+      explanation,
+      ...rest 
+    } = req.body;
 
-    const mappedUpdates = {
+    let mappedUpdates = {
       ...rest,
       ...(uiQuestion && { question_text: uiQuestion }),
       ...(uiAnswer && { correct_answer: uiAnswer }),
       ...(uiType && { question_type: uiType })
     };
+
+    // Handle language-specific fields for question and explanation
+    if (language && (uiQuestion || explanation)) {
+      const languageFields = mapLanguageFields(
+        language, 
+        uiQuestion || '', 
+        explanation || ''
+      );
+      mappedUpdates = { ...mappedUpdates, ...languageFields };
+    } else if (explanation) {
+      // If no language specified, just update the main explanation field
+      mappedUpdates.explanation = explanation;
+    }
 
     const updatedQuestion = await updateQuestion(id, mappedUpdates);
     res.json({ success: true, question: updatedQuestion });
