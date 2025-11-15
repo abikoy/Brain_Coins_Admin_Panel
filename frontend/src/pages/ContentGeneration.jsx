@@ -89,23 +89,25 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const languageMap = {
     'English': 'en',
     'english': 'en',
+    'en': 'en',
     'Sinhala': 'si',
     'sinhala': 'si',
     'sinhalese': 'si',
-    'සිංහල': 'si',
+    '\u0dc3\u0dd2\u0d82\u0dc4\u0dbd': 'si',
+    'si': 'si',
     'Tamil': 'ta',
     'tamil': 'ta',
-    'தமிழ்': 'ta'
+    '\u0ba4\u0bae\u0bbf\u0bb4\u0bcd': 'ta',
+    'ta': 'ta'
   };
 
-  // Add this helper function
-
+  // Helper: map any language string (name or code) to backend code en/si/ta
   const getLanguageCode = (languageName) => {
     if (!languageName) return 'en';
 
     const normalized = String(languageName).trim().toLowerCase();
 
-    // Direct mapping
+    // Direct mapping (names or codes)
     if (languageMap[normalized]) {
       return languageMap[normalized];
     }
@@ -119,6 +121,18 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     }
 
     return 'en'; // default
+  };
+
+  // Helper: map backend value (en/si/ta or name) to dropdown display value
+  const getDisplayLanguage = (value) => {
+    if (!value) return 'English';
+    const v = String(value).trim().toLowerCase();
+
+    if (v === 'en' || v === 'english') return 'English';
+    if (v === 'si' || v === 'sinhala' || /[\u0d80-\u0dff]/.test(value)) return 'Sinhala';
+    if (v === 'ta' || v === 'tamil' || /[\u0b80-\u0bff]/.test(value)) return 'Tamil';
+
+    return 'English';
   };
   // Generation options
   const [genLanguage, setGenLanguage] = useState('English');
@@ -278,12 +292,13 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
 
-      // Auto-detect and update language in both local and context state
+      // Auto-detect and normalize language in both local and context state
       if (packs.length > 0 && packs[0].language) {
-        const detectedLang = packs[0].language;
-        setGenLanguage(detectedLang);
-        setDetectedLanguage(detectedLang);
-        console.log(`[Frontend] Auto-detected language: ${detectedLang}`);
+        const rawDetectedLang = packs[0].language; // can be "English", "Sinhala", "Tamil", or codes en/si/ta
+        const displayLanguage = getDisplayLanguage(rawDetectedLang);
+        setGenLanguage(displayLanguage);
+        setDetectedLanguage(displayLanguage);
+        console.log('[Frontend] Auto-detected language (raw):', rawDetectedLang, '=> display:', displayLanguage);
       }
 
     } catch (error) {
@@ -462,6 +477,13 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setGenerationError('No preview to approve');
       return;
     }
+
+    // Require subject and grade before saving a new pack
+    if (!subject || !grade) {
+      setGenerationError('Please select both Grade and Subject before approving questions.');
+      return;
+    }
+
     const chosen = preview.questions.filter((q, i) => selectedIds[q.id || i]);
     if (!chosen.length) {
       setGenerationError('Select at least one item to approve');
@@ -484,15 +506,30 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       const selectedPack = suggestedPacks[currentSelectedIndex];
       const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
 
-      const newPack = await createLearningPackAPI({
-        title: selectedPack.title,
-        description: selectedPack.content || selectedPack.description,
+      // Fallbacks to avoid backend 400s
+      const safeTitle = (selectedPack && selectedPack.title) 
+        ? String(selectedPack.title).trim() 
+        : 'Learning Pack';
+      const safeGrade = `Grade ${parseInt(grade)}`;
+
+      if (!safeTitle) {
+        setGenerationError('Generated learning pack is missing a title. Please rename it manually and try again.');
+        return;
+      }
+
+      const payload = {
+        title: safeTitle,
+        description: selectedPack.content || selectedPack.description || '',
         subject_id: subject,
-        grade: `Grade ${parseInt(grade)}`, // ← CHANGE THIS to "Grade 6", "Grade 7", etc.
-        difficulty: selectedPack.difficulty || 'Medium', // Use difficulty from pack (set by user via dropdown)
+        grade: safeGrade,
+        difficulty: selectedPack.difficulty || 'Medium',
         language: getLanguageCode(selectedPack.language || genLanguage || 'English'),
         is_active: true
-      });
+      };
+
+      console.log('[Frontend] Creating learning pack with payload:', payload);
+
+      const newPack = await createLearningPackAPI(payload);
 
       const packId = newPack.id;
 
@@ -627,8 +664,13 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       setIsSavingEdit(true);
       
-      // Check if this is a preview question (temporary ID) or a saved question (UUID)
-      const isPreviewQuestion = editingQuestion.id && editingQuestion.id.startsWith('gen-');
+      // Check if this is a preview question (temporary ID) or a saved question (real UUID)
+      const idValue = editingQuestion?.id;
+      const idString = idValue != null ? String(idValue) : '';
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+      // Treat anything that is not a valid UUID (including 0, undefined, etc.) as a PREVIEW question
+      const isPreviewQuestion = !uuidRegex.test(idString) || idString.startsWith('gen-');
       
       // Prepare options - for TF questions, ensure we have default values if empty
       let optionsToSave = editingQuestion.options || [];
@@ -658,16 +700,20 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         
         // Update the preview questions array
         if (preview && preview.questions) {
-          const questionIndex = preview.questions.findIndex(q => {
-            // For questions with IDs, match directly
-            if (q.id) {
-              return q.id === editingQuestion.id;
-            }
-            // For questions without IDs, match by index-based ID
-            const arrayIndex = preview.questions.indexOf(q);
-            const generatedId = `gen-${arrayIndex}`;
-            return generatedId === editingQuestion.id || editingQuestion.id.endsWith(`-${arrayIndex}`);
-          });
+          let questionIndex = -1;
+
+          // Prefer the exact index we stored when opening the edit modal
+          if (typeof editingQuestion.previewIndex === 'number') {
+            questionIndex = editingQuestion.previewIndex;
+          } else {
+            // Fallback: try to locate by ID
+            questionIndex = preview.questions.findIndex(q => {
+              if (q.id != null && editingQuestion.id != null) {
+                return String(q.id) === String(editingQuestion.id);
+              }
+              return false;
+            });
+          }
           if (questionIndex !== -1) {
             const updatedQuestions = [...preview.questions];
             updatedQuestions[questionIndex] = updatedQuestion;
@@ -1484,10 +1530,11 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          // Set up the question for editing
+                          // Set up the question for editing (track preview index and a stable id)
                           setEditingQuestion({
                             ...q,
                             id: key,
+                            previewIndex: i,
                             language: q.language || 'English',
                             explanations: q.explanation || q.explanations || ''
                           });

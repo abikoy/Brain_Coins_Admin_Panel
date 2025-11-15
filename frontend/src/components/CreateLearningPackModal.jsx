@@ -11,6 +11,7 @@ const CreateLearningPackModal = ({ open, onOpenChange, onCreated }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
+    language: 'English',
     subject_id: '',
     grade: '',
     title: '',
@@ -18,13 +19,21 @@ const CreateLearningPackModal = ({ open, onOpenChange, onCreated }) => {
     description: ''
   });
 
+  // Map display language names to codes expected by backend
+  const languageMap = {
+    English: 'en',
+    Sinhala: 'si',
+    Tamil: 'ta'
+  };
+
   useEffect(() => {
     if (!open) return;
     const load = async () => {
       try {
         setLoadingSubjects(true);
         setError('');
-        const list = await getSubjects({ compulsory: true });
+        // Load ALL subjects so manual packs can be created for any subject
+        const list = await getSubjects();
         setSubjects(list);
       } catch (e) {
         setError(e.message || 'Failed to load subjects');
@@ -47,18 +56,22 @@ const CreateLearningPackModal = ({ open, onOpenChange, onCreated }) => {
       
       // Convert grade to "Grade 6", "Grade 7", etc. format
       const formattedGrade = `Grade ${form.grade}`;
+
+      // Convert language display name to backend code (en/si/ta)
+      const languageCode = languageMap[form.language] || 'en';
       
       const created = await createLearningPack({
         subject_id: form.subject_id,
-        grade: formattedGrade, // ← CHANGED: Now "Grade 6" instead of 6
+        grade: formattedGrade, 
         title: form.title,
         difficulty: form.difficulty,
-        description: form.description
+        description: form.description,
+        language: languageCode
       });
       
       onCreated?.(created);
       onOpenChange(false);
-      setForm({ subject_id: '', grade: '', title: '', difficulty: 'Medium', description: '' });
+      setForm({ language: 'English', subject_id: '', grade: '', title: '', difficulty: 'Medium', description: '' });
     } catch (e) {
       setError(e.message || 'Failed to create learning pack');
     } finally {
@@ -73,6 +86,18 @@ const CreateLearningPackModal = ({ open, onOpenChange, onCreated }) => {
           <DialogTitle>Create Learning Pack</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Language</label>
+            <select
+              value={form.language}
+              onChange={(e) => setForm({ ...form, language: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 bg-white"
+            >
+              {['English', 'Sinhala', 'Tamil'].map((lang) => (
+                <option key={lang} value={lang}>{lang}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium mb-1">Subject</label>
             <select
