@@ -479,19 +479,36 @@ class ContentManagementService {
   // DELETE LEARNING PACK
   async deleteLearningPack(id) {
     try {
-      const { data: pack, error } = await this.supabase
+      // 1) Delete all pack_sections for this pack to satisfy foreign key constraint
+      const { error: sectionsError } = await this.supabase
+        .from('pack_sections')
+        .delete()
+        .eq('pack_id', id);
+
+      if (sectionsError) throw sectionsError;
+
+      // 2) Delete all questions belonging to this pack
+      const { error: questionsError } = await this.supabase
+        .from('questions')
+        .delete()
+        .eq('pack_id', id);
+
+      if (questionsError) throw questionsError;
+
+      // 3) Now safely delete the learning pack itself
+      const { data: pack, error: packError } = await this.supabase
         .from('learning_packs')
         .delete()
         .eq('id', id)
         .select()
         .single();
 
-      if (error) throw error;
+      if (packError) throw packError;
 
       return {
         success: true,
         data: pack,
-        message: 'Learning pack deleted successfully'
+        message: 'Learning pack and all related data deleted successfully'
       };
 
     } catch (error) {
