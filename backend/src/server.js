@@ -13,17 +13,36 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ==========================================================
-// *** CRITICAL FIX: Simplified Wildcard CORS Configuration ***
-// This overrides the complex function to guarantee allowance
-// from all Vercel preview domains, solving the block issue.
-// ==========================================================
+// CORS Configuration - Allows dynamic origin matching for credentials
+// This fix addresses the error: '...must not be the wildcard '*' when the request's credentials mode is 'include'.'
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  process.env.FRONTEND_URL,
+  // Explicitly allow your known primary Vercel domains if needed
+  'https://brain-coins-admin-panel-a4or.vercel.app'
+].filter(Boolean);
 
 // Middleware
 app.use(cors({
-  origin: '*', // ALLOWS ALL ORIGINS - Solves the Vercel preview domain issue
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  origin: function(origin, callback) {
+    // 1. Allow requests with no origin (e.g., Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    
+    // 2. Check for Whitelisted Domains or Vercel Domains
+    const isAllowed = allowedOrigins.includes(origin) || origin.endsWith('.vercel.app');
+
+    if (isAllowed) {
+        // CRITICAL FIX: MUST return the specific origin when credentials: 'include' is used
+      callback(null, origin); 
+    } else {
+      console.warn(`[CORS Blocked] Origin: ${origin}. Not in whitelist or Vercel pattern.`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Ensure all methods are allowed
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -74,7 +93,7 @@ app.listen(PORT, () => {
 ║                                                           ║
 ║   Server running on: http://localhost:${PORT}              ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   CORS: Wildcard (*) Enabled                              ║
+║   CORS: Credentials-Safe Dynamic Origin Enabled            ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
