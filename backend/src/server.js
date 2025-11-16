@@ -34,7 +34,7 @@ app.use(cors({
     if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
-      console.warn(`[CORS] Blocked origin: ${origin}`);
+console.warn(`[CORS Blocked] Origin: ${origin}. Not in whitelist or Vercel pattern.`);
       callback(new Error('Not allowed by CORS'));
     }
   },
