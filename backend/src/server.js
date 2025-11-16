@@ -81,7 +81,7 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`
+  console.log(`// After (Add a comment or a blank line)
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   🎓 Brain Coins Backend API                             ║
