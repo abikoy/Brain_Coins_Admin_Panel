@@ -13,16 +13,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS Configuration - Allows dynamic origin matching for credentials
-// This fix addresses the error: '...must not be the wildcard '*' when the request's credentials mode is 'include'.'
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  process.env.FRONTEND_URL,
-  // Explicitly allow your known primary Vercel domains if needed
-  'https://brain-coins-admin-panel-a4or.vercel.app'
-].filter(Boolean);
+// ==========================================================
+// *** AGGRESSIVE CORS FIX AND MAX FILE SIZE INCREASE ***
+// ==========================================================
+
+const VERIFIED_DOMAIN_ENDING = '.vercel.app'; 
 
 // Middleware
 app.use(cors({
@@ -30,24 +25,28 @@ app.use(cors({
     // 1. Allow requests with no origin (e.g., Postman, server-to-server)
     if (!origin) return callback(null, true);
     
-    // 2. Check for Whitelisted Domains or Vercel Domains
-    const isAllowed = allowedOrigins.includes(origin) || origin.endsWith('.vercel.app');
-
-    if (isAllowed) {
-        // CRITICAL FIX: MUST return the specific origin when credentials: 'include' is used
-      callback(null, origin); 
+    // 2. Check for Vercel Domains or localhost
+    if (origin.endsWith(VERIFIED_DOMAIN_ENDING) || origin.includes('localhost')) {
+        // CRITICAL FIX: Return the specific origin to allow credentials
+        callback(null, origin); 
     } else {
-      console.warn(`[CORS Blocked] Origin: ${origin}. Not in whitelist or Vercel pattern.`);
-      callback(new Error('Not allowed by CORS'));
+        console.warn(`[CORS Blocked] Origin: ${origin}. Not recognized Vercel or localhost domain.`);
+        callback(new Error('Not allowed by CORS policy'));
     }
   },
   credentials: true,
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Ensure all methods are allowed
+  allowedHeaders: 'Content-Type,Authorization', // Ensure essential headers are allowed
 }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(express.raw({ limit: '50mb' }));
+
+// === FIX FOR 413 ERROR: INCREASE BODY LIMITS TO 100MB ===
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+// CRITICAL ADDITION: Allow large raw body data (files)
+app.use(express.raw({ limit: '100mb' }));
+// =======================================================
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -94,7 +93,7 @@ app.listen(PORT, () => {
 ║                                                           ║
 ║   Server running on: http://localhost:${PORT}              ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   CORS: Credentials-Safe Dynamic Origin Enabled            ║
+║   CORS: Dynamic Origin | Files: 100MB                     ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
