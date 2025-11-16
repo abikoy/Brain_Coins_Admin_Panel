@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import cors from 'cors'; 
 import dotenv from 'dotenv';
 import questionRoutes from './routes/question.routes.js';
 import learningPackRoutes from './routes/learningPack.routes.js';
@@ -13,37 +13,15 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ==========================================================
-// *** AGGRESSIVE CORS FIX AND MAX FILE SIZE INCREASE ***
-// ==========================================================
-
-const VERIFIED_DOMAIN_ENDING = '.vercel.app'; 
-
-// Middleware
-app.use(cors({
-  origin: function(origin, callback) {
-    // 1. Allow requests with no origin (e.g., Postman, server-to-server)
-    if (!origin) return callback(null, true);
-    
-    // 2. Check for Vercel Domains or localhost
-    if (origin.endsWith(VERIFIED_DOMAIN_ENDING) || origin.includes('localhost')) {
-        // CRITICAL FIX: Return the specific origin to allow credentials
-        callback(null, origin); 
-    } else {
-        console.warn(`[CORS Blocked] Origin: ${origin}. Not recognized Vercel or localhost domain.`);
-        callback(new Error('Not allowed by CORS policy'));
-    }
-  },
-  credentials: true,
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Ensure all methods are allowed
-  allowedHeaders: 'Content-Type,Authorization', // Ensure essential headers are allowed
-}));
+// === FIX: Simplified CORS (Managed by vercel.json) ===
+// We rely on the vercel.json file to set the CORS headers.
+app.use(cors());
 
 
 // === FIX FOR 413 ERROR: INCREASE BODY LIMITS TO 100MB ===
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-// CRITICAL ADDITION: Allow large raw body data (files)
+// CRITICAL ADDITION: This is essential for large file data
 app.use(express.raw({ limit: '100mb' }));
 // =======================================================
 
@@ -93,7 +71,7 @@ app.listen(PORT, () => {
 ║                                                           ║
 ║   Server running on: http://localhost:${PORT}              ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   CORS: Dynamic Origin | Files: 100MB                     ║
+║   CORS: Managed by Vercel | Files: 100MB                  ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
