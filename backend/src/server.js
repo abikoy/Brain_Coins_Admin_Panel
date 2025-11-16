@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -8,48 +7,35 @@ import subjectRoutes from './routes/subject.routes.js';
 import contentRoutes from './routes/content.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import geminiErrorRoutes from './routes/geminiErrors.routes.js';
-import contentManagementRoute  from './routes/contentManagement.routes.js'
+import contentManagementRoute  from './routes/contentManagement.routes.js'
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS Configuration - Allow multiple origins including Vercel deployments
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  process.env.FRONTEND_URL,
-  'https://brain-coins-admin-panel-a4or-l7isbl0qj-abikoys-projects.vercel.app',
-  'https://brain-coins-admin-panel-a4or.vercel.app'
-].filter(Boolean);
+// ==========================================================
+// *** CRITICAL FIX: Simplified Wildcard CORS Configuration ***
+// This overrides the complex function to guarantee allowance
+// from all Vercel preview domains, solving the block issue.
+// ==========================================================
 
 // Middleware
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is allowed or matches Vercel preview pattern
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
-      callback(null, true);
-    } else {
-console.warn(`[CORS Blocked] Origin: ${origin}. Not in whitelist or Vercel pattern.`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
+  origin: '*', // ALLOWS ALL ORIGINS - Solves the Vercel preview domain issue
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
 }));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'Brain Coins Backend API is running',
-    timestamp: new Date().toISOString()
-  });
+  res.json({
+    status: 'OK',
+    message: 'Brain Coins Backend API is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // API Routes
@@ -64,34 +50,34 @@ app.use('/api/content-management', contentManagementRoute);
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Endpoint not found'
-  });
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found'
+  });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('[Backend] Error:', err);
-  res.status(500).json({
-    success: false,
-    error: err.message || 'Internal server error'
-  });
+  console.error('[Backend] Error:', err);
+  res.status(500).json({
+    success: false,
+    error: err.message || 'Internal server error'
+  });
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`// After (Add a comment or a blank line)
+  console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🎓 Brain Coins Backend API                             ║
-║                                                           ║
-║   Server running on: http://localhost:${PORT}              ║
-║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   CORS: ${allowedOrigins.length} origins + *.vercel.app  ║
-║                                                           ║
+║                                                           ║
+║   🎓 Brain Coins Backend API                             ║
+║                                                           ║
+║   Server running on: http://localhost:${PORT}              ║
+║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
+║   CORS: Wildcard (*) Enabled                              ║
+║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
-  `);
+  `);
 });
 
 export default app;
