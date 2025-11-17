@@ -13,9 +13,23 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// === FIX: Simplified CORS (Managed by vercel.json) ===
-// We rely on the vercel.json file to set the CORS headers.
-app.use(cors());
+// CORS configuration for frontend domains
+const allowedOrigins = [
+    'http://localhost:3000',
+    'https://braincoins.vercel.app'
+];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true
+}));
 
 
 // === FIX FOR 413 ERROR: INCREASE BODY LIMITS TO 100MB ===
@@ -43,14 +57,6 @@ app.use('/api/content', contentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/gemini-errors', geminiErrorRoutes);
 app.use('/api/content-management', contentManagementRoute);
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    if (req.method === 'OPTIONS') return res.sendStatus(204);
-    next();
-});
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({
