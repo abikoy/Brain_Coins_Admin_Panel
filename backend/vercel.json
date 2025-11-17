@@ -2,44 +2,39 @@
   "version": 2,
   "builds": [
     {
-      "src": "frontend/package.json",
+      "src": "../frontend/package.json",
       "use": "@vercel/static-build",
-      "config": {
-        "outputDirectory": "dist"
-      }
+      "config": { "outputDirectory": "dist" }
     },
     {
-      "src": "backend/src/server.js",
+      "src": "src/server.js",
       "use": "@vercel/node",
-      "config": {
-        "maxDuration": 60
-      }
+      "config": { "maxDuration": 60 }
     }
   ],
-  
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "backend/src/server.js"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "frontend/dist/index.html"
-    }
+    { "source": "/api/(.*)", "destination": "src/server.js" },
+    { "source": "/(.*)", "destination": "../frontend/dist/index.html" }
   ],
-
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Credentials", "value": "true" },
-        { "key": "Access-Control-Allow-Origin", "value": "https://brain-coins-admin-panel-a4or.vercel.app" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,DELETE,PATCH,POST,PUT,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "https://brain-coins-admin-panel-a4or.vercel.app"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,DELETE,PATCH,POST,PUT,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+        }
       ]
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  "env": { "NODE_ENV": "production" }
 }
