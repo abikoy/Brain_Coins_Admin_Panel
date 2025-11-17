@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors'; 
+import cors from 'cors';
 import dotenv from 'dotenv';
 import questionRoutes from './routes/question.routes.js';
 import learningPackRoutes from './routes/learningPack.routes.js';
@@ -7,32 +7,31 @@ import subjectRoutes from './routes/subject.routes.js';
 import contentRoutes from './routes/content.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import geminiErrorRoutes from './routes/geminiErrors.routes.js';
-import contentManagementRoute  from './routes/contentManagement.routes.js'
+import contentManagementRoute from './routes/contentManagement.routes.js'
+
+// Load environment variables (Vercel will inject these automatically in production)
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-// === FIX: Simplified CORS (Managed by vercel.json) ===
-// We rely on the vercel.json file to set the CORS headers.
+// === Vercel Optimization & Large File Handling ===
+// CORS is generally handled by Vercel's routing/headers, but keeping cors() is safe.
 app.use(cors());
 
-
-// === FIX FOR 413 ERROR: INCREASE BODY LIMITS TO 100MB ===
+// Increase body limits for file uploads (CRITICAL for 413 error)
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-// CRITICAL ADDITION: This is essential for large file data
 app.use(express.raw({ limit: '100mb' }));
 // =======================================================
 
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'Brain Coins Backend API is running',
-    timestamp: new Date().toISOString()
-  });
+    res.json({
+        status: 'OK',
+        message: 'Brain Coins Backend API is running (Vercel Serverless)',
+        timestamp: new Date().toISOString()
+    });
 });
 
 // API Routes
@@ -44,37 +43,36 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/gemini-errors', geminiErrorRoutes);
 app.use('/api/content-management', contentManagementRoute);
 
+// --- REMOVED/ADJUSTED SECTIONS ---
 
-// 404 handler
+// ⚠️ Remove the manual CORS headers (Vercel handles this via vercel.json)
+// app.use((req, res, next) => { ... });
+
+// 404 handler (Keep this last before the error handler)
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Endpoint not found'
-  });
+    res.status(404).json({
+        success: false,
+        error: 'Endpoint not found'
+    });
 });
 
-// Error handler
+// Error handler (Must be the last middleware)
 app.use((err, req, res, next) => {
-  console.error('[Backend] Error:', err);
-  res.status(500).json({
-    success: false,
-    error: err.message || 'Internal server error'
-  });
+    console.error('[Backend] Error:', err);
+    res.status(500).json({
+        success: false,
+        error: err.message || 'Internal server error'
+    });
 });
 
-// Start server
+// ❌ CRITICAL CHANGE: Remove the app.listen() block
+// Vercel handles starting the server. This block is only for local development.
+/*
 app.listen(PORT, () => {
-  console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🎓 Brain Coins Backend API                             ║
-║                                                           ║
-║   Server running on: http://localhost:${PORT}              ║
-║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   CORS: Managed by Vercel | Files: 100MB                  ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-  `);
+    console.log(`...`);
 });
+*/
 
+// ✅ CRITICAL CHANGE: Export the app instance
+// This is the entry point Vercel's serverless handler needs.
 export default app;
