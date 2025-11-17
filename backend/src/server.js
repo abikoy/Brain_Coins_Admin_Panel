@@ -68,19 +68,6 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🎓 Brain Coins Backend API                             ║
-║                                                           ║
-║   Server running on: http://localhost:${PORT}              ║
-║   Environment: ${process.env.NODE_ENV || 'development'}                        ║
-║   CORS: Managed by Vercel | Files: 100MB                  ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-  `);
-});
+
 
 export default app;
