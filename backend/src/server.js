@@ -36,21 +36,14 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
-app.use('/api/questions', questionRoutes);
-app.use('/api/learning-packs', learningPackRoutes);
-app.use('/api/subjects', subjectRoutes);
-app.use('/api/content', contentRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/gemini-errors', geminiErrorRoutes);
-app.use('/api/content-management', contentManagementRoute);
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    if (req.method === 'OPTIONS') return res.sendStatus(204);
-    next();
-});
+app.use('/questions', questionRoutes);
+app.use('/learning-packs', learningPackRoutes);
+app.use('/subjects', subjectRoutes);
+app.use('/content', contentRoutes);
+app.use('/analytics', analyticsRoutes);
+app.use('/gemini-errors', geminiErrorRoutes);
+app.use('/content-management', contentManagementRoute);
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({
@@ -68,8 +61,8 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server
-app.listen(PORT, () => {
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -81,6 +74,7 @@ app.listen(PORT, () => {
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
-});
+  });
+}
 
 export default app;
