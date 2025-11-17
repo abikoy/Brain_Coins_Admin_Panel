@@ -16,7 +16,6 @@
       }
     }
   ],
-  
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -24,10 +23,9 @@
     },
     {
       "source": "/(.*)",
-      "destination": "frontend/dist/$1"
+      "destination": "frontend/dist/index.html"
     }
   ],
-
   "headers": [
     {
       "source": "/api/(.*)",
