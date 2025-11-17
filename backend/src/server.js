@@ -27,7 +27,7 @@ app.use(express.raw({ limit: '100mb' }));
 
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
         message: 'Brain Coins Backend API is running',
