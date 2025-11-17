@@ -6,11 +6,13 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "src/server.js"
+  "functions": {
+    "api/server.js": {
+      "runtime": "@vercel/node"
     }
+  },
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/server.js" }
   ],
   "headers": [
     {
