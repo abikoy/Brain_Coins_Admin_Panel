@@ -1337,7 +1337,6 @@ Return ONLY valid JSON in the format strictly defined by the schema.
             apiEndpoint: 'generateContent',
             fileType: mimeType,
             endpoint: 'extractContentMetadata',
-            retryAttempt: context.retryCount // if available
           });
           console.error('[Backend Gemini] API call failed:', {
             message: error.message,
