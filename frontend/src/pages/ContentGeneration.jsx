@@ -277,7 +277,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       setIsGeneratingPacks(true);
       setAnalysisError('');
-      console.log("File URL"+ uploadedFile.fileUrl);
+      console.log("File URL" + uploadedFile.fileUrl);
       // uploadedFile.fileUrl should now be the Supabase public URL
       const analysisResponse = await analyzeDocument(uploadedFile.fileUrl);
       console.log(uploadedFile.fileUrl);
@@ -590,6 +590,22 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       const selectedPack = suggestedPacks[currentSelectedIndex];
       const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
 
+
+      const packLanguage = getDisplayLanguage(selectedPack.language || genLanguage || 'English');
+
+      // Extract number from the original title (e.g., "Learning Pack 1" -> "01")
+      const title = String(selectedPack.title || '').trim() || `Learning Pack ${currentSelectedIndex + 1}`;
+      const match = title.match(/(\d+)/);
+      const number = match ? match[1].padStart(2, '0') : (currentSelectedIndex + 1).toString().padStart(2, '0');
+
+      let localizedTitle;
+      if (packLanguage === 'Sinhala') {
+        localizedTitle = `ඉගෙනුම් ඇසුරුම ${number}`;
+      } else if (packLanguage === 'Tamil') {
+        localizedTitle = `கற்றல் தொகுப்பு ${number}`;
+      } else {
+        localizedTitle = `Learning Pack ${number}`;
+      }
       const newPack = await createLearningPackAPI({
         title: selectedPack.title,
         description: selectedPack.content || selectedPack.description,
