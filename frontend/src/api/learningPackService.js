@@ -11,7 +11,7 @@ export const getLearningPacks = async (subject_id) => {
   });
   if (!res.ok) {
     let err;
-    try { err = await res.json(); } catch {}
+    try { err = await res.json(); } catch { }
     throw new Error(err?.error || 'Failed to fetch learning packs');
   }
   const data = await res.json();
@@ -27,7 +27,7 @@ export const getLearningPackWithSubject = async (id) => {
   });
   if (!res.ok) {
     let err;
-    try { err = await res.json(); } catch {}
+    try { err = await res.json(); } catch { }
     throw new Error(err?.error || 'Failed to fetch learning pack');
   }
   const data = await res.json();
@@ -44,7 +44,7 @@ export const createLearningPack = async (payload) => {
   });
   if (!res.ok) {
     let err;
-    try { err = await res.json(); } catch {}
+    try { err = await res.json(); } catch { }
     throw new Error(err?.error || 'Failed to create learning pack');
   }
   const data = await res.json();
@@ -52,41 +52,40 @@ export const createLearningPack = async (payload) => {
 };
 
 // Analyze document and suggest learning packs
-export const analyzeDocument = async (fileUrl, fileType, file) => {
-  const formData = new FormData();
-  
-  if (file) {
-    // If we have the file object, use it directly
-    formData.append('file', file);
-  } else if (fileUrl) {
-    // Fallback to URL if file object is not available
-    let absoluteUrl = fileUrl;
-    if (!fileUrl.startsWith('http') && !fileUrl.startsWith('blob:')) {
-      absoluteUrl = `${window.location.origin}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
-    }
-    formData.append('fileUrl', absoluteUrl);
-  } else {
-    throw new Error('No file provided for analysis');
+export const analyzeDocument = async (fileUrl) => {
+  if (!fileUrl) {
+    throw new Error('fileUrl is required for analysis');
   }
 
   const res = await fetch(`${API_BASE_URL}/learning-packs/analyze-document`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: formData
+    body: JSON.stringify({ file_url: fileUrl })
   });
-  
+
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || 'Failed to analyze document');
+    // Try to read JSON first, then fallback to text
+    let message = 'Failed to analyze document';
+    try {
+      const err = await res.json();
+      if (err?.error) message = err.error;
+    } catch {
+      try {
+        const text = await res.text();
+        if (text) message = text;
+      } catch { }
+    }
+    throw new Error(message);
   }
-  
+
   const data = await res.json();
-  return data; // Return full response to include language detection
+  return data; // { success, data, language, stats }
 };
 
-export default { 
-  getLearningPacks, 
-  getLearningPackWithSubject, 
+export default {
+  getLearningPacks,
+  getLearningPackWithSubject,
   createLearningPack,
-  analyzeDocument 
+  analyzeDocument
 };

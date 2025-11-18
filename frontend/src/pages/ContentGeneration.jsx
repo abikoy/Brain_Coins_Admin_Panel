@@ -184,9 +184,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   // Select all or deselect all questions
   const toggleSelectAll = () => {
     if (!preview?.questions) return;
-    
+
     const allSelected = preview.questions.every((q, i) => selectedIds[q.id || i]);
-    
+
     if (allSelected) {
       // Deselect all
       setSelectedIds({});
@@ -266,7 +266,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     setAnalysisError('');
   };
 
-  // Generate learning packs from uploaded file
+  // Generate learning packs from uploaded file (Supabase URL)
   const handleGenerateLearningPacks = async () => {
     if (!uploadedFile) {
       setAnalysisError('Please upload a file first');
@@ -277,18 +277,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setIsGeneratingPacks(true);
       setAnalysisError('');
 
-      // Get the file object if available
-      let fileObj = null;
-      if (uploadedFile.file) {
-        fileObj = uploadedFile.file;
-      } else if (uploadedFile.fileUrl && uploadedFile.fileUrl.startsWith('blob:')) {
-        // If we have a blob URL, fetch the file
-        const response = await fetch(uploadedFile.fileUrl);
-        const blob = await response.blob();
-        fileObj = new File([blob], uploadedFile.name || 'document', { type: uploadedFile.fileType || 'application/octet-stream' });
-      }
-
-      const analysisResponse = await analyzeDocument(uploadedFile.fileUrl, uploadedFile.fileType, fileObj);
+      // uploadedFile.fileUrl should now be the Supabase public URL
+      const analysisResponse = await analyzeDocument(uploadedFile.fileUrl);
       const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
 
@@ -324,7 +314,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         return prev;
       }
     });
-    
+
     // Keep the old single selection for backward compatibility
     setSelectedPackIndex(prev => prev === index ? null : index);
   };
@@ -507,8 +497,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
 
       // Fallbacks to avoid backend 400s
-      const safeTitle = (selectedPack && selectedPack.title) 
-        ? String(selectedPack.title).trim() 
+      const safeTitle = (selectedPack && selectedPack.title)
+        ? String(selectedPack.title).trim()
         : 'Learning Pack';
       const safeGrade = `Grade ${parseInt(grade)}`;
 
@@ -544,11 +534,11 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       // Upload any pending diagrams for questions that were edited in preview
       for (const savedQuestion of saved) {
-        const originalQuestion = chosen.find(q => 
-          (q.id && q.id.startsWith('gen-')) && 
+        const originalQuestion = chosen.find(q =>
+          (q.id && q.id.startsWith('gen-')) &&
           q.question === savedQuestion.question
         );
-        
+
         if (originalQuestion && originalQuestion.pendingDiagram) {
           try {
             console.log('[Frontend] Uploading pending diagram for question:', savedQuestion.id);
@@ -663,7 +653,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const handleSaveEdit = async () => {
     try {
       setIsSavingEdit(true);
-      
+
       // Check if this is a preview question (temporary ID) or a saved question (real UUID)
       const idValue = editingQuestion?.id;
       const idString = idValue != null ? String(idValue) : '';
@@ -671,7 +661,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       // Treat anything that is not a valid UUID (including 0, undefined, etc.) as a PREVIEW question
       const isPreviewQuestion = !uuidRegex.test(idString) || idString.startsWith('gen-');
-      
+
       // Prepare options - for TF questions, ensure we have default values if empty
       let optionsToSave = editingQuestion.options || [];
       if (editingQuestion.type === 'TF') {
@@ -680,9 +670,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           (editingQuestion.options || [])[1] || 'False'
         ];
       }
-      
+
       let updatedQuestion;
-      
+
       if (isPreviewQuestion) {
         // For preview questions, just update the local preview data
         console.log('[Frontend] Updating preview question locally:', editingQuestion.id);
@@ -697,7 +687,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           explanation: editingQuestion.explanations,
           explanations: editingQuestion.explanations
         };
-        
+
         // Update the preview questions array
         if (preview && preview.questions) {
           let questionIndex = -1;
@@ -765,9 +755,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setEditingQuestion(null);
       setEditDiagramFile(null);
       setEditDiagramPreview(null);
-      
+
       // Show appropriate success message
-      const successMessage = isPreviewQuestion 
+      const successMessage = isPreviewQuestion
         ? '✅ Preview question updated! Changes will be saved when you approve the questions.'
         : '✅ Question updated successfully in database!';
       setToast({ message: successMessage, type: 'success' });
@@ -841,9 +831,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         setToast({ message: '⚠️ Please select a learning pack first', type: 'warning' });
         return;
       }
-      
+
       setIsAddingQuestion(true);
-      
+
       // Prepare options - for TF questions, ensure we have default values if empty
       let optionsToSave = newQuestion.options || [];
       if (newQuestion.type === 'TF') {
@@ -852,7 +842,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           newQuestion.options[1] || 'False'
         ];
       }
-      
+
       const created = await createQuestionAPI({
         pack_id: selectedPackId,
         type: newQuestion.type,
@@ -879,14 +869,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       setQuestions([...questions, created]);
       setIsAddModalOpen(false);
-      setNewQuestion({ 
-        type: 'MCQ', 
-        difficulty: 'Easy', 
-        question: '', 
-        answer: '', 
-        options: ['', '', '', ''], 
-        language: 'English', 
-        explanations: '' 
+      setNewQuestion({
+        type: 'MCQ',
+        difficulty: 'Easy',
+        question: '',
+        answer: '',
+        options: ['', '', '', ''],
+        language: 'English',
+        explanations: ''
       });
       setDiagramFile(null);
       setDiagramPreview(null);
@@ -1029,7 +1019,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             // Extract number from title (e.g., "Learning Pack 1" -> "01")
             const match = title.match(/(\d+)/);
             const number = match ? match[1].padStart(2, '0') : (index + 1).toString().padStart(2, '0');
-            
+
             // Return only the title in the detected language
             if (packLanguage === 'Sinhala') {
               return `ඉගෙනුම් ඇසුරුම ${number}`;
@@ -1042,7 +1032,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           };
 
           const languageSpecificTitle = getLanguageSpecificTitle(cleanTitle, pack.language || 'English');
-          
+
           // Debug logging for language detection
           if (index === 0) {
             console.log('[Frontend] Pack language detected:', pack.language, 'for pack:', cleanTitle);
@@ -1582,10 +1572,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                         <div className="flex gap-2">
                           {(() => {
                             // Ensure we always have exactly 2 options for TF
-                            const options = q.options && q.options.length >= 2 
-                              ? q.options.slice(0, 2) 
+                            const options = q.options && q.options.length >= 2
+                              ? q.options.slice(0, 2)
                               : ['True', 'False'];
-                            
+
                             return options.map((option, index) => {
                               const letter = String.fromCharCode(65 + index);
                               const isCorrect = q.answer === letter || q.answer === option;
@@ -1736,10 +1726,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     <div className="flex gap-2">
                       {(() => {
                         // Ensure we always have exactly 2 options for TF
-                        const options = question.options && question.options.length >= 2 
-                          ? question.options.slice(0, 2) 
+                        const options = question.options && question.options.length >= 2
+                          ? question.options.slice(0, 2)
                           : ['True', 'False'];
-                        
+
                         return options.map((option, index) => {
                           const letter = String.fromCharCode(65 + index);
                           const isCorrect = question.answer === letter || question.answer === option;
@@ -1758,7 +1748,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 )}
 
                 {/* MATCH type: show pairs grid */}
-            
+
                 {/* Answer line - show for HOQ and FIIB if not already shown in options */}
                 {question.answer && question.type !== 'MCQ' && question.type !== 'IMAGE_MCQ' && question.type !== 'TF' && (
                   <p className="text-sm text-gray-600 mt-2">
@@ -1808,7 +1798,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     onChange={(e) => {
                       const newType = e.target.value;
                       let newOptions = editingQuestion.options || [];
-                      
+
                       // Set default options based on question type
                       if (newType === 'TF') {
                         newOptions = ['True', 'False'];
@@ -1817,7 +1807,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                       } else {
                         newOptions = [];
                       }
-                      
+
                       setEditingQuestion({ ...editingQuestion, type: newType, options: newOptions });
                     }}
                     className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
@@ -1862,7 +1852,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   Diagram (Optional)
                 </label>
                 <p className="text-xs text-gray-500 mb-3">Upload an image if this question requires a diagram (Max 5MB)</p>
-                
+
                 {!editDiagramPreview ? (
                   <div className="flex items-center gap-2">
                     <input
@@ -1959,15 +1949,15 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-700">
-                  {editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 
-                   editingQuestion.type === 'TF' ? 'Correct Answer (A or B)' : 'Answer'}
+                  {editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' :
+                    editingQuestion.type === 'TF' ? 'Correct Answer (A or B)' : 'Answer'}
                 </label>
                 <textarea
                   value={editingQuestion.answer}
                   onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
                   placeholder={
-                    editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 
-                    editingQuestion.type === 'TF' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 'Enter the answer'
+                    editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' :
+                      editingQuestion.type === 'TF' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 'Enter the answer'
                   }
                   rows={editingQuestion.type === 'MCQ' || editingQuestion.type === 'FIIB' || editingQuestion.type === 'TF' ? 1 : 3}
                   className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all resize-none"
@@ -1986,8 +1976,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 />
                 <p className="text-xs text-gray-500 mt-1">This will help students understand why the answer is correct</p>
               </div>
-              <Button 
-                onClick={handleSaveEdit} 
+              <Button
+                onClick={handleSaveEdit}
                 disabled={isSavingEdit}
                 className="w-full py-3 text-lg font-semibold bg-green-600 hover:bg-green-700"
               >
@@ -2026,14 +2016,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           setIsAddModalOpen(false);
           setDiagramFile(null);
           setDiagramPreview(null);
-          setNewQuestion({ 
-            type: 'MCQ', 
-            difficulty: 'Easy', 
-            question: '', 
-            answer: '', 
-            options: ['', '', '', ''], 
-            language: 'English', 
-            explanations: '' 
+          setNewQuestion({
+            type: 'MCQ',
+            difficulty: 'Easy',
+            question: '',
+            answer: '',
+            options: ['', '', '', ''],
+            language: 'English',
+            explanations: ''
           });
         }}>
           <DialogHeader>
@@ -2048,7 +2038,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   onChange={(e) => {
                     const newType = e.target.value;
                     let newOptions = newQuestion.options;
-                    
+
                     // Set default options based on question type
                     if (newType === 'TF') {
                       newOptions = ['True', 'False'];
@@ -2057,7 +2047,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     } else {
                       newOptions = [];
                     }
-                    
+
                     setNewQuestion({ ...newQuestion, type: newType, options: newOptions });
                   }}
                   className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
@@ -2102,7 +2092,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 Diagram (Optional)
               </label>
               <p className="text-xs text-gray-500 mb-3">Upload an image if this question requires a diagram (Max 5MB)</p>
-              
+
               {!diagramPreview ? (
                 <div className="flex items-center gap-2">
                   <input
@@ -2199,15 +2189,15 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
             <div>
               <label className="block text-sm font-semibold mb-2 text-gray-700">
-                {newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' : 
-                 newQuestion.type === 'TF' ? 'Correct Answer (A or B)' : 'Answer'}
+                {newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Correct Answer (A, B, C, or D)' :
+                  newQuestion.type === 'TF' ? 'Correct Answer (A or B)' : 'Answer'}
               </label>
               <textarea
                 value={newQuestion.answer}
                 onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value })}
                 placeholder={
-                  newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 
-                  newQuestion.type === 'TF' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 'Enter the answer'
+                  newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' :
+                    newQuestion.type === 'TF' ? 'Enter the correct answer value (e.g., if A is correct, enter the value of option A)' : 'Enter the answer'
                 }
                 rows={newQuestion.type === 'MCQ' || newQuestion.type === 'FIIB' || newQuestion.type === 'TF' ? 1 : 3}
                 className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all resize-none"
@@ -2226,8 +2216,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
               />
               <p className="text-xs text-gray-500 mt-1">This will help students understand why the answer is correct</p>
             </div>
-            <Button 
-              onClick={handleAddQuestion} 
+            <Button
+              onClick={handleAddQuestion}
               disabled={isAddingQuestion}
               className="w-full py-3 text-lg font-semibold"
             >
