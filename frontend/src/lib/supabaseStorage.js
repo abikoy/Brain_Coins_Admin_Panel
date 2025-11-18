@@ -157,7 +157,7 @@ export const uploadFile = async (file) => {
       throw new Error(error.message || 'Failed to upload file');
     }
 
-    // Get public URL
+    // Get signed URL (1 year)
     const { data: urlData, error: urlError } = await supabase
       .storage
       .from(BUCKET_NAME)
