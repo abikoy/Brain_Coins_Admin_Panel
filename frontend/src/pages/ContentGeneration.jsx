@@ -255,6 +255,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // Handle file upload completion
   const handleUploadComplete = (uploadData) => {
+    console.log(uploadData);
     setUploadedFile({
       fileUrl: uploadData.fileUrl,
       fileType: uploadData.fileType,
