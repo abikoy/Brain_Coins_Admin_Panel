@@ -276,9 +276,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       setIsGeneratingPacks(true);
       setAnalysisError('');
-
+      console.log("File URL"+ uploadedFile.fileUrl);
       // uploadedFile.fileUrl should now be the Supabase public URL
       const analysisResponse = await analyzeDocument(uploadedFile.fileUrl);
+      console.log(uploadedFile.fileUrl);
       const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
 
