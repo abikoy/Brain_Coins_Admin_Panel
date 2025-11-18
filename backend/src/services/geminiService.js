@@ -2347,20 +2347,22 @@ IMPORTANT: Respect the exact question type counts requested above!`;
  * @returns {string} - MIME type
  */
 const getMimeType = (fileType, fileUrl) => {
-  const extension = fileUrl.split('.').pop().toLowerCase();
+  // Strip query string (e.g. ?token=...)
+  const cleanUrl = fileUrl.split('?')[0];
+  const extension = cleanUrl.split('.').pop().toLowerCase();
 
   const mimeTypes = {
     // Images
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'png': 'image/png',
-    'gif': 'image/gif',
-    'webp': 'image/webp',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
     // Documents
-    'pdf': 'application/pdf',
-    'txt': 'text/plain',
-    'doc': 'application/msword',
-    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   };
 
   return mimeTypes[extension] || 'application/octet-stream';
