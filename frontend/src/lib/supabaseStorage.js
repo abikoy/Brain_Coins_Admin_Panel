@@ -15,7 +15,7 @@ const BUCKET_NAME = 'content-uploads';
  */
 const checkAndRefreshSession = async () => {
   const { data, error } = await supabase.auth.getSession();
-  
+
   if (error || !data?.session) {
     console.error('[Auth] No valid session found:', error);
     return { session: null, error: error || new Error('No active session') };
@@ -29,12 +29,12 @@ const checkAndRefreshSession = async () => {
   if (expiresAt < now + buffer) {
     console.log('[Auth] Token expired or about to expire, refreshing...');
     const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    
+
     if (refreshError) {
       console.error('[Auth] Failed to refresh session:', refreshError);
       return { session: null, error: refreshError };
     }
-    
+
     console.log('[Auth] Session refreshed successfully');
     return { session: refreshData.session, error: null };
   }
@@ -63,12 +63,12 @@ export const uploadFile = async (file) => {
 
     // Check and refresh session if needed
     const { session, error: sessionError } = await checkAndRefreshSession();
-    
+
     if (sessionError || !session) {
       console.error('[Frontend Storage] Session check failed:', sessionError);
       throw new Error('Your session has expired. Please refresh the page and log in again.');
     }
-    
+
     console.log('[Frontend Storage] Session verified:', {
       user: session.user?.email,
       expiresAt: new Date(session.expires_at * 1000).toISOString()
@@ -79,7 +79,7 @@ export const uploadFile = async (file) => {
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = file.name.split('.').pop();
     const uniqueFileName = `${timestamp}_${randomString}.${fileExtension}`;
-    
+
     // Determine file path in bucket
     const filePath = `uploads/${uniqueFileName}`;
 
@@ -105,38 +105,38 @@ export const uploadFile = async (file) => {
           cacheControl: '3600',
           upsert: false
         });
-      
+
       data = uploadResult.data;
       error = uploadResult.error;
-      
+
       // If it's a token expiration error and we have retries left, refresh and retry
       if (error && (error.message?.includes('exp') || error.message?.includes('claim') || error.statusCode === 401) && uploadAttempts < maxUploadAttempts - 1) {
         console.log(`[Upload] Token error detected, refreshing and retrying (attempt ${uploadAttempts + 1})`);
         uploadAttempts++;
-        
+
         // Refresh session
         const refreshResult = await checkAndRefreshSession();
         if (refreshResult.error) {
           console.error('[Upload] Failed to refresh session for retry:', refreshResult.error);
           break; // Can't refresh, exit loop
         }
-        
+
         // Wait a bit before retrying
         await new Promise(resolve => setTimeout(resolve, 500));
         continue;
       }
-      
+
       // Either success or non-token error, exit loop
       break;
     }
 
     if (error) {
       // Check for RLS (Row Level Security) errors
-      if (error.message.includes('row-level security') || 
-          error.message.includes('policy') ||
-          error.message.includes('new row violates') ||
-          error.statusCode === 403 ||
-          error.statusCode === 401) {
+      if (error.message.includes('row-level security') ||
+        error.message.includes('policy') ||
+        error.message.includes('new row violates') ||
+        error.statusCode === 403 ||
+        error.statusCode === 401) {
         console.error('[Frontend Storage] RLS Error - Unauthorized upload:', error);
         throw new Error('Unauthorized: You must be logged in to upload files. Please sign in and try again.');
       }
@@ -158,12 +158,17 @@ export const uploadFile = async (file) => {
     }
 
     // Get public URL
-    const { data: urlData } = supabase
+    const { data: urlData, error: urlError } = await supabase
       .storage
       .from(BUCKET_NAME)
-      .getPublicUrl(filePath);
+      .createSignedUrl(filePath, 60 * 60 * 24 * 365); // 1 year in seconds
 
-    const fileUrl = urlData.publicUrl;
+    if (urlError) {
+      console.error('[Frontend Storage] Signed URL error:', urlError);
+      throw new Error(urlError.message || 'Failed to generate file URL');
+    }
+
+    const fileUrl = urlData.signedUrl;
 
     // Determine file type
     const fileType = getFileType(file.name);
@@ -221,19 +226,19 @@ export const deleteFile = async (filePath) => {
  */
 const getFileType = (fileName) => {
   const extension = fileName.split('.').pop().toLowerCase();
-  
+
   const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'];
   const documentTypes = ['doc', 'docx', 'txt', 'rtf'];  // NO PDF!
   const spreadsheetTypes = ['xls', 'xlsx', 'csv'];
   const presentationTypes = ['ppt', 'pptx'];
-  
+
   // Check PDF FIRST before other types
   if (extension === 'pdf') return 'pdf';
   if (imageTypes.includes(extension)) return 'image';
   if (documentTypes.includes(extension)) return 'document';
   if (spreadsheetTypes.includes(extension)) return 'spreadsheet';
   if (presentationTypes.includes(extension)) return 'presentation';
-  
+
   return 'file';
 };
 
