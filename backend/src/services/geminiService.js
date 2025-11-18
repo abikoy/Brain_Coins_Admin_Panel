@@ -186,14 +186,14 @@ const withRetry = async (fn, options = {}) => {
 
   // If we get here, all attempts failed
   console.error(`[Backend Gemini] All ${maxAttempts} attempts failed. Last error:`, lastError);
-   if (lastError) {
+  if (lastError) {
     await logGeminiApiError(lastError, {
       apiEndpoint: 'withRetry',
       retryAttempt: maxAttempts,
       maxAttempts
     });
   }
-  
+
   throw lastError || new Error('Max retry attempts reached');
 };
 
@@ -682,10 +682,10 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
           // Specific garbage patterns for Sinhala/Tamil corruption
           // These patterns indicate corrupted ISO-8859-1 or Windows-1252 encoding
           const sinhalaGarbage = /fkd[ñ,a]|fnod|yeÿ|iyd|ksoi|mqkl|wdh|kfh|bEö|fjk|;d;a|o¾Y|,>q\.|>k jia|mDIaG|mßud|oaúm|ùÔh|iudka;r|f¾Ld|m%;s|fldgia/.test(title);
-          
+
           // Tamil garbage patterns - these are the EXACT patterns user is seeing
           const tamilGarbage = /[¸©£÷øÁÎß\u00a8\u00a9\u00b8\u00c0\u00c1\u00f8\u00ae\u00ce\u00df\u00f6\u00f7\u00f5][A-Za-z]|[A-Za-z][¸©£÷øÁÎß\u00a8\u00a9\u00b8\u00c0\u00c1\u00f8\u00ae\u00ce\u00df\u00f6\u00f7\u00f5]|C»Á|£õh|÷©Ø|¨£µ|Po¨|Gs÷|_¸UP|\u00c2uzøu/.test(title);
-          
+
           const hasGarbagePatterns = sinhalaGarbage || tamilGarbage;
 
           // For Tamil/Sinhala, if garbage patterns are detected, automatically reject
@@ -744,19 +744,19 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
         });
 
       console.log(`[Backend Gemini] Validated ${validPacks.length} packs from ${packs.length} generated`);
-      
+
       // If no valid packs or too many filtered as garbage, return error to force retry
       if (validPacks.length === 0) {
         console.error(`[Backend Gemini] ❌ ALL ${packs.length} packs were filtered as garbage/invalid!`);
         console.error('[Backend Gemini] Sample garbage titles:', packs.slice(0, 3).map(p => p.title?.substring(0, 60)));
         throw new Error('Generated packs contain corrupted text. Please try uploading again or use a different file format.');
       }
-      
+
       const filteredPercentage = ((packs.length - validPacks.length) / packs.length) * 100;
       if (filteredPercentage > 50) {
         console.warn(`[Backend Gemini] ⚠️ Filtered ${filteredPercentage.toFixed(0)}% of packs as garbage`);
       }
-      
+
       return validPacks;
     }
 
@@ -1301,11 +1301,15 @@ IMPORTANT:
 
 Return ONLY valid JSON in the format strictly defined by the schema.
 `;
-
+    let normalizedMimeType = mimeType;
+    if (!normalizedMimeType || normalizedMimeType === 'application/octet-stream') {
+      // You only send PDFs here, so assume PDF
+      normalizedMimeType = 'application/pdf';
+    }
     const imagePart = {
       inlineData: {
         data: base64Data,
-        mimeType: mimeType
+        mimeType: normalizedMimeType
       }
     };
 
@@ -1594,7 +1598,7 @@ Example for FIIB:
         responsePreview: text.substring(0, 500),
         responseLength: text.length
       });
-      
+
       await logGeminiParsingError(
         new Error('Invalid response format from Gemini'),
         {
@@ -1616,7 +1620,7 @@ Example for FIIB:
     // Helper function to detect garbage characters for Sinhala/Tamil
     const hasGarbageCharacters = (text, lang) => {
       if (!text) return false;
-      
+
       if (lang === 'Sinhala') {
         // Check for common garbage patterns in Sinhala
         const garbagePatterns = [
@@ -1626,7 +1630,7 @@ Example for FIIB:
         ];
         return garbagePatterns.some(pattern => pattern.test(text));
       }
-      
+
       if (lang === 'Tamil') {
         // Check for common garbage patterns in Tamil
         const garbagePatterns = [
@@ -1637,7 +1641,7 @@ Example for FIIB:
         ];
         return garbagePatterns.some(pattern => pattern.test(text));
       }
-      
+
       return false;
     };
 
@@ -1647,14 +1651,14 @@ Example for FIIB:
       if (language === 'Sinhala' || language === 'Tamil') {
         const fieldsToCheck = [q.question, q.answer, ...(q.options || [])];
         const hasGarbage = fieldsToCheck.some(field => hasGarbageCharacters(field, language));
-        
+
         if (hasGarbage) {
           console.error('[Backend] GARBAGE CHARACTERS DETECTED in question:', {
             language,
             question: q.question?.substring(0, 100),
             answer: q.answer?.substring(0, 50)
           });
-          
+
           // Log this as an error for monitoring
           logGeminiParsingError(
             new Error('Garbage characters detected in generated question'),
@@ -1667,7 +1671,7 @@ Example for FIIB:
           ).catch(console.error);
         }
       }
-      
+
       if (q.type === 'FIIB') {
         if (!Array.isArray(q.options) || q.options.length === 0) {
           console.warn('[Backend] FIIB question missing options, generating defaults:', q.question);
@@ -1697,7 +1701,7 @@ Example for FIIB:
       questionCount: options.count,
       contentLength: content?.length || 0
     });
-    
+
     await logGeminiApiError(error, {
       apiEndpoint: 'generateContent',
       prompt: prompt?.substring(0, 500),
@@ -1706,7 +1710,7 @@ Example for FIIB:
       questionCount: options.count,
       endpoint: 'generateQuestions'
     });
-    
+
     // Re-throw the error instead of returning empty array
     throw new Error(`Question generation failed: ${error.message}`);
   }
@@ -1839,7 +1843,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
 
         try {
           console.log(`[generateQuestionsFromFile] Extracting text for ${type}...`);
-          
+
           text = fileType === 'pdf' || fileType === 'image'
             ? await extractTextFromFile(base64Data, mimeType)
             : buffer.toString('utf-8');
@@ -1851,7 +1855,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
             typeQuestions = [];
           } else {
             console.log(`[generateQuestionsFromFile] Generating ${typeCount * 2} ${type} questions...`);
-            
+
             typeQuestions = await generateQuestions(text, {
               count: typeCount * 2, // Generate extra to ensure we get enough
               difficulty,
@@ -1859,7 +1863,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
               language,
               bloom_level
             });
-            
+
             console.log(`[generateQuestionsFromFile] ✅ Generated ${typeQuestions?.length || 0} ${type} questions`);
           }
         } catch (extractError) {
@@ -1953,7 +1957,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       questionTypes: options.types,
       questionCount: options.count
     });
-    
+
     await logGeminiApiError(error, {
       apiEndpoint: 'generateQuestionsFromFile',
       fileType,
@@ -1962,7 +1966,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       questionCount: options.count,
       endpoint: 'generateQuestionsFromFile'
     });
-    
+
     // Re-throw the error so the controller can handle it properly
     throw new Error(`Failed to generate questions: ${error.message}`);
   }
@@ -2095,11 +2099,15 @@ OUTPUT FORMAT: Return ONLY a valid JSON array. Example for FIIB:
 }]
 
 IMPORTANT: Respect the exact question type counts requested above!`;
+  let normalizedMimeType = mimeType;
+  if (!normalizedMimeType || normalizedMimeType === 'application/octet-stream') {
+    normalizedMimeType = 'application/pdf'; // adjust if you also support images
+  }
 
   const imagePart = {
     inlineData: {
       data: base64Data,
-      mimeType: mimeType
+      mimeType: normalizedMimeType
     }
   };
 
