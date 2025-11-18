@@ -107,62 +107,79 @@ const createLearningPackHandler = async (req, res) => {
 };
 // Analyze document and generate learning packs using Gemini
 const analyzeDocumentHandler = async (req, res) => {
-  upload.single('file')(req, res, async (err) => {
-    try {
-      if (err) return res.status(400).json({ success: false, error: err.message });
-      if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+  try {
+    const { file_url } = req.body;
 
-      // With memory storage, file buffer is directly available
-      const base64Data = req.file.buffer.toString('base64');
-      const packs = await generateLearningPacksFromBase64(base64Data, req.file.mimetype);
+    if (!file_url) {
+      return res.status(400).json({ success: false, error: 'file_url is required' });
+    }
 
-      // Normalize packs with duration calculation and difficulty
-      const learningPacks = Array.isArray(packs) && packs.length > 0
-        ? packs.map((p, i) => {
-          const content = String(p.content || '');
-          const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
-          // Calculate duration: 5 minutes per 200 words, minimum 5 minutes
-          const duration = Math.max(5, Math.ceil(wordCount / 200) * 5);
-
-          return {
-            title: String(p.title || `Learning Pack ${i + 1}`),
-            content: content,
-            order: p.order || (i + 1),
-            language: p.language || 'English',
-            difficulty: p.difficulty || 'Medium', // Include difficulty from AI or default to Medium
-            duration: duration
-          };
-        })
-        : [{
-          title: 'Learning Pack 1: Document Content',
-          content: 'No content available',
-          order: 1,
-          language: 'English',
-          difficulty: 'Medium',
-          duration: 10
-        }];
-
-      res.json({
-        success: true,
-        data: learningPacks,
-        language: learningPacks[0]?.language || 'English',
-        stats: {
-          chapters: learningPacks.length,
-          learningPacks: learningPacks.length,
-          totalWords: learningPacks.reduce((sum, p) => sum + (p.content?.split(/\s+/)?.length || 0), 0)
-        }
-      });
-    } catch (error) {
-      console.error('Document analysis error:', error);
-      res.status(500).json({
+    // Download the document from Supabase (or other storage) using the public URL
+    const response = await fetch(file_url);
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return res.status(400).json({
         success: false,
-        error: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: `Failed to download file from URL: ${response.status}`,
+        details: text?.slice(0, 200),
       });
     }
-  });
-};
 
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64Data = buffer.toString('base64');
+    const contentType = response.headers.get('content-type') || 'application/pdf';
+
+    const packs = await generateLearningPacksFromBase64(base64Data, contentType);
+
+    // Normalize packs with duration calculation and difficulty
+    const learningPacks = Array.isArray(packs) && packs.length > 0
+      ? packs.map((p, i) => {
+        const content = String(p.content || '');
+        const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
+        // 5 minutes per 200 words, minimum 5 minutes
+        const duration = Math.max(5, Math.ceil(wordCount / 200) * 5);
+
+        return {
+          title: String(p.title || `Learning Pack ${i + 1}`),
+          content,
+          order: p.order || (i + 1),
+          language: p.language || 'English',
+          difficulty: p.difficulty || 'Medium',
+          duration,
+        };
+      })
+      : [{
+        title: 'Learning Pack 1: Document Content',
+        content: 'No content available',
+        order: 1,
+        language: 'English',
+        difficulty: 'Medium',
+        duration: 10,
+      }];
+
+    res.json({
+      success: true,
+      data: learningPacks,
+      language: learningPacks[0]?.language || 'English',
+      stats: {
+        chapters: learningPacks.length,
+        learningPacks: learningPacks.length,
+        totalWords: learningPacks.reduce(
+          (sum, p) => sum + (p.content?.split(/\s+/)?.length || 0),
+          0
+        ),
+      },
+    });
+  } catch (error) {
+    console.error('Document analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
+  }
+};
 export {
   listLearningPacksHandler,
   getLearningPackHandler,
