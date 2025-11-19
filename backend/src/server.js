@@ -73,7 +73,11 @@ app.use((err, req, res, next) => {
         error: err.message || 'Internal server error'
     });
 });
-
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`[Backend] Server running on port ${PORT}`);
+  });
+}
 
 
 export default app;

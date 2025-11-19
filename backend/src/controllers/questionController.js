@@ -96,7 +96,7 @@ export const createQuestionHandler = async (req, res) => {
 // POST /api/questions/preview-from-file - Generate preview without saving
 export const generatePreviewFromFileHandler = async (req, res) => {
   try {
-    const { fileUrl, fileType, language, grade, subject, counts, difficulty, bloom_level, typeDifficulties } = req.body || {};
+    const { fileUrl, fileType, language, grade, subject, counts, difficulty, bloom_level, typeDifficulties, packTitle, packDescription } = req.body || {};
 
     if (!fileUrl || !fileType) {
       return res.status(400).json({ success: false, error: 'fileUrl and fileType are required' });
@@ -150,7 +150,9 @@ export const generatePreviewFromFileHandler = async (req, res) => {
         language: language || 'English',
         grade: grade || 'Unknown',
         subject: subject || 'Unknown',
-        bloom_level: bloom_level || 'Understand'
+        bloom_level: bloom_level || 'Understand',
+        packTitle: packTitle || '',
+        packDescription: packDescription || ''
       });
     } catch (genError) {
       console.error('[Preview] ❌ Error from generateQuestionsFromFile:', {
@@ -281,7 +283,11 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
     });
 
     const savedQuestions = await saveQuestions(questionsToSave);
-    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English');
+    
+    // Get pack title and description for focused summary generation
+    const packTitle = learningPack?.title || '';
+    const packDescription = learningPack?.description || '';
+    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English', packTitle, packDescription);
 
     // Save summary
     let saved_summary = null;

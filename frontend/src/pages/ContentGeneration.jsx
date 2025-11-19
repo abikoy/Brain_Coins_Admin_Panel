@@ -56,6 +56,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     setQuestionTypeCounts,
     questionTypeDifficulties,
     setQuestionTypeDifficulties,
+    selectedPackIndices,
+    setSelectedPackIndices,
     resetGenerationState
   } = useContentGeneration();
 
@@ -85,7 +87,6 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const [toast, setToast] = useState(null);
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [selectedPackIndices, setSelectedPackIndices] = useState([]); // Support multiple pack selection (up to 5)
   const languageMap = {
     'English': 'en',
     'english': 'en',
@@ -397,6 +398,17 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setGenerationError('Please select both grade and subject');
       return;
     }
+    
+    if (selectedPackIndex === null) {
+      setGenerationError('Please select a learning pack by clicking on a card above');
+      return;
+    }
+    
+    const selectedPack = suggestedPacks[selectedPackIndex];
+    if (!selectedPack) {
+      setGenerationError('Selected learning pack not found. Please try selecting another pack.');
+      return;
+    }
 
     setIsGenerating(true);
     setGenerationError('');
@@ -431,7 +443,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         difficulty: Object.values(typeDifficulties)[0] || 'Medium', // Use first type's difficulty as default
         bloom_level: genBloom,
         questionTypes: enabledQuestionTypes,
-        typeDifficulties: typeDifficulties // Pass per-type difficulties
+        typeDifficulties: typeDifficulties, // Pass per-type difficulties
+        packTitle: selectedPack.title, // Pass selected pack title to focus content
+        packDescription: selectedPack.content || selectedPack.description // Pass pack description to focus content
       });
 
       // Check if we got any questions
@@ -612,7 +626,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           difficulty: 'Intermediate',
           types: ['MCQ', 'FIIB', 'TF', 'HOQ'],
           language: genLanguage,
-          bloom_level: genBloom
+          bloom_level: genBloom,
+          packTitle: selectedPack.title, // Add pack title for focused generation
+          packDescription: selectedPack.content || selectedPack.description // Add pack description for context
         }
       );
 

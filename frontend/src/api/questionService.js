@@ -282,7 +282,9 @@ export const previewFromFile = async (fileUrl, fileType, options = {}) => {
     counts,                     // This will be used by the backend
     difficulty: options.difficulty,
     types: Object.keys(counts).filter(k => counts[k] > 0), // Only include types with count > 0
-    bloom_level: options.bloom_level
+    bloom_level: options.bloom_level,
+    packTitle: options.packTitle || '',       // Add pack title for focused generation
+    packDescription: options.packDescription || ''  // Add pack description for context
   };
   
   const res = await fetch(`${API_BASE_URL}/questions/preview-from-file`, {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const ContentGenerationContext = createContext();
 
@@ -17,9 +17,40 @@ export const ContentGenerationProvider = ({ children }) => {
   const [uploadedFileType, setUploadedFileType] = useState('');
   
   // Learning packs state
-  const [suggestedPacks, setSuggestedPacks] = useState([]);
-  const [selectedPackIndex, setSelectedPackIndex] = useState(null);
+  const [suggestedPacks, setSuggestedPacks] = useState(() => {
+    const savedPacks = localStorage.getItem('suggestedPacks');
+    return savedPacks ? JSON.parse(savedPacks) : [];
+  });
+  // Use localStorage to persist selectedPackIndex
+  const [selectedPackIndex, setSelectedPackIndex] = useState(() => {
+    const savedIndex = localStorage.getItem('selectedPackIndex');
+    return savedIndex !== null ? parseInt(savedIndex, 10) : null;
+  });
+  // Use localStorage to persist selectedPackIndices
+  const [selectedPackIndices, setSelectedPackIndices] = useState(() => {
+    const savedIndices = localStorage.getItem('selectedPackIndices');
+    return savedIndices ? JSON.parse(savedIndices) : [];
+  });
   const [detectedLanguage, setDetectedLanguage] = useState('English');
+  
+  // Update localStorage when selectedPackIndex changes
+  useEffect(() => {
+    if (selectedPackIndex === null) {
+      localStorage.removeItem('selectedPackIndex');
+    } else {
+      localStorage.setItem('selectedPackIndex', selectedPackIndex.toString());
+    }
+  }, [selectedPackIndex]);
+  
+  // Update localStorage when suggestedPacks changes
+  useEffect(() => {
+    localStorage.setItem('suggestedPacks', JSON.stringify(suggestedPacks));
+  }, [suggestedPacks]);
+  
+  // Update localStorage when selectedPackIndices changes
+  useEffect(() => {
+    localStorage.setItem('selectedPackIndices', JSON.stringify(selectedPackIndices));
+  }, [selectedPackIndices]);
   
   // Question generation state
   const [preview, setPreview] = useState(null);
@@ -49,11 +80,13 @@ export const ContentGenerationProvider = ({ children }) => {
 
   // Reset all state (useful when starting fresh)
   const resetAllState = () => {
+    // Clear state
     setUploadedFile(null);
     setUploadedFileUrl('');
     setUploadedFileType('');
     setSuggestedPacks([]);
     setSelectedPackIndex(null);
+    setSelectedPackIndices([]);
     setDetectedLanguage('English');
     setPreview(null);
     setQuestions([]);
@@ -62,6 +95,11 @@ export const ContentGenerationProvider = ({ children }) => {
     setIsAnalyzing(false);
     setGenerationError('');
     setShowUploadForm(false);
+    
+    // Clear localStorage
+    localStorage.removeItem('selectedPackIndex');
+    localStorage.removeItem('selectedPackIndices');
+    localStorage.removeItem('suggestedPacks');
   };
 
   // Reset only generation state (keep file and packs)
@@ -88,6 +126,8 @@ export const ContentGenerationProvider = ({ children }) => {
       setSuggestedPacks,
       selectedPackIndex,
       setSelectedPackIndex,
+      selectedPackIndices,
+      setSelectedPackIndices,
       detectedLanguage,
       setDetectedLanguage,
       

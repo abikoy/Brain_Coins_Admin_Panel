@@ -144,43 +144,63 @@ async function extractTextFromFile(base64Data, mimeType) {
   }
 }
 
-// Enhanced retry helper with exponential backoff and jitter
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
+/**
+ * Retries an async function with exponential backoff and jitter.
+ * Specifically targets Gemini 503 (Overloaded) and 429 (Rate Limit) errors.
+ *
+ * @param {Function} fn - The async operation to wrap (e.g., () => model.generateContent(...))
+ * @param {Object} options - Configuration options
+ * @param {number} options.maxAttempts - Max attempts (default: 5)
+ * @param {number} options.baseDelay - Initial delay in ms (default: 2000ms)
+ * @param {number} options.maxDelay - Maximum delay cap in ms (default: 32000ms)
+ */
 const withRetry = async (fn, options = {}) => {
   const {
     maxAttempts = 5,
-    baseDelay = 1000, // 1 second base delay
-    maxDelay = 30000, // 30 seconds max delay
+    baseDelay = 2000, // 2 seconds base delay
+    maxDelay = 32000, // 32 seconds max delay
   } = options;
 
   let attempt = 0;
+  let delay = baseDelay;
   let lastError;
 
   while (attempt < maxAttempts) {
     try {
+      // Attempt to execute the function
       return await fn();
     } catch (error) {
       lastError = error;
       attempt++;
 
-      // Don't retry on client errors (4xx) except 429 (rate limit)
-      if (error.status >= 400 && error.status < 500 && error.status !== 429) {
+      // Check if the error is retryable
+      // We look for '503' (Service Unavailable/Overloaded) or '429' (Quota/Rate Limit)
+      const isOverloaded = error.message && (error.message.includes('503') || error.message.includes('overloaded'));
+      const isRateLimited = error.message && (error.message.includes('429') || error.message.includes('quota'));
+
+      // If it's not a retryable error, throw immediately
+      if (!isOverloaded && !isRateLimited) {
+        console.error('[Gemini Service] Non-retryable error:', error.message);
         throw error;
       }
 
-      // Calculate delay with exponential backoff and jitter
-      const backoff = Math.min(
-        Math.pow(2, attempt) * baseDelay + Math.random() * 1000,
-        maxDelay
+      // If we've used all retries, break out of the loop
+      if (attempt >= maxAttempts) {
+        break;
+      }
+
+      // Calculate next delay: Double the previous delay (Exponential)
+      // Add "Jitter" (random 0-500ms) to prevent synchronized retries
+      const jitter = Math.random() * 500;
+      delay = Math.min(delay * 2 + jitter, maxDelay);
+
+      console.warn(
+        `[Gemini Service] API Busy (${isOverloaded ? 'Overloaded' : 'Rate Limit'}). ` +
+        `Retrying in ${(delay / 1000).toFixed(1)}s... (Attempts left: ${maxAttempts - attempt})`
       );
 
-      console.warn(`[Backend Gemini] Attempt ${attempt}/${maxAttempts} failed: ${error.message}. Retrying in ${Math.round(backoff)}ms`);
-
-      // Wait before retry
-      if (attempt < maxAttempts) {
-        await sleep(backoff);
-      }
+      // Wait for the calculated delay
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
@@ -973,10 +993,35 @@ const GRADE_RANGE = {
 /**
  * Generate 5-8 bullet summary from text content
  */
-export const generateSummaryFromText = async (text, language = 'English') => {
+export const generateSummaryFromText = async (text, language = 'English', packTitle = '', packDescription = '') => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\n\n🚨 CRITICAL: DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary. Focus ONLY on the actual concepts and knowledge.\n\nTASK:\nProduce 5-8 concise bullet points strictly grounded in the provided content. No preface or trailing text.\nCONTENT:\n${text}\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+
+    const scopePrompt = packTitle ? `
+SUMMARY SCOPE: Generate summary ONLY for "${packTitle}"
+${packDescription ? `CONTEXT: ${packDescription}` : ''}
+FOCUS: Summarize only the specific content provided, not the entire subject.
+` : '';
+
+    const prompt = `SYSTEM:
+You are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.
+
+${scopePrompt}
+
+🚨 CRITICAL RULES:
+1. DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names
+2. DO NOT reference "the document", "the text", or "the content"
+3. Focus ONLY on the actual concepts and knowledge from the specific learning pack
+4. Write as universal facts, not as references to source material
+
+TASK:
+Produce 5-8 concise bullet points strictly grounded in the provided content of this specific learning pack.
+
+CONTENT:
+${text}
+
+OUTPUT: JSON object {"bullets": string[]} with 10-15 items.`;
+
     const result = await model.generateContent(prompt);
     const textOut = result.response.text();
     const match = textOut.match(/\{[\s\S]*\}/);
@@ -1062,10 +1107,17 @@ export const generateLearningPackFromBase64 = async (base64Data, mimeType, userP
 /**
  * Generate 5-8 bullet summary from image/PDF using Vision
  */
-export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English') => {
+export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English', packTitle = '', packDescription = '') => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\n\n🚨 CRITICAL: DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary. Focus ONLY on the actual concepts and knowledge.\n\nTASK:\nProduce 5-8 concise bullet points strictly grounded in this document/image. No preface or trailing text.\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+
+    // Add debug logging for pack context
+    console.log('[generateSummaryFromVision] DEBUG - Pack Context:', {
+      packTitle: packTitle ? `"${packTitle}"` : 'not provided',
+      packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided'
+    });
+
+    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\n\n${packTitle ? `FOCUS AREA: ${packTitle}\n` : ''}${packDescription ? `SPECIFIC CONTEXT: ${packDescription}\n` : ''}\n\ud83d\udea8 CRITICAL INSTRUCTIONS - VIOLATION WILL RESULT IN REJECTION:\n- DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary\n- NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"\n- NEVER refer to "the document", "the content", "the text", "the image", "the file", or "the uploaded material"\n- NEVER start bullet points with "According to...", "As mentioned in...", "As shown in...", "Based on..."\n- Write bullet points as if they are from a textbook - these are established facts\n- Focus ONLY on the actual concepts and knowledge related to the specified focus area\n\nTASK:\nProduce 5-8 concise bullet points strictly grounded in this document/image, focusing specifically on content related to "${packTitle || 'the main topic'}". No preface or trailing text.\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
     const imagePart = { inlineData: { data: base64Data, mimeType } };
     const result = await withRetry(() => model.generateContent([prompt, imagePart]));
     const textOut = result.response.text();
@@ -1083,22 +1135,22 @@ export const generateSummaryFromVision = async (base64Data, mimeType, language =
 /**
  * Download a file and produce a 5-8 bullet summary in the specified language
  */
-export const generateSummaryFromFile = async (fileUrl, fileType, language = 'English') => {
+export const generateSummaryFromFile = async (fileUrl, fileType, language = 'English', packTitle = '', packDescription = '') => {
   try {
     const buffer = await downloadAny(fileUrl);
     const mimeType = getMimeType(fileType, fileUrl);
     if (fileType === 'image' || fileType === 'pdf') {
       const base64Data = buffer.toString('base64');
-      return await generateSummaryFromVision(base64Data, mimeType, language);
+      return await generateSummaryFromVision(base64Data, mimeType, language, packTitle, packDescription);
     } else {
       const text = buffer.toString('utf-8');
-      return await generateSummaryFromText(text, language);
+      return await generateSummaryFromText(text, language, packTitle, packDescription);
     }
   } catch (err) {
     console.error('[Backend Gemini] Summary (file) error:', err);
     return [];
   }
-};
+}
 
 /**
  * Generate structured study material (summary + sections + subtopics) from an uploaded file
@@ -1442,6 +1494,8 @@ Return ONLY valid JSON in the format strictly defined by the schema.
  * @param {number} options.count - Number of questions to generate
  * @param {string} options.difficulty - Difficulty level (Easy, Intermediate, Hard)
  * @param {Array<string>} options.types - Question types to generate
+ * @param {string} options.packTitle - Pack title
+ * @param {string} options.packDescription - Pack description
  * @returns {Promise<Array>} - Generated questions
  */
 export const generateQuestions = async (content, options = {}) => {
@@ -1451,9 +1505,12 @@ export const generateQuestions = async (content, options = {}) => {
       difficulty = 'Intermediate',
       types = ['MCQ', 'FIIB', 'TF', 'HOQ'],
       language = 'English',
-      bloom_level = 'Understand'
+      bloom_level = 'Understand',
+      packTitle = '',
+      packDescription = ''
     } = options;
-
+    console.log(' From generateQuestion packTitle:', packTitle);
+    console.log(' From generateQuestions packDescription:', packDescription);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `
@@ -1515,6 +1572,9 @@ Before you output ANYTHING, you MUST check EVERY SINGLE CHARACTER:
 TASK:
 Generate EXACTLY ${count} questions strictly from the provided content.
 
+${packTitle ? `FOCUS AREA: ${packTitle}` : ''}
+${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
+
 Content (use only this):
 ${content}
 
@@ -1553,12 +1613,17 @@ Question Format Requirements:
    - explanation: Clear, direct key points and reasoning (NO references to "file", "image", "document", or "uploaded content")
    - ⚠️ HOQ answers MUST be SHORT - no essays!
 
-⚠️ CRITICAL FOR EXPLANATIONS:
-- Write explanations as if they are from a textbook
+⚠️ CRITICAL FOR EXPLANATIONS - VIOLATION WILL RESULT IN REJECTION:
+- Write explanations as if they are from a textbook - these are established facts
 - NEVER mention "based on the file", "according to the image", "from the document", "uploaded content"
-- Provide direct, factual explanations
+- NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"
+- NEVER refer to "the document", "the content", "the text", "the image", "the file", or "the uploaded material"
+- NEVER start explanations with "According to...", "As mentioned in...", "As shown in...", "Based on..."
+- Provide direct, factual explanations without referencing the source
 - Example GOOD: "Water boils at 100°C at sea level due to atmospheric pressure."
 - Example BAD: "Based on the uploaded file, water boils at 100°C."
+- Example BAD: "According to the document, water boils at 100°C."
+- Example BAD: "As mentioned in the text, water boils at 100°C."
 
 Output: JSON array only. Each item object must include:
 - type (MCQ|FIIB|TF|HOQ)
@@ -1582,7 +1647,9 @@ Example for FIIB:
       count,
       difficulty,
       types,
-      contentLength: content?.length || 0
+      contentLength: content?.length || 0,
+      packTitle: packTitle ? `"${packTitle}"` : 'not provided',
+      packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided'
     });
 
     const result = await model.generateContent(prompt);
@@ -1776,9 +1843,15 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       language = 'English',
       grade = 'Unknown',
       subject = 'Unknown',
-      bloom_level = 'Understand'
+      bloom_level = 'Understand',
+      packTitle = '',
+      packDescription = ''
     } = options;
-
+    console.log('options', options);
+    console.log('[generateQuestionsFromFile] DEBUG - Pack Context:', {
+      packTitle: packTitle ? `"${packTitle}"` : 'not provided',
+      packDescription: packDescription ? `"${packDescription.substring(0, 100)}${packDescription.length > 100 ? '...' : ''}"` : 'not provided'
+    });
     // Extract file path from URL
     // URL format: https://.../storage/v1/object/public/content-uploads/uploads/file.pdf
     const buffer = await downloadAny(fileUrl);
@@ -1851,7 +1924,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
           console.log(`[generateQuestionsFromFile] Text extracted, length: ${text?.length || 0}`);
 
           if (!text || text.trim().length === 0) {
-            console.error(`[generateQuestionsFromFile] ❌ No text extracted from file for ${type}`);
+            console.error(`[generateQuestionsFromFile] ❌ No text content found for ${type}`);
+            // Skip this type if no text content
             typeQuestions = [];
           } else {
             console.log(`[generateQuestionsFromFile] Generating ${typeCount * 2} ${type} questions...`);
@@ -1861,11 +1935,14 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
               difficulty,
               types: [type], // Generate only this type
               language,
-              bloom_level
+              bloom_level,
+              packTitle,
+              packDescription
             });
 
             console.log(`[generateQuestionsFromFile] ✅ Generated ${typeQuestions?.length || 0} ${type} questions`);
           }
+
         } catch (extractError) {
           console.error(`[generateQuestionsFromFile] ❌ Error extracting/generating ${type}:`, {
             errorMessage: extractError.message,
@@ -1902,7 +1979,9 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
             types: Object.keys(typeCounts),
             counts: typeCounts, // Pass exact counts per type
             language,
-            bloom_level
+            bloom_level,
+            packTitle,
+            packDescription,
           });
         } else {
           const text = buffer.toString('utf-8');
@@ -1911,7 +1990,9 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
             difficulty,
             types: Object.keys(typeCounts),
             language,
-            bloom_level
+            bloom_level,
+            packTitle,
+            packDescription,
           });
         }
 
@@ -1982,8 +2063,13 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
     types = ['MCQ', 'FIIB', 'TF', 'HOQ'],
     language = 'English',
     bloom_level = 'Understand',
-    counts = {}
+    counts = {},
+    packTitle = '',
+    packDescription = ''
   } = params;
+
+  console.log('packTitle:', packTitle);
+  console.log('packDescription:', packDescription);
 
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
@@ -2035,19 +2121,29 @@ If ANY answer is NO, you MUST re-read the image and try again.
 
 TASK:
 Generate questions strictly from the provided document/image content.
+${packTitle ? `FOCUS AREA: ${packTitle}` : ''}
+${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
 ${typeRequirements}
 
 ⚠️ IMPORTANT: Generate EXACTLY the requested number of questions. Do NOT generate extra.
 ⚠️ ALL questions must be clean and valid - garbage questions will be rejected!
 
-🚨 CRITICAL CONTENT RULES:
-- DO NOT mention figure numbers, page numbers, or textbook names in questions or summaries
-- DO NOT reference "Figure 1.2", "Page 45", "Chapter 3", or book titles
-- DO NOT include grade levels in question text
+🚨 CRITICAL CONTENT RULES - VIOLATION WILL RESULT IN REJECTION:
+- NEVER mention figure numbers, page numbers, or textbook names in questions or summaries
+- NEVER reference "Figure 1.2", "Page 45", "Chapter 3", or book titles
+- NEVER include grade levels in question text
+- NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"
+- NEVER refer to "the document", "the content", "the text", "the image", "the file", or "the uploaded material"
+- NEVER start explanations with "According to...", "As mentioned in...", "As shown in...", "Based on..."
 - Focus ONLY on the actual concepts and knowledge
 - Write questions as if testing pure understanding, not document navigation
+- Write explanations as if they are from a textbook - these are established facts
 - Example: Instead of "According to Figure 2.1, what is...", write "What is..."
 - Example: Instead of "On page 15, the text states...", write "The concept states..."
+- Example GOOD: "Water boils at 100°C at sea level due to atmospheric pressure."
+- Example BAD: "Based on the uploaded file, water boils at 100°C."
+- Example BAD: "According to the document, water boils at 100°C."
+- Example BAD: "As mentioned in the text, water boils at 100°C."
 
 Constraints:
 - All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}
@@ -2110,6 +2206,12 @@ IMPORTANT: Respect the exact question type counts requested above!`;
       mimeType: normalizedMimeType
     }
   };
+
+  // Add debug logging for pack context
+  console.log('[generateQuestionsFromVision] DEBUG - Pack Context:', {
+    packTitle: packTitle ? `"${packTitle}"` : 'not provided',
+    packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided'
+  });
 
   try {
     const result = await model.generateContent([prompt, imagePart]);
