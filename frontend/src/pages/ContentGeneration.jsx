@@ -577,7 +577,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     }
 
     // STORE THE SELECTED INDEX BEFORE RESETTING
-    const currentSelectedIndex = selectedPackIndex;
+    const currentSelectedIndex = selectedPackIndices[0];
 
     // RESET IMMEDIATELY so admin can select another pack
     setSelectedPackIndex(null);
