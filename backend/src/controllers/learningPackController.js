@@ -113,7 +113,6 @@ const analyzeDocumentHandler = async (req, res) => {
     if (!file_url) {
       return res.status(400).json({ success: false, error: 'file_url is required' });
     }
-
     // Download the document from Supabase (or other storage) using the public URL
     const response = await fetch(file_url);
     if (!response.ok) {

@@ -277,7 +277,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       setIsGeneratingPacks(true);
       setAnalysisError('');
-      console.log("File URL" + uploadedFile.fileUrl);
+      console.log("File URL"+ uploadedFile.fileUrl);
       // uploadedFile.fileUrl should now be the Supabase public URL
       const analysisResponse = await analyzeDocument(uploadedFile.fileUrl);
       console.log(uploadedFile.fileUrl);
@@ -571,13 +571,13 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setGenerationError('Please upload a file first');
       return;
     }
-    if (!selectedPackIndices || selectedPackIndices.length === 0) {
+    if (selectedPackIndex === null) {
       setGenerationError('Please select a learning pack by clicking on a card above');
       return;
     }
 
     // STORE THE SELECTED INDEX BEFORE RESETTING
-    const currentSelectedIndex = selectedPackIndices[0];
+    const currentSelectedIndex = selectedPackIndex;
 
     // RESET IMMEDIATELY so admin can select another pack
     setSelectedPackIndex(null);
@@ -589,7 +589,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       // Use the stored index
       const selectedPack = suggestedPacks[currentSelectedIndex];
       const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
-
+      
       const newPack = await createLearningPackAPI({
         title: selectedPack.title,
         description: selectedPack.content || selectedPack.description,
@@ -604,8 +604,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
       const { generateQuestionsFromFile } = await import('../api/questionService');
       const { generatedQuestions, summary_bullets } = await generateQuestionsFromFile(
-        uploadedFile.fileUrl,
-        uploadedFile.fileType,
+        uploadedFile.url,
+        uploadedFile.type,
         {
           pack_id: packId,
           count: genCount,
@@ -1387,7 +1387,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
                 <div className="flex items-center justify-center gap-2">
                   <Button
-                    onClick={handleGenerateQuestions}
+                    onClick={handlePreview}
                     disabled={isGenerating || !uploadedFile || selectedPackIndices.length === 0}
                     variant="outline"
                     title={selectedPackIndices.length === 0 ? 'Select at least one learning pack first' : `Generate questions for ${selectedPackIndices.length} selected pack${selectedPackIndices.length > 1 ? 's' : ''}`}
