@@ -1387,7 +1387,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
                 <div className="flex items-center justify-center gap-2">
                   <Button
-                    onClick={handlePreview}
+                    onClick={handleGenerateQuestions}
                     disabled={isGenerating || !uploadedFile || selectedPackIndices.length === 0}
                     variant="outline"
                     title={selectedPackIndices.length === 0 ? 'Select at least one learning pack first' : `Generate questions for ${selectedPackIndices.length} selected pack${selectedPackIndices.length > 1 ? 's' : ''}`}
