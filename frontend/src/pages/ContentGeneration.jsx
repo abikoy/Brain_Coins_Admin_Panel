@@ -215,10 +215,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // Question type configuration with default values (only MCQ, FIIB, TF, HOQ)
   const [questionConfig, setQuestionConfig] = useState({
-    MCQ: { count: 5, difficulty: 'Medium', enabled: true },
-    FIIB: { count: 2, difficulty: 'Medium', enabled: false },
-    TF: { count: 2, difficulty: 'Easy', enabled: false },
-    HOQ: { count: 1, difficulty: 'Hard', enabled: false }
+    MCQ: { count: 20, difficulty: 'Medium', enabled: true },
+    FIIB: { count: 15, difficulty: 'Medium', enabled: false },
+    TF: { count:10, difficulty: 'Easy', enabled: false },
+    HOQ: { count: 3, difficulty: 'Hard', enabled: false }
   });
 
   // preview is now from context
