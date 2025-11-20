@@ -495,7 +495,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       for (let i = 0; i < selectedPacks.length; i++) {
         const pack = selectedPacks[i];
         const packIndex = selectedPackIndices[i];
-        
+
         console.log(`[ContentGeneration] Generating preview for pack ${i + 1}/${selectedPacks.length}: ${pack.title}`);
 
         try {
@@ -581,7 +581,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     if (preview.packResults) {
       // New multi-pack format
       preview.packResults.forEach(packResult => {
-        const packQuestions = packResult.questions.filter((q, i) => 
+        const packQuestions = packResult.questions.filter((q, i) =>
           selectedIds[q.id || `${packResult.packIndex}-${i}`]
         );
         if (packQuestions.length > 0) {
@@ -719,8 +719,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setQuestions([...questions, ...totalSavedQuestions]);
       if (allSummaryBullets.length > 0) setSummaryBullets(allSummaryBullets);
 
-      setLastAction({ 
-        type: 'approve', 
+      setLastAction({
+        type: 'approve',
         count: totalSavedQuestions.length,
         packs: packResultsToProcess.length || 1
       });
@@ -1610,10 +1610,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 Add {type}
               </Button>
             ))}
-            <Button variant="outline" size="sm" onClick={openAddSummary}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Summary
-            </Button>
+
           </div>
         </GlassCard>
       )}
@@ -1645,20 +1642,20 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       {preview && (
         <GlassCard>
           <h3 className="text-lg font-semibold mb-3">Preview</h3>
-          
+
           {preview.packResults ? (
             // Multi-pack tabbed interface
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1 mb-4">
                 {preview.packResults.map((packResult, index) => (
-                  <TabsTrigger 
-                    key={index} 
+                  <TabsTrigger
+                    key={index}
                     value={index.toString()}
                     className="text-xs p-2 truncate"
                     title={packResult.packTitle}
                   >
-                    {packResult.packTitle.length > 20 
-                      ? `${packResult.packTitle.substring(0, 20)}...` 
+                    {packResult.packTitle.length > 20
+                      ? `${packResult.packTitle.substring(0, 20)}...`
                       : packResult.packTitle}
                     <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">
                       {packResult.questions.length}
@@ -1701,12 +1698,12 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                       onClick={() => {
                         const newSelectedIds = { ...selectedIds };
                         const allSelected = packResult.questions.every((q, i) => selectedIds[q.id || `${packResult.packIndex}-${i}`]);
-                        
+
                         packResult.questions.forEach((q, i) => {
                           const key = q.id || `${packResult.packIndex}-${i}`;
                           newSelectedIds[key] = !allSelected;
                         });
-                        
+
                         setSelectedIds(newSelectedIds);
                       }}
                       className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
@@ -2591,7 +2588,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             </p>
             <p className="text-gray-600 text-sm">
               {lastAction?.type === 'approve'
-                ? lastAction?.packs > 1 
+                ? lastAction?.packs > 1
                   ? `Questions approved and saved for ${lastAction.packs} learning packs.`
                   : 'The selected questions have been saved to the database.'
                 : 'Your questions have been added to the content library and are ready to use.'}
