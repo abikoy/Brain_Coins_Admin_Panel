@@ -86,37 +86,46 @@ async function extractTextFromFile(base64Data, mimeType) {
       try {
         // Use dynamic import for pdf-parse
         const { default: pdfParse } = await import('pdf-parse');
-        // Simple and fast text extraction with pdf-parse
+
+        // More lenient PDF parsing with better error handling
         const data = await pdfParse(buffer, {
-          // Limit to first 30 pages for better content coverage
-          max: 30,
-          // Disable worker threads for better compatibility
-          worker: false
+          max: 50, // Increase page limit
+          pagerender: render_page, // Custom renderer for better text extraction
+          version: 'v1.10.100'
         });
 
         if (!data.text || !data.text.trim()) {
+          console.warn('[Backend Gemini] No text extracted from PDF, trying alternative method');
+          // Fallback to simple text extraction
+          const simpleText = extractSimpleText(buffer);
+          if (simpleText && simpleText.trim()) {
+            return simpleText;
+          }
           throw new Error('No text content could be extracted from the PDF');
         }
 
-        // Clean up the extracted text to remove garbage characters
+        // More lenient text cleaning
         let cleanedText = data.text
           // Remove null bytes and control characters except newlines and tabs
           .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '')
-          // Normalize whitespace
-          .replace(/\s+/g, ' ')
+          // Normalize whitespace but be more careful
+          .replace(/[ \t]+/g, ' ')
+          .replace(/\n{3,}/g, '\n\n')
           .trim();
 
-        // Check if we have meaningful content (not just garbage)
-        const hasValidContent = /[a-zA-Z\u0D80-\u0DFF\u0B80-\u0BFF]{10,}/.test(cleanedText);
+        // More lenient content validation for Tamil/Sinhala
+        const hasValidContent = /[a-zA-Z\u0D80-\u0DFF\u0B80-\u0BFF\d\s]{20,}/.test(cleanedText);
 
         if (!hasValidContent) {
-          throw new Error('PDF text extraction produced invalid characters');
+          console.warn('[Backend Gemini] PDF may contain images/scanned content, using Vision API fallback');
+          throw new Error('PDF appears to be image-based or scanned document');
         }
 
         return cleanedText;
       } catch (error) {
         console.error('PDF text extraction error:', error);
-        throw new Error(`Failed to extract text from PDF: ${error.message}`);
+        // Don't throw here - let the calling function handle fallback
+        throw new Error(`PDF may contain scanned content or images: ${error.message}`);
       }
     }
 
@@ -125,7 +134,7 @@ async function extractTextFromFile(base64Data, mimeType) {
     const result = await model.generateContent({
       contents: [{
         parts: [
-          { text: 'Extract all text from this image. Return only the raw text, no formatting or additional text.' },
+          { text: 'Extract all text from this image/document. Return only the raw text, no formatting or additional text. Preserve Tamil/Sinhala characters exactly as they appear.' },
           {
             inlineData: {
               mimeType,
@@ -141,6 +150,19 @@ async function extractTextFromFile(base64Data, mimeType) {
   } catch (error) {
     console.error('[Backend Gemini] Error extracting text from file:', error);
     throw new Error(`Failed to extract text from file: ${error.message}`);
+  }
+}
+
+// Simple text extraction fallback
+function extractSimpleText(buffer) {
+  try {
+    // Convert buffer to string and extract basic text
+    const text = buffer.toString('utf-8');
+    // Extract text between common PDF text markers
+    const textMatches = text.match(/\(([^)]+)\)/g) || [];
+    return textMatches.map(match => match.slice(1, -1)).join(' ');
+  } catch (e) {
+    return null;
   }
 }
 
@@ -998,9 +1020,17 @@ export const generateSummaryFromText = async (text, language = 'English', packTi
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const scopePrompt = packTitle ? `
-SUMMARY SCOPE: Generate summary ONLY for "${packTitle}"
-${packDescription ? `CONTEXT: ${packDescription}` : ''}
-FOCUS: Summarize only the specific content provided, not the entire subject.
+🚨 SUMMARY SCOPE - CRITICAL INSTRUCTIONS:
+
+YOU ARE SUMMARIZING: "${packTitle}"
+${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
+
+**RESTRICTION:** Generate summary ONLY from content related to this specific learning pack.
+**PROHIBITED:** Do NOT include information from other chapters or general knowledge.
+**FOCUS:** Every bullet point must be directly relevant to "${packTitle}"
+
+CONTENT TO SUMMARIZE:
+${text}
 ` : '';
 
     const prompt = `SYSTEM:
@@ -1008,19 +1038,18 @@ You are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean
 
 ${scopePrompt}
 
-🚨 CRITICAL RULES:
+🚨 CRITICAL RULES - VIOLATION WILL RESULT IN REJECTION:
 1. DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names
-2. DO NOT reference "the document", "the text", or "the content"
-3. Focus ONLY on the actual concepts and knowledge from the specific learning pack
-4. Write as universal facts, not as references to source material
+2. DO NOT reference "the document", "the text", or "the content" 
+3. DO NOT use phrases like "according to", "based on", "as shown in"
+4. Focus ONLY on the actual concepts and knowledge relevant to "${packTitle || 'the specific topic'}"
+5. Write as universal facts, not as references to source material
+6. If the pack is about cells, summarize ONLY cells - NOT other biology topics
 
 TASK:
-Produce 5-8 concise bullet points strictly grounded in the provided content of this specific learning pack.
+Produce 5-8 concise bullet points strictly grounded in the content relevant to "${packTitle || 'the main topic'}".
 
-CONTENT:
-${text}
-
-OUTPUT: JSON object {"bullets": string[]} with 10-15 items.`;
+OUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
 
     const result = await model.generateContent(prompt);
     const textOut = result.response.text();
@@ -1117,7 +1146,31 @@ export const generateSummaryFromVision = async (base64Data, mimeType, language =
       packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided'
     });
 
-    const prompt = `SYSTEM:\nYou are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.\n\n${packTitle ? `FOCUS AREA: ${packTitle}\n` : ''}${packDescription ? `SPECIFIC CONTEXT: ${packDescription}\n` : ''}\n\ud83d\udea8 CRITICAL INSTRUCTIONS - VIOLATION WILL RESULT IN REJECTION:\n- DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary\n- NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"\n- NEVER refer to "the document", "the content", "the text", "the image", "the file", or "the uploaded material"\n- NEVER start bullet points with "According to...", "As mentioned in...", "As shown in...", "Based on..."\n- Write bullet points as if they are from a textbook - these are established facts\n- Focus ONLY on the actual concepts and knowledge related to the specified focus area\n\nTASK:\nProduce 5-8 concise bullet points strictly grounded in this document/image, focusing specifically on content related to "${packTitle || 'the main topic'}". No preface or trailing text.\nOUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+    const prompt = `SYSTEM:
+You are EduQuestLab. Summarize ONLY in ${language}. For Sinhala/Tamil, use clean Unicode.
+
+🚨 SUMMARY SCOPE - CRITICAL INSTRUCTIONS:
+
+YOU ARE SUMMARIZING: "${packTitle || 'the specific learning pack'}"
+${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
+
+**RESTRICTION:** Generate summary ONLY from content related to this specific learning pack.
+**PROHIBITED:** Ignore other chapters, sections, or general knowledge.
+**FOCUS:** Extract and summarize ONLY the material relevant to "${packTitle || 'the main topic'}"
+
+🚨 CRITICAL INSTRUCTIONS - VIOLATION WILL RESULT IN REJECTION:
+- DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary
+- NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"
+- NEVER refer to "the document", "the content", "the text", "the image", "the file", or "the uploaded material"
+- NEVER start bullet points with "According to...", "As mentioned in...", "As shown in...", "Based on..."
+- Write bullet points as if they are from a textbook - these are established facts
+- Focus ONLY on the actual concepts and knowledge related to "${packTitle || 'the specified focus area'}"
+
+TASK:
+Produce 5-8 concise bullet points strictly grounded in content relevant to "${packTitle || 'the main topic'}". 
+
+OUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+
     const imagePart = { inlineData: { data: base64Data, mimeType } };
     const result = await withRetry(() => model.generateContent([prompt, imagePart]));
     const textOut = result.response.text();
@@ -1139,6 +1192,14 @@ export const generateSummaryFromFile = async (fileUrl, fileType, language = 'Eng
   try {
     const buffer = await downloadAny(fileUrl);
     const mimeType = getMimeType(fileType, fileUrl);
+
+    console.log('[generateSummaryFromFile] DEBUG - Pack Context:', {
+      packTitle: packTitle ? `"${packTitle}"` : 'not provided',
+      packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided',
+      fileType,
+      language
+    });
+
     if (fileType === 'image' || fileType === 'pdf') {
       const base64Data = buffer.toString('base64');
       return await generateSummaryFromVision(base64Data, mimeType, language, packTitle, packDescription);
@@ -1847,195 +1908,179 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       packTitle = '',
       packDescription = ''
     } = options;
-    console.log('options', options);
-    console.log('[generateQuestionsFromFile] DEBUG - Pack Context:', {
-      packTitle: packTitle ? `"${packTitle}"` : 'not provided',
-      packDescription: packDescription ? `"${packDescription.substring(0, 100)}${packDescription.length > 100 ? '...' : ''}"` : 'not provided'
+
+    console.log(`[generateQuestionsFromFile] Starting generation for ${count} questions`, {
+      fileType,
+      language,
+      types,
+      packTitle: packTitle?.substring(0, 50),
+      packDescription: packDescription?.substring(0, 100)
     });
-    // Extract file path from URL
-    // URL format: https://.../storage/v1/object/public/content-uploads/uploads/file.pdf
+
     const buffer = await downloadAny(fileUrl);
     const base64Data = buffer.toString('base64');
-
-    // Determine MIME type
     const mimeType = getMimeType(fileType, fileUrl);
 
-    // Step 1: Extract content metadata (language, grade, subject, chapters)
-    let metadata = null;
-    if (fileType === 'image' || fileType === 'pdf') {
-      try {
-        metadata = await extractContentMetadata(base64Data, mimeType);
-      } catch (metadataError) {
-        await logGeminiApiError(metadataError, {
-          apiEndpoint: 'extractContentMetadata',
-          fileType: mimeType,
-          endpoint: 'generateQuestionsFromFile'
-        });
-      }
-    }
+    // Calculate type distribution
+    const typeCounts = calculateTypeCounts(count, types, options.counts);
+    console.log(`[generateQuestionsFromFile] Type distribution:`, typeCounts);
 
-    // Step 2: Generate questions
-    let questions = [];
+    let allQuestions = [];
 
-    // Use the provided counts if available, otherwise distribute evenly
-    const typeCounts = {};
-    if (options.counts) {
-      // Use the exact counts provided in the options
-      Object.entries(options.counts).forEach(([type, cnt]) => {
-        if (cnt > 0 && types.includes(type)) {
-          typeCounts[type] = cnt;
-        }
+    // TRY 1: Direct Vision API with pack context (most reliable for Tamil/Sinhala)
+    try {
+      console.log(`[generateQuestionsFromFile] Attempt 1: Using Vision API with pack context`);
+
+      const visionQuestions = await generateQuestionsFromVision(base64Data, mimeType, {
+        count: count,
+        difficulty,
+        types: types,
+        counts: typeCounts,
+        language,
+        bloom_level,
+        packTitle,
+        packDescription
       });
-    } else if (types && types.length > 0) {
-      // Fallback to even distribution if no counts provided
-      const baseCount = Math.floor(count / types.length);
-      const remainder = count % types.length;
 
-      types.forEach((type, index) => {
-        typeCounts[type] = index < remainder ? baseCount + 1 : baseCount;
-      });
-    } else {
-      // Fallback to all MCQs if no types specified
-      typeCounts['MCQ'] = count;
-    }
+      console.log(`[generateQuestionsFromFile] Vision API generated ${visionQuestions?.length || 0} questions`);
 
-    // If no valid types with count > 0, return empty array
-    if (Object.keys(typeCounts).length === 0) {
-      return [];
-    }
-
-    // Generate questions for each type
-    const allQuestions = [];
-
-    for (const [type, typeCount] of Object.entries(typeCounts)) {
-      if (typeCount <= 0) continue;
-
-      try {
-        let typeQuestions = [];
-        let text = '';
-
-        try {
-          console.log(`[generateQuestionsFromFile] Extracting text for ${type}...`);
-
-          text = fileType === 'pdf' || fileType === 'image'
-            ? await extractTextFromFile(base64Data, mimeType)
-            : buffer.toString('utf-8');
-
-          console.log(`[generateQuestionsFromFile] Text extracted, length: ${text?.length || 0}`);
-
-          if (!text || text.trim().length === 0) {
-            console.error(`[generateQuestionsFromFile] ❌ No text content found for ${type}`);
-            // Skip this type if no text content
-            typeQuestions = [];
-          } else {
-            console.log(`[generateQuestionsFromFile] Generating ${typeCount * 2} ${type} questions...`);
-
-            typeQuestions = await generateQuestions(text, {
-              count: typeCount * 2, // Generate extra to ensure we get enough
-              difficulty,
-              types: [type], // Generate only this type
-              language,
-              bloom_level,
-              packTitle,
-              packDescription
-            });
-
-            console.log(`[generateQuestionsFromFile] ✅ Generated ${typeQuestions?.length || 0} ${type} questions`);
-          }
-
-        } catch (extractError) {
-          console.error(`[generateQuestionsFromFile] ❌ Error extracting/generating ${type}:`, {
-            errorMessage: extractError.message,
-            errorStack: extractError.stack?.substring(0, 300)
-          });
-          // Skip this type if extraction fails - no mock questions
-          typeQuestions = [];
-        }
-
-        // Take only the requested number of this type
-        const selectedQuestions = typeQuestions
-          .filter(q => (q.type || q.question_type) === type)
-          .slice(0, typeCount);
-
-        allQuestions.push(...selectedQuestions);
-
-      } catch (error) {
-        console.error(`[Backend Gemini] Error generating ${type} questions:`, error);
-        // Continue with other types
+      if (visionQuestions && visionQuestions.length > 0) {
+        allQuestions = visionQuestions.slice(0, count);
       }
+    } catch (visionError) {
+      console.error(`[generateQuestionsFromFile] Vision API failed:`, visionError.message);
     }
 
-    // If we didn't get enough questions, try one more time with all types
+    // TRY 2: If Vision didn't produce enough questions, try text extraction
     if (allQuestions.length < count) {
-      const remaining = count - allQuestions.length;
-
       try {
-        let additionalQuestions = [];
+        console.log(`[generateQuestionsFromFile] Attempt 2: Trying text extraction (need ${count - allQuestions.length} more)`);
 
-        if (fileType === 'image' || fileType === 'pdf') {
-          additionalQuestions = await generateQuestionsFromVision(base64Data, mimeType, {
-            count: remaining * 2,
-            difficulty,
-            types: Object.keys(typeCounts),
-            counts: typeCounts, // Pass exact counts per type
-            language,
-            bloom_level,
-            packTitle,
-            packDescription,
-          });
-        } else {
-          const text = buffer.toString('utf-8');
-          additionalQuestions = await generateQuestions(text, {
-            count: remaining * 2,
-            difficulty,
-            types: Object.keys(typeCounts),
-            language,
-            bloom_level,
-            packTitle,
-            packDescription,
-          });
+        let text = '';
+        try {
+          text = await extractTextFromFile(base64Data, mimeType);
+          console.log(`[generateQuestionsFromFile] Text extraction successful, length: ${text?.length || 0}`);
+        } catch (textError) {
+          console.warn(`[generateQuestionsFromFile] Text extraction failed, using buffer:`, textError.message);
+          text = buffer.toString('utf-8').substring(0, 50000); // Safety limit
         }
 
-        // Add unique questions up to the target count
-        const existingIds = new Set(allQuestions.map(q => q.id));
-        const newQuestions = additionalQuestions
-          .filter(q => !existingIds.has(q.id))
-          .slice(0, remaining);
+        if (text && text.trim().length > 100) {
+          const remaining = count - allQuestions.length;
+          const textQuestions = await generateQuestions(text, {
+            count: Math.min(remaining * 2, 40), // Generate extra but cap at 40
+            difficulty,
+            types: types,
+            counts: typeCounts,
+            language,
+            bloom_level,
+            packTitle,
+            packDescription
+          });
 
-        allQuestions.push(...newQuestions);
+          console.log(`[generateQuestionsFromFile] Text-based generated ${textQuestions?.length || 0} questions`);
 
-      } catch (error) {
-        console.error('[Backend Gemini] Error generating additional questions:', error);
+          // Add unique questions
+          const existingTexts = new Set(allQuestions.map(q => q.question));
+          const newQuestions = textQuestions
+            .filter(q => !existingTexts.has(q.question))
+            .slice(0, remaining);
+
+          allQuestions.push(...newQuestions);
+          console.log(`[generateQuestionsFromFile] Added ${newQuestions.length} text-based questions`);
+        }
+      } catch (textError) {
+        console.error(`[generateQuestionsFromFile] Text-based generation failed:`, textError.message);
       }
     }
 
-    // Ensure we don't exceed the requested count
-    const finalQuestions = allQuestions.slice(0, count);
-    console.log(`[Backend Gemini] Generated total of ${finalQuestions.length} questions`);
+    // TRY 3: Final fallback - Vision without context
+    if (allQuestions.length < Math.floor(count * 0.5)) {
+      try {
+        console.log(`[generateQuestionsFromFile] Attempt 3: Final fallback without context (have ${allQuestions.length}, need at least ${count})`);
 
-    // Step 3: Attach metadata to questions using provided values
-    if (Array.isArray(finalQuestions)) {
-      return finalQuestions.map(q => ({
-        ...q,
-        metadata: {
-          language: language,
-          grade: grade,
-          subject: subject,
-          topics: metadata?.topics || []
+        const remaining = count - allQuestions.length;
+        const fallbackQuestions = await generateQuestionsFromVision(base64Data, mimeType, {
+          count: Math.min(remaining * 3, 60), // Generate more for filtering
+          difficulty,
+          types: types,
+          language,
+          bloom_level
+          // No pack context for fallback
+        });
+
+        console.log(`[generateQuestionsFromFile] Fallback generated ${fallbackQuestions?.length || 0} questions`);
+
+        // Add unique questions with type distribution
+        const existingTexts = new Set(allQuestions.map(q => q.question));
+        const typeBuckets = {};
+        types.forEach(type => typeBuckets[type] = []);
+
+        // Sort fallback questions by type
+        fallbackQuestions.forEach(q => {
+          const qType = q.type || q.question_type;
+          if (typeBuckets[qType] && existingTexts.has(q.question) === false) {
+            typeBuckets[qType].push(q);
+          }
+        });
+
+        // Add questions respecting type distribution
+        let added = 0;
+        const maxToAdd = remaining;
+
+        for (const type of types) {
+          if (added >= maxToAdd) break;
+
+          const requested = typeCounts[type] || 0;
+          const currentCount = allQuestions.filter(q => (q.type || q.question_type) === type).length;
+          const needed = Math.max(0, requested - currentCount);
+          const available = typeBuckets[type] || [];
+          const toAdd = Math.min(needed, available.length, maxToAdd - added);
+
+          if (toAdd > 0) {
+            allQuestions.push(...available.slice(0, toAdd));
+            added += toAdd;
+            console.log(`[generateQuestionsFromFile] Added ${toAdd} ${type} questions from fallback`);
+          }
         }
-      }));
+      } catch (fallbackError) {
+        console.error(`[generateQuestionsFromFile] Final fallback failed:`, fallbackError.message);
+      }
     }
 
-    return finalQuestions;
+    // Final validation and limiting
+    const finalQuestions = allQuestions.slice(0, count);
+
+    // Ensure type distribution as close as possible to requested
+    const distributedQuestions = distributeQuestionsByType(finalQuestions, typeCounts, count);
+
+    console.log(`[generateQuestionsFromFile] Final result: ${distributedQuestions.length}/${count} questions`);
+
+    // Log type distribution
+    const finalDistribution = distributedQuestions.reduce((acc, q) => {
+      const type = q.type || q.question_type;
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+    console.log(`[generateQuestionsFromFile] Final type distribution:`, finalDistribution);
+
+    // Attach metadata
+    return distributedQuestions.map(q => ({
+      ...q,
+      metadata: {
+        language: language,
+        grade: grade,
+        subject: subject,
+        packTitle: packTitle,
+        packDescription: packDescription
+      }
+    }));
 
   } catch (error) {
     console.error('[Backend Gemini] ❌ CRITICAL ERROR in generateQuestionsFromFile:', {
       errorMessage: error.message,
-      errorStack: error.stack,
       fileType,
-      fileUrl: fileUrl?.substring(0, 100),
       language: options.language,
-      questionTypes: options.types,
       questionCount: options.count
     });
 
@@ -2043,15 +2088,63 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       apiEndpoint: 'generateQuestionsFromFile',
       fileType,
       language: options.language,
-      questionTypes: options.types,
       questionCount: options.count,
       endpoint: 'generateQuestionsFromFile'
     });
 
-    // Re-throw the error so the controller can handle it properly
-    throw new Error(`Failed to generate questions: ${error.message}`);
+    // Return empty array instead of throwing to prevent complete failure
+    return [];
   }
 };
+
+// Helper function to calculate type counts
+function calculateTypeCounts(totalCount, types, customCounts = {}) {
+  if (customCounts && Object.keys(customCounts).length > 0) {
+    return customCounts;
+  }
+
+  const typeCounts = {};
+  const baseCount = Math.floor(totalCount / types.length);
+  const remainder = totalCount % types.length;
+
+  types.forEach((type, index) => {
+    typeCounts[type] = index < remainder ? baseCount + 1 : baseCount;
+  });
+
+  return typeCounts;
+}
+
+// Helper function to distribute questions by type
+function distributeQuestionsByType(questions, typeCounts, totalCount) {
+  const typeBuckets = {};
+  Object.keys(typeCounts).forEach(type => typeBuckets[type] = []);
+
+  // Sort questions into type buckets
+  questions.forEach(q => {
+    const type = q.type || q.question_type;
+    if (typeBuckets[type]) {
+      typeBuckets[type].push(q);
+    }
+  });
+
+  const result = [];
+
+  // Add questions up to requested counts
+  Object.entries(typeCounts).forEach(([type, count]) => {
+    const available = typeBuckets[type] || [];
+    const toTake = Math.min(count, available.length);
+    result.push(...available.slice(0, toTake));
+  });
+
+  // If we have space, add remaining questions
+  if (result.length < totalCount) {
+    const remaining = totalCount - result.length;
+    const allRemaining = questions.filter(q => !result.includes(q));
+    result.push(...allRemaining.slice(0, remaining));
+  }
+
+  return result.slice(0, totalCount);
+}
 
 /**
  * Generate questions from image/PDF using Gemini Vision API
@@ -2085,6 +2178,17 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
   } else {
     typeRequirements = `\n\nGenerate EXACTLY ${count} questions using these types: ${types.join(', ')}`;
   }
+  const packScopePrompt = packTitle ? `
+🚨 VISION CONTEXT SCOPING:
+
+YOU ARE ANALYZING: "${packTitle}"
+${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
+
+**RESTRICTION:** Generate questions ONLY from this specific learning pack's content.
+**PROHIBITED:** Ignore other chapters, sections, or general knowledge.
+**FOCUS:** Extract and question ONLY the material relevant to "${packTitle}"
+
+` : '';
 
   const prompt = `SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provided document/image and generate educational questions.
@@ -2121,9 +2225,7 @@ If ANY answer is NO, you MUST re-read the image and try again.
 
 TASK:
 Generate questions strictly from the provided document/image content.
-${packTitle ? `FOCUS AREA: ${packTitle}` : ''}
-${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
-${typeRequirements}
+${packScopePrompt}
 
 ⚠️ IMPORTANT: Generate EXACTLY the requested number of questions. Do NOT generate extra.
 ⚠️ ALL questions must be clean and valid - garbage questions will be rejected!
@@ -2255,8 +2357,8 @@ IMPORTANT: Respect the exact question type counts requested above!`;
       throw new Error(`Failed to parse questions: ${parseError.message}`);
     }
 
-    // Process and validate questions
-    const processedQuestions = questions.slice(0, count).map((q, index) => {
+    // Process and validate questions (don't slice yet - we need to account for rejections)
+    const processedQuestions = questions.map((q, index) => {
       const questionType = (q.type || q.question_type || 'MCQ').toUpperCase();
       const validTypes = ['MCQ', 'FIIB', 'TF', 'HOQ'];
 

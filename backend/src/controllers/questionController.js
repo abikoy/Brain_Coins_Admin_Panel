@@ -159,9 +159,9 @@ export const generatePreviewFromFileHandler = async (req, res) => {
         message: genError.message,
         stack: genError.stack
       });
-      return res.status(500).json({ 
-        success: false, 
-        error: `Question generation failed: ${genError.message}. Please check your file and try again.` 
+      return res.status(500).json({
+        success: false,
+        error: `Question generation failed: ${genError.message}. Please check your file and try again.`
       });
     }
 
@@ -169,9 +169,9 @@ export const generatePreviewFromFileHandler = async (req, res) => {
 
     if (!Array.isArray(gen) || gen.length === 0) {
       console.error('[Preview] No questions generated. Response:', gen);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'No questions were generated from the file. The content may be too short or unclear. Please try a different file.' 
+      return res.status(500).json({
+        success: false,
+        error: 'No questions were generated from the file. The content may be too short or unclear. Please try a different file.'
       });
     }
 
@@ -191,7 +191,7 @@ export const generatePreviewFromFileHandler = async (req, res) => {
       selected.push(...available.slice(0, countToTake).map(q => ({ ...q, difficulty: typeDifficulty })));
     }
 
-    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English');
+    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English', packTitle, packDescription);
 
     return res.json({
       success: true,
@@ -283,7 +283,7 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
     });
 
     const savedQuestions = await saveQuestions(questionsToSave);
-    
+
     // Get pack title and description for focused summary generation
     const packTitle = learningPack?.title || '';
     const packDescription = learningPack?.description || '';
@@ -351,16 +351,16 @@ export const getAllQuestionsHandler = async (req, res) => {
 export const updateQuestionHandler = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      id: _ignore, 
-      created_at, 
-      pack_id, 
-      question: uiQuestion, 
-      answer: uiAnswer, 
+    const {
+      id: _ignore,
+      created_at,
+      pack_id,
+      question: uiQuestion,
+      answer: uiAnswer,
       type: uiType,
       language,
       explanation,
-      ...rest 
+      ...rest
     } = req.body;
 
     let mappedUpdates = {
@@ -373,8 +373,8 @@ export const updateQuestionHandler = async (req, res) => {
     // Handle language-specific fields for question and explanation
     if (language && (uiQuestion || explanation)) {
       const languageFields = mapLanguageFields(
-        language, 
-        uiQuestion || '', 
+        language,
+        uiQuestion || '',
         explanation || ''
       );
       mappedUpdates = { ...mappedUpdates, ...languageFields };
@@ -521,7 +521,7 @@ export const approveFromPreviewHandler = async (req, res) => {
 export const uploadQuestionDiagramHandler = async (req, res) => {
   const multer = (await import('multer')).default;
   const { uploadQuestionDiagram } = await import('../services/questionDiagramService.js');
-  
+
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -546,7 +546,7 @@ export const uploadQuestionDiagramHandler = async (req, res) => {
       }
 
       const { id: questionId } = req.params;
-      
+
       const result = await uploadQuestionDiagram(
         questionId,
         req.file.buffer,

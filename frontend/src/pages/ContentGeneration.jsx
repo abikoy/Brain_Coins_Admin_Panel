@@ -4,6 +4,7 @@ import UploadForm from '../components/shared/UploadForm';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
 import Input from '../components/ui/Input';
 import Toast from '../components/ui/Toast';
 import { Upload, Sparkles, Edit, Plus, FileText, Trash2, AlertCircle, ChevronDown, Image, X } from 'lucide-react';
@@ -135,6 +136,55 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
     return 'English';
   };
+  // helper function fro language context
+  const formatPackTitle = (originalTitle, language, index) => {
+    if (!originalTitle || typeof originalTitle !== 'string') {
+      originalTitle = `Pack ${index + 1}`;
+    }
+
+    // Extract the actual chapter title (remove any existing prefix)
+    let chapterTitle = originalTitle.trim();
+
+    // Remove ALL possible prefixes (more aggressive approach)
+    const allPrefixPatterns = [
+      /^(Learning Pack \d+:?\s*)/i,           // English
+      /^(ඉගෙනුම් පැකේජය \d+:?\s*)/,          // Sinhala
+      /^(கற்றல் தொகுப்பு \d+:?\s*)/           // Tamil
+    ];
+
+    // Remove any existing prefixes from any language
+    allPrefixPatterns.forEach(pattern => {
+      const match = chapterTitle.match(pattern);
+      if (match) {
+        chapterTitle = chapterTitle.replace(match[0], '').trim();
+      }
+    });
+
+    // Additional cleanup: remove any remaining "Learning Pack X:" that might be embedded
+    chapterTitle = chapterTitle.replace(/Learning Pack \d+:\s*/gi, '').trim();
+
+    // If we removed everything, use a default title
+    if (!chapterTitle || chapterTitle.length < 2) {
+      const defaultTitles = {
+        'English': 'Content',
+        'Sinhala': 'අන්තර්ගතය',
+        'Tamil': 'உள்ளடக்கம்'
+      };
+      chapterTitle = defaultTitles[detectedLanguage] || 'Content';
+    }
+
+    // Apply the correct prefix based on language
+    const prefixes = {
+      'English': 'Learning Pack',
+      'Sinhala': 'ඉගෙනුම් පැකේජය',
+      'Tamil': 'கற்றல் தொகுப்பு'
+    };
+
+    const prefix = prefixes[detectedLanguage] || 'Learning Pack';
+    const packNumber = index + 1;
+
+    return `${prefix} ${packNumber}: ${chapterTitle}`;
+  };
   // Generation options
   const [genLanguage, setGenLanguage] = useState('English');
   const [genBloom, setGenBloom] = useState('Understand');
@@ -173,6 +223,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // preview is now from context
   const [selectedIds, setSelectedIds] = useState({});
+  const [activeTab, setActiveTab] = useState('0'); // For tabbed preview
 
   // Toggle selection function for preview questions
   const toggleSelection = (key) => {
@@ -278,7 +329,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       setIsGeneratingPacks(true);
       setAnalysisError('');
-      console.log("File URL"+ uploadedFile.fileUrl);
+      console.log("File URL" + uploadedFile.fileUrl);
       // uploadedFile.fileUrl should now be the Supabase public URL
       const analysisResponse = await analyzeDocument(uploadedFile.fileUrl);
       console.log(uploadedFile.fileUrl);
@@ -398,15 +449,16 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setGenerationError('Please select both grade and subject');
       return;
     }
-    
-    if (selectedPackIndex === null) {
-      setGenerationError('Please select a learning pack by clicking on a card above');
+
+    if (selectedPackIndices.length === 0) {
+      setGenerationError('Please select at least one learning pack by clicking on pack cards above');
       return;
     }
-    
-    const selectedPack = suggestedPacks[selectedPackIndex];
-    if (!selectedPack) {
-      setGenerationError('Selected learning pack not found. Please try selecting another pack.');
+
+    // Get all selected packs
+    const selectedPacks = selectedPackIndices.map(index => suggestedPacks[index]).filter(Boolean);
+    if (selectedPacks.length === 0) {
+      setGenerationError('Selected learning packs not found. Please try selecting other packs.');
       return;
     }
 
@@ -436,30 +488,66 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           [type]: config.difficulty
         }), {});
 
-      const pv = await previewFromFile(uploadedFile.fileUrl, uploadedFile.fileType, {
-        language: genLanguage,
-        grade,
-        subject,
-        difficulty: Object.values(typeDifficulties)[0] || 'Medium', // Use first type's difficulty as default
-        bloom_level: genBloom,
-        questionTypes: enabledQuestionTypes,
-        typeDifficulties: typeDifficulties, // Pass per-type difficulties
-        packTitle: selectedPack.title, // Pass selected pack title to focus content
-        packDescription: selectedPack.content || selectedPack.description // Pass pack description to focus content
-      });
+      // Generate questions for each pack separately
+      const packResults = [];
+      let totalQuestions = 0;
 
-      // Check if we got any questions
-      if (!pv.questions || pv.questions.length === 0) {
-        setGenerationError('No questions were generated. Please try again or adjust your settings.');
+      for (let i = 0; i < selectedPacks.length; i++) {
+        const pack = selectedPacks[i];
+        const packIndex = selectedPackIndices[i];
+        
+        console.log(`[ContentGeneration] Generating preview for pack ${i + 1}/${selectedPacks.length}: ${pack.title}`);
+
+        try {
+          const pv = await previewFromFile(uploadedFile.fileUrl, uploadedFile.fileType, {
+            language: genLanguage,
+            grade,
+            subject,
+            difficulty: Object.values(typeDifficulties)[0] || 'Medium',
+            bloom_level: genBloom,
+            questionTypes: enabledQuestionTypes,
+            typeDifficulties: typeDifficulties,
+            packTitle: pack.title,
+            packDescription: pack.content || pack.description
+          });
+
+          if (pv.questions && pv.questions.length > 0) {
+            packResults.push({
+              packIndex: packIndex,
+              packTitle: pack.title,
+              packDescription: pack.content || pack.description,
+              questions: pv.questions,
+              summary_bullets: pv.summary_bullets || []
+            });
+            totalQuestions += pv.questions.length;
+          }
+        } catch (packError) {
+          console.error(`[ContentGeneration] Error generating for pack ${pack.title}:`, packError);
+          // Continue with other packs
+        }
+      }
+
+      // Check if we got any questions from any pack
+      if (packResults.length === 0 || totalQuestions === 0) {
+        setGenerationError('No questions were generated for any selected pack. Please try again or adjust your settings.');
         setPreview(null);
         return;
       }
 
-      setPreview(pv);
+      // Set preview with tabbed structure
+      setPreview({
+        packResults: packResults,
+        totalQuestions: totalQuestions,
+        selectedPacksCount: selectedPacks.length
+      });
 
-      // Pre-select all questions by default
+      // Pre-select all questions by default across all packs
       const pre = {};
-      (pv.questions || []).forEach((q, i) => { pre[q.id || i] = true; });
+      packResults.forEach(packResult => {
+        packResult.questions.forEach((q, i) => {
+          pre[q.id || `${packResult.packIndex}-${i}`] = true;
+        });
+      });
       setSelectedIds(pre);
     } catch (e) {
       console.error('[ContentManager] Preview error:', e);
@@ -475,11 +563,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // Approve selected items and persist
   const handleApprove = async () => {
-    if (selectedPackIndex === null) {
-      setGenerationError('Please select a learning pack by clicking on a card above');
-      return;
-    }
-    if (!preview || !Array.isArray(preview.questions)) {
+    if (!preview || (!preview.packResults && !Array.isArray(preview.questions))) {
       setGenerationError('No preview to approve');
       return;
     }
@@ -490,17 +574,38 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       return;
     }
 
-    const chosen = preview.questions.filter((q, i) => selectedIds[q.id || i]);
-    if (!chosen.length) {
-      setGenerationError('Select at least one item to approve');
+    // Handle both old single-pack format and new multi-pack format
+    let allChosenQuestions = [];
+    let packResultsToProcess = [];
+
+    if (preview.packResults) {
+      // New multi-pack format
+      preview.packResults.forEach(packResult => {
+        const packQuestions = packResult.questions.filter((q, i) => 
+          selectedIds[q.id || `${packResult.packIndex}-${i}`]
+        );
+        if (packQuestions.length > 0) {
+          allChosenQuestions.push(...packQuestions);
+          packResultsToProcess.push({
+            ...packResult,
+            selectedQuestions: packQuestions
+          });
+        }
+      });
+    } else {
+      // Old single-pack format (backward compatibility)
+      allChosenQuestions = preview.questions.filter((q, i) => selectedIds[q.id || i]);
+    }
+
+    if (!allChosenQuestions.length) {
+      setGenerationError('Select at least one question to approve');
       return;
     }
 
-    // STORE THE SELECTED INDEX BEFORE RESETTING
-    const currentSelectedIndex = selectedPackIndex;
-
     // RESET IMMEDIATELY so admin can select another pack
     setSelectedPackIndex(null);
+    setSelectedPackIndices([]); // Clear multiple pack selection
+    setSelectedPackId(''); // Clear learning pack selector
     setPreview(null);
     setSelectedIds({});
 
@@ -508,49 +613,94 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     setGenerationError('');
 
     try {
-      // Use the stored index
-      const selectedPack = suggestedPacks[currentSelectedIndex];
       const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
+      let totalSavedQuestions = [];
+      let allSummaryBullets = [];
 
-      // Fallbacks to avoid backend 400s
-      const safeTitle = (selectedPack && selectedPack.title)
-        ? String(selectedPack.title).trim()
-        : 'Learning Pack';
-      const safeGrade = `Grade ${parseInt(grade)}`;
+      if (preview.packResults) {
+        // Process each pack separately
+        for (const packResult of packResultsToProcess) {
+          console.log(`[Frontend] Creating learning pack for: ${packResult.packTitle}`);
 
-      if (!safeTitle) {
-        setGenerationError('Generated learning pack is missing a title. Please rename it manually and try again.');
-        return;
+          const formattedTitle = formatPackTitle(
+            packResult.packTitle,
+            genLanguage,
+            packResult.packIndex
+          );
+
+          const safeTitle = formattedTitle || packResult.packTitle || 'Learning Pack';
+          const safeGrade = `Grade ${parseInt(grade)}`;
+
+          const payload = {
+            title: safeTitle,
+            description: packResult.packDescription || '',
+            subject_id: subject,
+            grade: safeGrade,
+            difficulty: 'Medium',
+            language: getLanguageCode(genLanguage || 'English'),
+            is_active: true
+          };
+
+          const newPack = await createLearningPackAPI(payload);
+
+          const { questions: saved, saved_summary } = await approveFromPreview({
+            pack_id: newPack.id,
+            questions: packResult.selectedQuestions,
+            summary_bullets: packResult.summary_bullets,
+            language: genLanguage,
+            difficulty: 'Intermediate',
+            bloom_level: genBloom
+          });
+
+          totalSavedQuestions.push(...saved);
+          if (Array.isArray(saved_summary?.bullets)) {
+            allSummaryBullets.push(...saved_summary.bullets);
+          }
+
+          console.log(`[Frontend] Saved ${saved.length} questions for pack: ${packResult.packTitle}`);
+        }
+      } else {
+        // Backward compatibility for single pack
+        const selectedPack = suggestedPacks[selectedPackIndices[0] || 0];
+        const formattedTitle = formatPackTitle(
+          selectedPack.title,
+          selectedPack.language || genLanguage,
+          0
+        );
+
+        const safeTitle = formattedTitle || 'Learning Pack';
+        const safeGrade = `Grade ${parseInt(grade)}`;
+
+        const payload = {
+          title: safeTitle,
+          description: selectedPack.content || selectedPack.description || '',
+          subject_id: subject,
+          grade: safeGrade,
+          difficulty: selectedPack.difficulty || 'Medium',
+          language: getLanguageCode(selectedPack.language || genLanguage || 'English'),
+          is_active: true
+        };
+
+        const newPack = await createLearningPackAPI(payload);
+
+        const { questions: saved, saved_summary } = await approveFromPreview({
+          pack_id: newPack.id,
+          questions: allChosenQuestions,
+          summary_bullets: preview.summary_bullets,
+          language: genLanguage,
+          difficulty: 'Intermediate',
+          bloom_level: genBloom
+        });
+
+        totalSavedQuestions = saved;
+        if (Array.isArray(saved_summary?.bullets)) {
+          allSummaryBullets = saved_summary.bullets;
+        }
       }
 
-      const payload = {
-        title: safeTitle,
-        description: selectedPack.content || selectedPack.description || '',
-        subject_id: subject,
-        grade: safeGrade,
-        difficulty: selectedPack.difficulty || 'Medium',
-        language: getLanguageCode(selectedPack.language || genLanguage || 'English'),
-        is_active: true
-      };
-
-      console.log('[Frontend] Creating learning pack with payload:', payload);
-
-      const newPack = await createLearningPackAPI(payload);
-
-      const packId = newPack.id;
-
-      const { questions: saved, saved_summary } = await approveFromPreview({
-        pack_id: packId,
-        questions: chosen,
-        summary_bullets: preview.summary_bullets,
-        language: genLanguage,
-        difficulty: 'Intermediate',
-        bloom_level: genBloom
-      });
-
       // Upload any pending diagrams for questions that were edited in preview
-      for (const savedQuestion of saved) {
-        const originalQuestion = chosen.find(q =>
+      for (const savedQuestion of totalSavedQuestions) {
+        const originalQuestion = allChosenQuestions.find(q =>
           (q.id && q.id.startsWith('gen-')) &&
           q.question === savedQuestion.question
         );
@@ -566,10 +716,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         }
       }
 
-      setQuestions([...questions, ...saved]);
-      if (Array.isArray(saved_summary?.bullets)) setSummaryBullets(saved_summary.bullets);
+      setQuestions([...questions, ...totalSavedQuestions]);
+      if (allSummaryBullets.length > 0) setSummaryBullets(allSummaryBullets);
 
-      setLastAction({ type: 'approve', count: saved.length });
+      setLastAction({ 
+        type: 'approve', 
+        count: totalSavedQuestions.length,
+        packs: packResultsToProcess.length || 1
+      });
       setShowSuccessModal(true);
 
     } catch (e) {
@@ -603,7 +757,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       // Use the stored index
       const selectedPack = suggestedPacks[currentSelectedIndex];
       const { createLearningPack: createLearningPackAPI } = await import('../api/learningPackService');
-      
+
       const newPack = await createLearningPackAPI({
         title: selectedPack.title,
         description: selectedPack.content || selectedPack.description,
@@ -1033,23 +1187,20 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           const cleanDescription = cleanText(pack.content || pack.description || 'No description available');
 
           // Generate single title in the detected language
-          const getLanguageSpecificTitle = (title, packLanguage) => {
-            // Extract number from title (e.g., "Learning Pack 1" -> "01")
-            const match = title.match(/(\d+)/);
-            const number = match ? match[1].padStart(2, '0') : (index + 1).toString().padStart(2, '0');
-
-            // Return only the title in the detected language
-            if (packLanguage === 'Sinhala') {
-              return `ඉගෙනුම් ඇසුරුම ${number}`;
-            } else if (packLanguage === 'Tamil') {
-              return `கற்றல் தொகுப்பு ${number}`;
-            } else {
-              // Default to English
-              return `Learning Pack ${number}`;
+          const getDisplayTitle = (pack, index) => {
+            // If the pack already has a properly formatted title, use it
+            if (pack.title && (
+              pack.title.startsWith('Learning Pack') ||
+              pack.title.startsWith('ඉගෙනුම් පැකේජය') ||
+              pack.title.startsWith('கற்றல் தொகுப்பு')
+            )) {
+              return pack.title;
             }
-          };
 
-          const languageSpecificTitle = getLanguageSpecificTitle(cleanTitle, pack.language || 'English');
+            // Otherwise, format it for display
+            return formatPackTitle(pack.title, pack.language, index);
+          };
+          const languageSpecificTitle = getDisplayTitle(pack, index);
 
           // Debug logging for language detection
           if (index === 0) {
@@ -1390,10 +1541,11 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   </div>
                 )}
 
-                {preview && preview.questions && preview.questions.length > 0 && (
+                {preview && ((preview.questions && preview.questions.length > 0) || (preview.packResults && preview.totalQuestions > 0)) && (
                   <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200">
                     <p className="text-sm text-green-700 font-semibold">
-                      ✓ Preview ready with {preview.questions.length} questions!
+                      ✓ Preview ready with {preview.totalQuestions || preview.questions?.length || 0} questions
+                      {preview.packResults && ` from ${preview.packResults.length} learning packs`}!
                     </p>
                     <p className="text-xs text-green-600 mt-1">
                       Select questions (checkboxes) and click the GREEN "Approve & Save" button
@@ -1422,14 +1574,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   </Button>
                   <Button
                     onClick={handleApprove}
-                    disabled={isGenerating || !preview || !preview.questions || preview.questions.length === 0}
-                    className={`transition-all ${preview && preview.questions && preview.questions.length > 0
+                    disabled={isGenerating || !preview || (!preview.questions?.length && !preview.totalQuestions)}
+                    className={`transition-all ${preview && (preview.questions?.length > 0 || preview.totalQuestions > 0)
                       ? 'bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     title={!preview ? 'Click Generate first to create questions' : 'Save selected questions to database'}
                   >
-                    {preview && preview.questions && preview.questions.length > 0 ? '✓ ' : ''}Approve & Save
+                    {preview && (preview.questions?.length > 0 || preview.totalQuestions > 0) ? '✓ ' : ''}Approve & Save
                   </Button>
                 </div>
               </div>
@@ -1493,143 +1645,314 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       {preview && (
         <GlassCard>
           <h3 className="text-lg font-semibold mb-3">Preview</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm">
-            <div className="p-3 rounded border">
-              <p className="font-medium mb-1">Detected Metadata</p>
-              <p>Language: {preview.detected_metadata?.language || 'Unknown'}</p>
-              <p>Grade: {preview.detected_metadata?.grade || 'Unknown'}</p>
-              <p>Subject: {subjects.find(s => s.id === subject)?.name || preview.detected_metadata?.subject || 'Unknown'}</p>
-            </div>
-            <div className="p-3 rounded border md:col-span-2">
-              <p className="font-medium mb-1">Summary</p>
-              {Array.isArray(preview.summary_bullets) && preview.summary_bullets.length ? (
-                <ul className="list-disc list-inside space-y-1 text-gray-700">
-                  {preview.summary_bullets.map((b, i) => (<li key={i}>{b}</li>))}
-                </ul>
-              ) : (<p className="text-gray-500">No summary</p>)}
-            </div>
-          </div>
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Requested: {preview.totals?.requested || 0}, Generated: {preview.totals?.generated || 0}, Selected: {Object.values(selectedIds).filter(Boolean).length}
-            </div>
-            <button
-              onClick={toggleSelectAll}
-              className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-            >
-              {preview.questions.every((q, i) => selectedIds[q.id || i]) ? 'Deselect All' : 'Select All'}
-            </button>
-          </div>
-          <div className="space-y-2 max-h-[360px] overflow-y-auto">
-            {preview.questions.map((q, i) => {
-              const key = q.id || i;
-              return (
-                <div key={key} className="flex items-start gap-2 p-2 rounded border hover:border-royal-purple">
-                  <input
-                    type="checkbox"
-                    checked={!!selectedIds[key]}
-                    onChange={() => toggleSelection(key)}
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="text-xs text-gray-500">{q.type} · {q.difficulty || 'Intermediate'}</div>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          // Set up the question for editing (track preview index and a stable id)
-                          setEditingQuestion({
-                            ...q,
-                            id: key,
-                            previewIndex: i,
-                            language: q.language || 'English',
-                            explanations: q.explanation || q.explanations || ''
-                          });
-                          setIsEditModalOpen(true);
-                        }}
-                        className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
-                        title="Edit this question before saving"
-                      >
-                        ✏️ Edit
-                      </button>
+          
+          {preview.packResults ? (
+            // Multi-pack tabbed interface
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1 mb-4">
+                {preview.packResults.map((packResult, index) => (
+                  <TabsTrigger 
+                    key={index} 
+                    value={index.toString()}
+                    className="text-xs p-2 truncate"
+                    title={packResult.packTitle}
+                  >
+                    {packResult.packTitle.length > 20 
+                      ? `${packResult.packTitle.substring(0, 20)}...` 
+                      : packResult.packTitle}
+                    <span className="ml-1 text-xs bg-blue-100 text-blue-800 px-1 rounded">
+                      {packResult.questions.length}
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {preview.packResults.map((packResult, index) => (
+                <TabsContent key={index} value={index.toString()}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm">
+                    <div className="p-3 rounded border">
+                      <p className="font-medium mb-1">Pack Info</p>
+                      <p className="font-semibold text-blue-700">{packResult.packTitle}</p>
+                      <p className="text-xs text-gray-600 mt-1">{packResult.questions.length} questions</p>
                     </div>
-                    <div className="font-medium mb-1">{q.question}</div>
-
-                    {/* MCQ options */}
-                    {q.type === 'MCQ' && Array.isArray(q.options) && q.options.length > 0 && (
-                      <ul className="list-disc list-inside text-sm text-gray-700 space-y-0.5">
-                        {q.options.map((o, j) => (
-                          <li key={j} className={o === q.answer ? 'font-semibold text-green-700' : ''}>
-                            {o} {o === q.answer && '✓'}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {/* FIIB draggable options */}
-                    {q.type === 'FIIB' && Array.isArray(q.options) && q.options.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-500 mb-1">Drag options:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {q.options.map((o, j) => (
-                            <span key={j} className={`text-xs px-2 py-1 rounded border ${o === q.answer
-                              ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
-                              : 'bg-blue-50 border-blue-300 text-blue-700'
-                              }`}>
-                              {o} {o === q.answer && '✓'}
-                            </span>
+                    <div className="p-3 rounded border">
+                      <p className="font-medium mb-1">Description</p>
+                      <p className="text-sm text-gray-700">{packResult.packDescription || 'No description'}</p>
+                    </div>
+                    <div className="p-3 rounded border">
+                      <p className="font-medium mb-1">Summary</p>
+                      {packResult.summary_bullets && packResult.summary_bullets.length > 0 ? (
+                        <ul className="list-disc list-inside space-y-1 text-gray-700">
+                          {packResult.summary_bullets.map((bullet, i) => (
+                            <li key={i} className="text-sm">{bullet}</li>
                           ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* TF options */}
-                    {q.type === 'TF' && (
-                      <div className="mt-2">
-                        <div className="flex gap-2">
-                          {(() => {
-                            // Ensure we always have exactly 2 options for TF
-                            const options = q.options && q.options.length >= 2
-                              ? q.options.slice(0, 2)
-                              : ['True', 'False'];
-
-                            return options.map((option, index) => {
-                              const letter = String.fromCharCode(65 + index);
-                              const isCorrect = q.answer === letter || q.answer === option;
-                              return (
-                                <span key={index} className={`text-sm px-3 py-1 rounded border ${isCorrect
-                                  ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
-                                  : 'bg-gray-50 border-gray-300 text-gray-700'
-                                  }`}>
-                                  {option} {isCorrect && '✓'}
-                                </span>
-                              );
-                            });
-                          })()}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Answer for HOQ */}
-                    {q.type === 'HOQ' && q.answer && (
-                      <p className="text-sm text-gray-600 mt-1">
-                        <span className="font-medium">Answer:</span> {q.answer}
-                      </p>
-                    )}
-
-                    {/* Explanation - Show for ALL question types */}
-                    {(q.explanation || q.explanations) && (
-                      <div className="mt-2 p-2 bg-blue-50 border-l-4 border-blue-400 rounded">
-                        <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
-                        <p className="text-xs text-blue-700">{q.explanation || q.explanations}</p>
-                      </div>
-                    )}
+                        </ul>
+                      ) : (
+                        <p className="text-gray-500 text-sm">No summary available for this pack</p>
+                      )}
+                    </div>
                   </div>
+
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Generated: {packResult.questions.length}, Selected: {packResult.questions.filter((q, i) => selectedIds[q.id || `${packResult.packIndex}-${i}`]).length}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newSelectedIds = { ...selectedIds };
+                        const allSelected = packResult.questions.every((q, i) => selectedIds[q.id || `${packResult.packIndex}-${i}`]);
+                        
+                        packResult.questions.forEach((q, i) => {
+                          const key = q.id || `${packResult.packIndex}-${i}`;
+                          newSelectedIds[key] = !allSelected;
+                        });
+                        
+                        setSelectedIds(newSelectedIds);
+                      }}
+                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                    >
+                      {packResult.questions.every((q, i) => selectedIds[q.id || `${packResult.packIndex}-${i}`]) ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto">
+                    {packResult.questions.map((q, i) => {
+                      const key = q.id || `${packResult.packIndex}-${i}`;
+                      return (
+                        <div key={key} className="flex items-start gap-2 p-2 rounded border hover:border-royal-purple">
+                          <input
+                            type="checkbox"
+                            checked={!!selectedIds[key]}
+                            onChange={() => toggleSelection(key)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="text-xs text-gray-500">{q.type} · {q.difficulty || 'Intermediate'}</div>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEditingQuestion({
+                                    ...q,
+                                    id: key,
+                                    previewIndex: i,
+                                    packIndex: packResult.packIndex,
+                                    language: q.language || 'English',
+                                    explanations: q.explanation || q.explanations || ''
+                                  });
+                                  setIsEditModalOpen(true);
+                                }}
+                                className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
+                                title="Edit this question before saving"
+                              >
+                                ✏️ Edit
+                              </button>
+                            </div>
+                            <div className="font-medium mb-1">{q.question}</div>
+
+                            {/* Question type specific displays */}
+                            {q.type === 'MCQ' && Array.isArray(q.options) && q.options.length > 0 && (
+                              <ul className="list-disc list-inside text-sm text-gray-700 space-y-0.5">
+                                {q.options.map((o, j) => (
+                                  <li key={j} className={o === q.answer ? 'font-semibold text-green-700' : ''}>
+                                    {o} {o === q.answer && '✓'}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            {q.type === 'FIIB' && Array.isArray(q.options) && q.options.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs text-gray-500 mb-1">Drag options:</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {q.options.map((o, j) => (
+                                    <span key={j} className={`text-xs px-2 py-1 rounded border ${o === q.answer
+                                      ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                                      : 'bg-blue-50 border-blue-300 text-blue-700'
+                                      }`}>
+                                      {o} {o === q.answer && '✓'}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {q.type === 'TF' && (
+                              <div className="mt-2">
+                                <div className="flex gap-2">
+                                  {(() => {
+                                    const options = q.options && q.options.length >= 2 ? q.options.slice(0, 2) : ['True', 'False'];
+                                    return options.map((option, index) => {
+                                      const letter = String.fromCharCode(65 + index);
+                                      const isCorrect = q.answer === letter || q.answer === option;
+                                      return (
+                                        <span key={index} className={`text-sm px-3 py-1 rounded border ${isCorrect
+                                          ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                                          : 'bg-gray-50 border-gray-300 text-gray-700'
+                                          }`}>
+                                          {option} {isCorrect && '✓'}
+                                        </span>
+                                      );
+                                    });
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+
+                            {q.type === 'HOQ' && q.answer && (
+                              <p className="text-sm text-gray-600 mt-1">
+                                <span className="font-medium">Answer:</span> {q.answer}
+                              </p>
+                            )}
+
+                            {(q.explanation || q.explanations) && (
+                              <div className="mt-2 p-2 bg-blue-50 border-l-4 border-blue-400 rounded">
+                                <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
+                                <p className="text-xs text-blue-700">{q.explanation || q.explanations}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          ) : (
+            // Single pack interface (backward compatibility)
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-sm">
+                <div className="p-3 rounded border">
+                  <p className="font-medium mb-1">Detected Metadata</p>
+                  <p>Language: {preview.detected_metadata?.language || 'Unknown'}</p>
+                  <p>Grade: {preview.detected_metadata?.grade || 'Unknown'}</p>
+                  <p>Subject: {subjects.find(s => s.id === subject)?.name || preview.detected_metadata?.subject || 'Unknown'}</p>
                 </div>
-              );
-            })}
-          </div>
+                <div className="p-3 rounded border md:col-span-2">
+                  <p className="font-medium mb-1">Summary</p>
+                  {Array.isArray(preview.summary_bullets) && preview.summary_bullets.length ? (
+                    <ul className="list-disc list-inside space-y-1 text-gray-700">
+                      {preview.summary_bullets.map((b, i) => (<li key={i}>{b}</li>))}
+                    </ul>
+                  ) : (<p className="text-gray-500">No summary</p>)}
+                </div>
+              </div>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Requested: {preview.totals?.requested || 0}, Generated: {preview.totals?.generated || 0}, Selected: {Object.values(selectedIds).filter(Boolean).length}
+                </div>
+                <button
+                  onClick={toggleSelectAll}
+                  className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  {preview.questions.every((q, i) => selectedIds[q.id || i]) ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+              <div className="space-y-2 max-h-[360px] overflow-y-auto">
+                {preview.questions.map((q, i) => {
+                  const key = q.id || i;
+                  return (
+                    <div key={key} className="flex items-start gap-2 p-2 rounded border hover:border-royal-purple">
+                      <input
+                        type="checkbox"
+                        checked={!!selectedIds[key]}
+                        onChange={() => toggleSelection(key)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="text-xs text-gray-500">{q.type} · {q.difficulty || 'Intermediate'}</div>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingQuestion({
+                                ...q,
+                                id: key,
+                                previewIndex: i,
+                                language: q.language || 'English',
+                                explanations: q.explanation || q.explanations || ''
+                              });
+                              setIsEditModalOpen(true);
+                            }}
+                            className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
+                            title="Edit this question before saving"
+                          >
+                            ✏️ Edit
+                          </button>
+                        </div>
+                        <div className="font-medium mb-1">{q.question}</div>
+
+                        {/* Single pack question displays - same as above */}
+                        {q.type === 'MCQ' && Array.isArray(q.options) && q.options.length > 0 && (
+                          <ul className="list-disc list-inside text-sm text-gray-700 space-y-0.5">
+                            {q.options.map((o, j) => (
+                              <li key={j} className={o === q.answer ? 'font-semibold text-green-700' : ''}>
+                                {o} {o === q.answer && '✓'}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {q.type === 'FIIB' && Array.isArray(q.options) && q.options.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500 mb-1">Drag options:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {q.options.map((o, j) => (
+                                <span key={j} className={`text-xs px-2 py-1 rounded border ${o === q.answer
+                                  ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                                  : 'bg-blue-50 border-blue-300 text-blue-700'
+                                  }`}>
+                                  {o} {o === q.answer && '✓'}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {q.type === 'TF' && (
+                          <div className="mt-2">
+                            <div className="flex gap-2">
+                              {(() => {
+                                const options = q.options && q.options.length >= 2 ? q.options.slice(0, 2) : ['True', 'False'];
+                                return options.map((option, index) => {
+                                  const letter = String.fromCharCode(65 + index);
+                                  const isCorrect = q.answer === letter || q.answer === option;
+                                  return (
+                                    <span key={index} className={`text-sm px-3 py-1 rounded border ${isCorrect
+                                      ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
+                                      : 'bg-gray-50 border-gray-300 text-gray-700'
+                                      }`}>
+                                      {option} {isCorrect && '✓'}
+                                    </span>
+                                  );
+                                });
+                              })()}
+                            </div>
+                          </div>
+                        )}
+
+                        {q.type === 'HOQ' && q.answer && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            <span className="font-medium">Answer:</span> {q.answer}
+                          </p>
+                        )}
+
+                        {(q.explanation || q.explanations) && (
+                          <div className="mt-2 p-2 bg-blue-50 border-l-4 border-blue-400 rounded">
+                            <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
+                            <p className="text-xs text-blue-700">{q.explanation || q.explanations}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </GlassCard>
       )}
 
@@ -2268,7 +2591,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             </p>
             <p className="text-gray-600 text-sm">
               {lastAction?.type === 'approve'
-                ? 'The selected questions have been saved to the database.'
+                ? lastAction?.packs > 1 
+                  ? `Questions approved and saved for ${lastAction.packs} learning packs.`
+                  : 'The selected questions have been saved to the database.'
                 : 'Your questions have been added to the content library and are ready to use.'}
             </p>
           </div>
