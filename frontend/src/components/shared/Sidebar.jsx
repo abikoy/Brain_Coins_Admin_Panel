@@ -2,7 +2,8 @@ import {
   BarChart3,
   FileText,
   Layers,
-  AlertTriangle
+  AlertTriangle,
+  Edit3
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab }) => {
@@ -24,6 +25,12 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
       label: 'Content Management',
       icon: Layers,
       description: 'Manage questions and learning packs'
+    },
+    {
+      id: 'questioneditor',
+      label: 'Question Editor',
+      icon: Edit3,
+      description: 'Enhanced question editing interface'
     },
     {
       id: 'systemlogs',

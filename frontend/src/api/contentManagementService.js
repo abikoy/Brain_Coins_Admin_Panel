@@ -219,6 +219,29 @@ export const updateLearningPack = async (packId, packData) => {
   }
 };
 
+export const updateSubject = async (subjectId, subjectData) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/content-management/subjects/${subjectId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(subjectData),
+    });
+    
+    if (!res.ok) {
+      let err;
+      try { err = await res.json(); } catch {}
+      throw new Error(err?.error || 'Failed to update subject');
+    }
+    
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error('[Content Management API] Update subject error:', error);
+    throw error;
+  }
+};
+
 export const deleteLearningPack = async (packId) => {
   try {
     const res = await fetch(`${API_BASE_URL}/content-management/learning-packs/${packId}`, {
@@ -439,6 +462,7 @@ export const bulkToggleLearningPacksPremium = async (packIds, isPremium) => {
 export default {
   getSubjects,
   toggleSubjectStatus,
+  updateSubject,
   getLearningPacks,
   toggleLearningPackStatus,
   toggleLearningPackPremium,

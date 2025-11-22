@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import Header from '../components/shared/Header';
 import Sidebar from '../components/shared/Sidebar';
 import Analytics from './Analytics';
-import { BarChart3, FileText, Settings, AlertCircle, Layers } from 'lucide-react';
+import { BarChart3, FileText, Settings, AlertCircle, Layers, Edit3 } from 'lucide-react';
 import ContentGeneration from './ContentGeneration';
 import ContentManagement from './ContentManagement';
+import QuestionEditor from './QuestionEditor';
 import SystemLogs from './system_logs'; 
 
 const Dashboard = ({ onLogout, user, students, progressData, questions, setQuestions, logs }) => {
@@ -31,6 +32,12 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
           label: 'Content Management',
           icon: Layers,
           description: 'Manage questions and learning packs'
+        },
+        {
+          id: 'questioneditor',
+          label: 'Question Editor',
+          icon: Edit3,
+          description: 'Enhanced question editing interface'
         },
         {
           id: 'configuration',
@@ -77,7 +84,11 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
           )}
 
           {activeTab === 'contentmanagement' && (
-            <ContentManagement />
+            <ContentManagement onNavigate={setActiveTab} />
+          )}
+
+          {activeTab === 'questioneditor' && (
+            <QuestionEditor />
           )}
 
           {activeTab === 'systemlogs' && (

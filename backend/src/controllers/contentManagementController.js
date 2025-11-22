@@ -89,6 +89,36 @@ class ContentManagementController {
     }
   }
 
+  // UPDATE SUBJECT
+  async updateSubject(req, res) {
+    try {
+      const { id } = req.params;
+      const subjectData = req.body;
+      
+      const result = await contentManagementService.updateSubject(id, subjectData);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+
+      res.json({
+        success: true,
+        data: result.data,
+        message: result.message
+      });
+
+    } catch (error) {
+      console.error('Update Subject Controller Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update subject'
+      });
+    }
+  }
+
   // GET LEARNING PACKS
   async getLearningPacks(req, res) {
     try {

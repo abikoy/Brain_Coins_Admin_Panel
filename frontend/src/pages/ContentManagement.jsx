@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/shared/GlassCard';
 import Button from '../components/ui/Button';
 import Toast from '../components/ui/Toast';
-import { Book, Package, HelpCircle, RefreshCw, ToggleLeft, ToggleRight, Crown, Filter } from 'lucide-react';
+import { Book, Package, HelpCircle, RefreshCw, ToggleLeft, ToggleRight, Crown, Filter, Edit3 } from 'lucide-react';
 import contentManagementService, { updateQuestion, deleteQuestion, updateLearningPack, deleteLearningPack } from '../api/contentManagementService';
 import SubjectsTable from '../components/contentmanagement/SubjectsTable';
 import LearningPacksTable from '../components/contentmanagement/LearningPacksTable';
@@ -11,8 +11,9 @@ import ContentFilterBar from '../components/contentmanagement/ContentFilterBar';
 import Pagination from '../components/ui/Pagination';
 import QuestionEditModal from '../components/contentmanagement/QuestionEditModal';
 import LearningPackEditModal from '../components/contentmanagement/LearningPackEditModal';
+import SubjectEditModal from '../components/contentmanagement/SubjectEditModal';
 
-const ContentManagement = () => {
+const ContentManagement = ({ onNavigate }) => {
     const [activeTab, setActiveTab] = useState('subjects');
     const [subjects, setSubjects] = useState([]);
     const [learningPacks, setLearningPacks] = useState([]);
@@ -41,6 +42,10 @@ const ContentManagement = () => {
     // Question edit modal state
     const [editingQuestion, setEditingQuestion] = useState(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    
+    // Subject edit modal state
+    const [editingSubject, setEditingSubject] = useState(null);
+    const [isSubjectEditModalOpen, setIsSubjectEditModalOpen] = useState(false);
     
     // Learning pack edit modal state
     const [editingLearningPack, setEditingLearningPack] = useState(null);
@@ -299,6 +304,24 @@ const ContentManagement = () => {
         setIsEditModalOpen(true);
     };
 
+    // Subject editing handlers
+    const handleEditSubject = (subject) => {
+        setEditingSubject(subject);
+        setIsSubjectEditModalOpen(true);
+    };
+
+    const handleSaveSubject = async (subjectId, subjectData) => {
+        try {
+            await contentManagementService.updateSubject(subjectId, subjectData);
+            fetchContentData(filters);
+            showToast('Subject updated successfully!', 'success');
+        } catch (error) {
+            console.error('Error updating subject:', error);
+            showToast('Failed to update subject. Please try again.', 'error');
+            throw error;
+        }
+    };
+
     const handleSaveQuestion = async (questionId, questionData) => {
         try {
             await updateQuestion(questionId, questionData);
@@ -398,14 +421,24 @@ const ContentManagement = () => {
                     </h2>
                     <p className="text-gray-600">Manage subjects, learning packs, and questions</p>
                 </div>
-                <Button
-                    onClick={fetchContentData}
-                    disabled={refreshing}
-                    className="flex items-center gap-2"
-                >
-                    <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                    {refreshing ? 'Refreshing...' : 'Refresh Data'}
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button
+                        onClick={() => onNavigate && onNavigate('questioneditor')}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                    >
+                        <Edit3 className="h-4 w-4" />
+                        Enhanced Editor
+                    </Button>
+                    <Button
+                        onClick={fetchContentData}
+                        disabled={refreshing}
+                        className="flex items-center gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                        {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                    </Button>
+                </div>
             </div>
 
             {/* Stats Grid */}
@@ -467,6 +500,7 @@ const ContentManagement = () => {
                             <SubjectsTable
                                 subjects={filteredData.subjects}
                                 onToggleStatus={handleToggleSubject}
+                                onEditSubject={handleEditSubject}
                                 currentLanguageFilter={filters.language}
                             />
                             <Pagination
@@ -506,8 +540,6 @@ const ContentManagement = () => {
                                 questions={filteredData.questions}
                                 onToggleStatus={handleToggleQuestion}
                                 onBulkToggleStatus={handleBulkToggleQuestions}
-                                onEditQuestion={handleEditQuestion}
-                                onDeleteQuestion={handleDeleteQuestion}
                             />
                             <Pagination
                                 currentPage={pagination.questions.currentPage}
@@ -535,6 +567,14 @@ const ContentManagement = () => {
                 isOpen={isPackEditModalOpen}
                 onClose={() => setIsPackEditModalOpen(false)}
                 onSave={handleSaveLearningPack}
+            />
+
+            {/* Subject Edit Modal */}
+            <SubjectEditModal
+                subject={editingSubject}
+                isOpen={isSubjectEditModalOpen}
+                onClose={() => setIsSubjectEditModalOpen(false)}
+                onSave={handleSaveSubject}
             />
 
             {/* Toast Notification */}

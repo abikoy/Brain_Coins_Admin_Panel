@@ -171,6 +171,36 @@ class ContentManagementService {
     }
   }
 
+  // UPDATE SUBJECT
+  async updateSubject(id, subjectData) {
+    try {
+      const { data: subject, error } = await this.supabase
+        .from('subjects')
+        .update({
+          ...subjectData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: subject,
+        message: 'Subject updated successfully'
+      };
+
+    } catch (error) {
+      console.error('Update Subject Error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
   // GET ALL LEARNING PACKS
   async getLearningPacks(filters = {}) {
     try {

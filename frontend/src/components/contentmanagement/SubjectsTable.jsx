@@ -1,7 +1,7 @@
 import React from 'react';
-import { ToggleLeft, ToggleRight, Book } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Book, Edit } from 'lucide-react';
 
-const SubjectsTable = ({ subjects, onToggleStatus, currentLanguageFilter }) => {
+const SubjectsTable = ({ subjects, onToggleStatus, onEditSubject, currentLanguageFilter }) => {
   if (!subjects.length) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -18,7 +18,7 @@ const SubjectsTable = ({ subjects, onToggleStatus, currentLanguageFilter }) => {
           <tr className="border-b border-gray-200">
             <th className="text-left py-3 px-4 font-medium text-gray-600">Subject</th>
             <th className="text-left py-3 px-4 font-medium text-gray-600">Languages</th>
-            <th className="text-left py-3 px-4 font-medium text-gray-600">Order</th>
+
             <th className="text-left py-3 px-4 font-medium text-gray-600">Status</th>
             <th className="text-left py-3 px-4 font-medium text-gray-600">Actions</th>
           </tr>
@@ -53,9 +53,7 @@ const SubjectsTable = ({ subjects, onToggleStatus, currentLanguageFilter }) => {
                   )}
                 </div>
               </td>
-              <td className="py-3 px-4">
-                <span className="text-sm text-gray-600">{subject.display_order || 0}</span>
-              </td>
+
               <td className="py-3 px-4">
                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                   subject.is_active 
@@ -66,17 +64,28 @@ const SubjectsTable = ({ subjects, onToggleStatus, currentLanguageFilter }) => {
                 </span>
               </td>
               <td className="py-3 px-4">
-                <button
-                  onClick={() => onToggleStatus(subject.id, !subject.is_active)}
-                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  {subject.is_active ? (
-                    <ToggleRight className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <ToggleLeft className="h-4 w-4 text-gray-400" />
-                  )}
-                  {subject.is_active ? 'Disable' : 'Enable'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onToggleStatus(subject.id, !subject.is_active)}
+                    className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    {subject.is_active ? (
+                      <ToggleRight className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <ToggleLeft className="h-4 w-4 text-gray-400" />
+                    )}
+                    {subject.is_active ? 'Disable' : 'Enable'}
+                  </button>
+                  
+                  <button
+                    onClick={() => onEditSubject(subject)}
+                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                    title="Edit Subject"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

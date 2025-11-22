@@ -10,6 +10,7 @@ router.get('/hierarchy', contentManagementController.getContentHierarchy);
 // SUBJECTS ROUTES
 router.get('/subjects', contentManagementController.getSubjects);
 router.patch('/subjects/:id/status', contentManagementController.toggleSubjectStatus);
+router.put('/subjects/:id', contentManagementController.updateSubject);
 
 // LEARNING PACKS ROUTES
 router.get('/learning-packs', contentManagementController.getLearningPacks);
