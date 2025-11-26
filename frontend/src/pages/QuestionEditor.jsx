@@ -2,31 +2,25 @@ import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/shared/GlassCard';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import Input from '../components/ui/Input';
 import Toast from '../components/ui/Toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
 import { 
   Edit, 
-  Plus, 
   Trash2, 
   AlertCircle, 
-  ChevronDown, 
-  Image, 
   X, 
   Search,
   Filter,
-  BookOpen,
-  Package,
-  HelpCircle,
   Save,
   Eye,
-  EyeOff
+  EyeOff,
+  Plus,
+  Image as ImageIcon
 } from 'lucide-react';
 import contentManagementService, { updateQuestion, deleteQuestion } from '../api/contentManagementService';
-import { uploadQuestionDiagram, deleteQuestionDiagram } from '../api/questionDiagramService';
 import { getSubjects } from '../api/subjectService';
 import { getLearningPacks } from '../api/learningPackService';
+import { uploadQuestionDiagram } from '../api/questionDiagramService';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 
 const QuestionEditor = () => {
   // Data state
@@ -43,6 +37,7 @@ const QuestionEditor = () => {
     type: '',
     difficulty: '',
     language: '',
+    grade: '',
     status: 'all'
   });
   
@@ -51,6 +46,8 @@ const QuestionEditor = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+
   
   // Diagram state
   const [diagramFile, setDiagramFile] = useState(null);
@@ -79,7 +76,12 @@ const QuestionEditor = () => {
         ...(filters.pack && { pack_id: filters.pack }),
         ...(filters.type && { question_type: filters.type }),
         ...(filters.difficulty && { difficulty: filters.difficulty }),
-        ...(filters.language && { language: filters.language }),
+        ...(filters.language && { 
+          language: filters.language === 'English' ? 'en' : 
+                   filters.language === 'Sinhala' ? 'si' : 
+                   filters.language === 'Tamil' ? 'ta' : filters.language 
+        }),
+        ...(filters.grade && { grade: filters.grade }),
         ...(filters.status !== 'all' && { is_active: filters.status === 'active' })
       };
 
@@ -173,6 +175,8 @@ const QuestionEditor = () => {
       setToast({ message: 'Failed to delete question', type: 'error' });
     }
   };
+
+
 
   // Handle diagram upload
   const handleDiagramChange = (e) => {
@@ -315,7 +319,21 @@ const QuestionEditor = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Grade */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Grade</label>
+              <select
+                value={filters.grade}
+                onChange={(e) => setFilters({ ...filters, grade: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Grades</option>
+                {[6, 7, 8, 9, 10, 11].map(grade => (
+                  <option key={grade} value={grade}>Grade {grade}</option>
+                ))}
+              </select>
+            </div>
             {/* Language */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
@@ -351,7 +369,7 @@ const QuestionEditor = () => {
                 variant="outline"
                 onClick={() => setFilters({
                   search: '', subject: '', pack: '', type: '', 
-                  difficulty: '', language: '', status: 'all'
+                  difficulty: '', language: '', grade: '', status: 'all'
                 })}
                 className="w-full"
               >
@@ -565,7 +583,7 @@ const QuestionEditor = () => {
               {/* Diagram Upload */}
               <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
                 <label className="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-2">
-                  <Image className="h-5 w-5 text-green-600" />
+                  <ImageIcon className="h-5 w-5 text-green-600" />
                   Diagram (Optional)
                 </label>
                 {!diagramPreview ? (

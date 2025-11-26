@@ -498,6 +498,97 @@ class AnalyticsController {
       });
     }
   }
+
+  // Create new student
+  async createStudent(req, res) {
+    try {
+      const studentData = req.body;
+      console.log('👤 Creating new student:', studentData);
+
+      const { data: newStudent, error } = await supabase
+        .from('profiles')
+        .insert({
+          full_name: studentData.full_name,
+          grade: studentData.grade,
+          school: studentData.school,
+          district: studentData.district,
+          phone: studentData.phone,
+          language_preference: studentData.language_preference || 'en',
+          is_premium: studentData.is_premium || false,
+          premium_until: studentData.premium_until || null
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        data: newStudent,
+        message: 'Student created successfully'
+      });
+
+    } catch (error) {
+      console.error('❌ Create student error:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to create student',
+        details: error.details
+      });
+    }
+  }
+
+  // Update student information
+  async updateStudent(req, res) {
+    try {
+      const { id } = req.params;
+      const studentData = req.body;
+      console.log('👤 Updating student:', id, studentData);
+
+      const { data: updatedStudent, error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: studentData.full_name,
+          grade: studentData.grade,
+          school: studentData.school,
+          district: studentData.district,
+          phone: studentData.phone,
+          language_preference: studentData.language_preference,
+          is_premium: studentData.is_premium,
+          premium_until: studentData.premium_until || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        data: updatedStudent,
+        message: 'Student updated successfully'
+      });
+
+    } catch (error) {
+      console.error('❌ Update student error:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to update student',
+        details: error.details
+      });
+    }
+  }
 }
 
 // Export the controller instance

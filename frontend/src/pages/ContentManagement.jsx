@@ -20,10 +20,10 @@ const ContentManagement = ({ onNavigate }) => {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    
+
     // Toast state
     const [toast, setToast] = useState(null);
-    
+
     // Filter state
     const [filters, setFilters] = useState({});
     const [filteredData, setFilteredData] = useState({
@@ -31,26 +31,26 @@ const ContentManagement = ({ onNavigate }) => {
         learningPacks: [],
         questions: []
     });
-    
+
     // Pagination state
     const [pagination, setPagination] = useState({
         subjects: { currentPage: 1, totalPages: 1, totalItems: 0 },
         learningPacks: { currentPage: 1, totalPages: 1, totalItems: 0 },
         questions: { currentPage: 1, totalPages: 1, totalItems: 0 }
     });
-    
+
     // Question edit modal state
     const [editingQuestion, setEditingQuestion] = useState(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    
+
     // Subject edit modal state
     const [editingSubject, setEditingSubject] = useState(null);
     const [isSubjectEditModalOpen, setIsSubjectEditModalOpen] = useState(false);
-    
+
     // Learning pack edit modal state
     const [editingLearningPack, setEditingLearningPack] = useState(null);
     const [isPackEditModalOpen, setIsPackEditModalOpen] = useState(false);
-    
+
     const [stats, setStats] = useState({
         totalSubjects: 0,
         activeSubjects: 0,
@@ -65,51 +65,51 @@ const ContentManagement = ({ onNavigate }) => {
     const fetchContentData = async (currentFilters = {}, paginationOptions = {}) => {
         try {
             setRefreshing(true);
-            
+
             // Build filters based on current selections
             const filters = {};
-            
+
             // Only add language filter if a specific language is selected
             if (currentFilters.language && currentFilters.language !== 'All Languages') {
-                const apiLanguage = currentFilters.language === 'English' ? 'en' : 
-                                   currentFilters.language === 'Sinhala' ? 'si' : 
-                                   currentFilters.language === 'Tamil' ? 'ta' : 
-                                   currentFilters.language;
+                const apiLanguage = currentFilters.language === 'English' ? 'en' :
+                    currentFilters.language === 'Sinhala' ? 'si' :
+                        currentFilters.language === 'Tamil' ? 'ta' :
+                            currentFilters.language;
                 filters.language = apiLanguage;
             }
-            
+
             // Add other filters if they exist
             if (currentFilters.grade && currentFilters.grade !== 'All Grades') {
                 filters.grade = currentFilters.grade;
             }
-            
+
             if (currentFilters.subject_id && currentFilters.subject_id !== 'All Subjects') {
                 filters.subject_id = currentFilters.subject_id;
             }
-            
+
             // For questions, also include pack_id if selected
             const questionFilters = { ...filters };
             if (currentFilters.pack_id && currentFilters.pack_id !== 'All Learning Packs') {
                 questionFilters.pack_id = currentFilters.pack_id;
             }
-            
+
             // Add pagination for all tables
-            const subjectsFilters = { 
-                ...filters, 
+            const subjectsFilters = {
+                ...filters,
                 page: paginationOptions.subjectsPage || pagination.subjects.currentPage,
                 limit: 10 // 10 items per page
             };
 
-            const packsFilters = { 
-                ...filters, 
+            const packsFilters = {
+                ...filters,
                 page: paginationOptions.learningPacksPage || pagination.learningPacks.currentPage,
                 limit: 10 // 10 items per page
             };
-            
-            const questionsFilters = { 
-                ...questionFilters, 
+
+            const questionsFilters = {
+                ...questionFilters,
                 page: paginationOptions.questionsPage || pagination.questions.currentPage,
-                limit: 10 // 10 items per page
+                limit: 100 // 100 items per page
             };
 
 
@@ -159,20 +159,20 @@ const ContentManagement = ({ onNavigate }) => {
             });
 
             // Use overall statistics from backend instead of calculating from current page data
-            
+
             const subjectsStats = subjectsResult.overallStats || {
                 total: subjectsResult.total || 0,
                 active: filteredSubjects?.filter(s => s.is_active)?.length || 0,
                 inactive: 0
             };
-            
+
             const packsStats = packsResult.overallStats || {
                 total: packsResult.total || 0,
                 active: filteredPacks?.filter(p => p.is_active)?.length || 0,
                 inactive: 0,
                 premium: filteredPacks?.filter(p => p.is_premium)?.length || 0
             };
-            
+
             const questionsStats = questionsResult.overallStats || {
                 total: questionsResult.total || 0,
                 active: filteredQuestions?.filter(q => q.is_active)?.length || 0,
@@ -325,12 +325,12 @@ const ContentManagement = ({ onNavigate }) => {
     const handleSaveQuestion = async (questionId, questionData) => {
         try {
             await updateQuestion(questionId, questionData);
-            fetchContentData(filters); // Refresh data with current filters
+            fetchContentData(filters);
             showToast('Question updated successfully!', 'success');
         } catch (error) {
             console.error('Error updating question:', error);
             showToast('Failed to update question. Please try again.', 'error');
-            throw error; // Re-throw to let modal handle the error
+            throw error;
         }
     };
 
@@ -338,7 +338,7 @@ const ContentManagement = ({ onNavigate }) => {
         if (window.confirm('Are you sure you want to delete this question? This action cannot be undone.')) {
             try {
                 await deleteQuestion(questionId);
-                fetchContentData(filters); // Refresh data with current filters
+                fetchContentData(filters);
                 showToast('Question deleted successfully!', 'success');
             } catch (error) {
                 console.error('Error deleting question:', error);
@@ -346,6 +346,7 @@ const ContentManagement = ({ onNavigate }) => {
             }
         }
     };
+
 
     // Learning pack editing handlers
     const handleEditLearningPack = (learningPack) => {
@@ -540,12 +541,14 @@ const ContentManagement = ({ onNavigate }) => {
                                 questions={filteredData.questions}
                                 onToggleStatus={handleToggleQuestion}
                                 onBulkToggleStatus={handleBulkToggleQuestions}
+                                onEditQuestion={handleEditQuestion}
+                                onDeleteQuestion={handleDeleteQuestion}
                             />
                             <Pagination
                                 currentPage={pagination.questions.currentPage}
                                 totalPages={pagination.questions.totalPages}
                                 totalItems={pagination.questions.totalItems}
-                                itemsPerPage={10}
+                                itemsPerPage={100}
                                 onPageChange={handleQuestionsPageChange}
                             />
                         </>

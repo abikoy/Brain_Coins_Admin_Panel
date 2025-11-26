@@ -1,9 +1,9 @@
 import React from 'react';
 import Badge from '../ui/Badge';
-import { User, TrendingUp, Crown, Edit3 } from 'lucide-react';
+import { User, TrendingUp, Crown, Edit3, Edit } from 'lucide-react';
 import Button from '../ui/Button';
 
-const StudentListTable = ({ students, onManagePremium }) => {
+const StudentListTable = ({ students, onManagePremium, onEditStudent }) => {
   // Format progress percentage
   const formatProgress = (progress) => {
     return Math.round(progress || 0);
@@ -35,9 +35,10 @@ const StudentListTable = ({ students, onManagePremium }) => {
             <tr className="border-b border-gray-200">
               <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Student</th>
               <th className="hidden md:table-cell px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Contact</th>
-              <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Progress</th>
+
               <th className="hidden sm:table-cell px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Status</th>
               <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Score</th>
+              <th className="px-3 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -84,19 +85,7 @@ const StudentListTable = ({ students, onManagePremium }) => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 sm:px-4 py-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-16 sm:w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-primary transition-all duration-300"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                        <span className="text-xs sm:text-sm font-medium whitespace-nowrap">
-                          {progress}%
-                        </span>
-                      </div>
-                    </td>
+
                     <td className="hidden sm:table-cell px-3 sm:px-4 py-3">
                       <Badge
                         variant={
@@ -122,24 +111,35 @@ const StudentListTable = ({ students, onManagePremium }) => {
                       </div>
                     </td>
                     <td className="px-3 sm:px-4 py-3">
-                      <Button
-                        size="sm"
-                        variant={student.isPremium ? "outline" : "primary"}
-                        onClick={() => onManagePremium?.(student)}
-                        className="flex items-center gap-1"
-                      >
-                        {student.isPremium ? (
-                          <>
-                            <Edit3 className="h-3 w-3" />
-                            Manage
-                          </>
-                        ) : (
-                          <>
-                            <Crown className="h-3 w-3" />
-                            Make Premium
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onEditStudent?.(student)}
+                          className="flex items-center gap-1"
+                        >
+                          <Edit className="h-3 w-3" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={student.isPremium ? "outline" : "primary"}
+                          onClick={() => onManagePremium?.(student)}
+                          className="flex items-center gap-1"
+                        >
+                          {student.isPremium ? (
+                            <>
+                              <Edit3 className="h-3 w-3" />
+                              Manage
+                            </>
+                          ) : (
+                            <>
+                              <Crown className="h-3 w-3" />
+                              Premium
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );

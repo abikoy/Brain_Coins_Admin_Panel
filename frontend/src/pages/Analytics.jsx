@@ -3,9 +3,10 @@ import GlassCard from '../components/shared/GlassCard';
 import StudentProgressChart from '../components/analytics/StudentProgressChart';
 import StudentListTable from '../components/analytics/StudentListTable';
 import Button from '../components/ui/Button';
-import { Calendar, Users, TrendingUp, Crown, RefreshCw } from 'lucide-react';
+import { Calendar, Users, TrendingUp, Crown, RefreshCw, Plus } from 'lucide-react';
 import analyticsService from '../api/analyticsService';
 import PremiumManagementDialog from '../components/analytics/PremiumManagementDialog';
+import StudentEditModal from '../components/analytics/StudentEditModal';
 
 const Analytics = () => {
   const [analyticsData, setAnalyticsData] = useState(null);
@@ -15,6 +16,10 @@ const Analytics = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [timeRange, setTimeRange] = useState('week'); // week, month, year
   const [premiumDialog, setPremiumDialog] = useState({
+    isOpen: false,
+    student: null
+  });
+  const [studentEditModal, setStudentEditModal] = useState({
     isOpen: false,
     student: null
   });
@@ -67,6 +72,31 @@ const Analytics = () => {
       isOpen: false,
       student: null
     });
+  };
+
+  const handleAddStudent = () => {
+    setStudentEditModal({ isOpen: true, student: null });
+  };
+
+  const handleEditStudent = (student) => {
+    setStudentEditModal({ isOpen: true, student });
+  };
+
+  const handleSaveStudent = async (studentId, studentData) => {
+    try {
+      if (studentId) {
+        await analyticsService.updateStudent(studentId, studentData);
+      } else {
+        await analyticsService.createStudent(studentData);
+      }
+      fetchAnalyticsData();
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const closeStudentEditModal = () => {
+    setStudentEditModal({ isOpen: false, student: null });
   };
   useEffect(() => {
     fetchAnalyticsData();
@@ -207,8 +237,18 @@ const Analytics = () => {
 
       {/* Student List */}
       <GlassCard>
-        <h3 className="text-xl font-semibold mb-4">Registered Students</h3>
-        <StudentListTable students={students} onManagePremium={handleManagePremium} />
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Registered Students</h3>
+          <Button onClick={handleAddStudent} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Add Student
+          </Button>
+        </div>
+        <StudentListTable 
+          students={students} 
+          onManagePremium={handleManagePremium}
+          onEditStudent={handleEditStudent}
+        />
       </GlassCard>
 
       {/* Recent Activity */}
@@ -240,6 +280,13 @@ const Analytics = () => {
         isOpen={premiumDialog.isOpen}
         onClose={closePremiumDialog}
         onSuccess={handlePremiumSuccess}
+      />
+      
+      <StudentEditModal
+        student={studentEditModal.student}
+        isOpen={studentEditModal.isOpen}
+        onClose={closeStudentEditModal}
+        onSave={handleSaveStudent}
       />
     </div>
   );

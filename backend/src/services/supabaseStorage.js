@@ -78,7 +78,7 @@ export const uploadFile = async (file, fileName = null) => {
     const { data: urlData, error: urlError } = await supabaseStorage
       .storage
       .from(BUCKET_NAME)
-      .createSignedUrl(filePath, 31536000); // 1 year in seconds
+      .createSignedUrl(filePath, 3122064000); // 1 year in seconds
 
     if (urlError) {
       console.error('[Backend Storage] Failed to create signed URL:', urlError);

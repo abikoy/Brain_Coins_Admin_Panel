@@ -11,7 +11,7 @@ import contentManagementRoute from './routes/contentManagement.routes.js'
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // CORS configuration for frontend domains
 const allowedOrigins = [
@@ -74,9 +74,9 @@ app.use((err, req, res, next) => {
     });
 });
 if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`[Backend] Server running on port ${PORT}`);
-  });
+    app.listen(PORT, () => {
+        console.log(`[Backend] Server running on port ${PORT}`);
+    });
 }
 
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ToggleLeft, ToggleRight, HelpCircle } from 'lucide-react';
+import { ToggleLeft, ToggleRight, HelpCircle, Edit, Trash2 } from 'lucide-react';
 
-const QuestionsTable = ({ questions, onToggleStatus, onBulkToggleStatus }) => {
+const QuestionsTable = ({ questions, onToggleStatus, onBulkToggleStatus, onEditQuestion, onDeleteQuestion }) => {
   const [selectedQuestions, setSelectedQuestions] = useState([]);
 
   if (!questions.length) {
@@ -144,7 +144,25 @@ const QuestionsTable = ({ questions, onToggleStatus, onBulkToggleStatus }) => {
                       {question.is_active ? 'Disable' : 'Enable'}
                     </button>
                     
-
+                    {onEditQuestion && (
+                      <button
+                        onClick={() => onEditQuestion(question)}
+                        className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                        title="Edit Question"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    )}
+                    
+                    {onDeleteQuestion && (
+                      <button
+                        onClick={() => onDeleteQuestion(question.id)}
+                        className="p-1 text-red-600 hover:text-red-800 transition-colors"
+                        title="Delete Question"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

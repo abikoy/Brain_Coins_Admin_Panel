@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 /**
  * Get real-time dashboard statistics
@@ -309,6 +309,58 @@ export const exportAnalyticsData = async (format = 'csv', filters = {}) => {
   }
 };
 
+/**
+ * Create a new student
+ */
+export const createStudent = async (studentData) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/analytics/students`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(studentData),
+    });
+    
+    if (!res.ok) {
+      let err;
+      try { err = await res.json(); } catch {}
+      throw new Error(err?.error || 'Failed to create student');
+    }
+    
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error('[Analytics API] Create student error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update student information
+ */
+export const updateStudent = async (studentId, studentData) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/analytics/students/${studentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(studentData),
+    });
+    
+    if (!res.ok) {
+      let err;
+      try { err = await res.json(); } catch {}
+      throw new Error(err?.error || 'Failed to update student');
+    }
+    
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error('[Analytics API] Update student error:', error);
+    throw error;
+  }
+};
+
 export default {
   getDashboardStats,
   getDashboardAnalytics,
@@ -319,5 +371,7 @@ export default {
   createManualSubscription,
   getStudentDetails,
   getSystemLogs,
-  exportAnalyticsData
+  exportAnalyticsData,
+  createStudent,
+  updateStudent
 };

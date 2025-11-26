@@ -17,5 +17,7 @@ router.get('/logs', analyticsController.getSystemLogs);
 router.get('/students/:id', analyticsController.getStudentDetails);
 router.patch('/students/:id/premium', analyticsController.updateStudentPremiumStatus);
 router.post('/students/:id/subscription', analyticsController.createManualSubscription);
+router.post('/students', analyticsController.createStudent);
+router.patch('/students/:id', analyticsController.updateStudent);
 
 export default router;

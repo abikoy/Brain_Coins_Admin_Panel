@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle } from 'lucide-react';
+import { X, Save, AlertCircle, Plus, Image as ImageIcon } from 'lucide-react';
 import Button from '../ui/Button';
+import { uploadQuestionDiagram } from '../../api/questionDiagramService';
 
 const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -9,7 +10,7 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
     question_text_ta: '',
     question_type: 'MCQ',
     difficulty: 'Medium',
-    bloom_level: 'Remember',
+    blooms_taxonomy: 'Remember',
     options: ['', '', '', ''],
     correct_answer: '',
     explanation: '',
@@ -19,6 +20,8 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [diagramFile, setDiagramFile] = useState(null);
+  const [diagramPreview, setDiagramPreview] = useState(null);
 
   // Initialize form data when question changes
   useEffect(() => {
@@ -29,7 +32,7 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
         question_text_ta: question.question_text_ta || '',
         question_type: question.question_type || 'MCQ',
         difficulty: question.difficulty || 'Medium',
-        bloom_level: question.bloom_level || 'Remember',
+        blooms_taxonomy: question.blooms_taxonomy || question.bloom_level || 'Remember',
         options: question.options || ['', '', '', ''],
         correct_answer: question.correct_answer || '',
         explanation: question.explanation || '',
@@ -106,6 +109,18 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
     try {
       setSaving(true);
       await onSave(question.id, formData);
+      
+      // Upload diagram if provided
+      if (diagramFile) {
+        try {
+          await uploadQuestionDiagram(question.id, diagramFile);
+        } catch (diagramError) {
+          console.error('Diagram upload error:', diagramError);
+          setErrors({ general: 'Question updated but diagram upload failed' });
+          return;
+        }
+      }
+      
       onClose();
     } catch (error) {
       console.error('Error saving question:', error);
@@ -115,6 +130,32 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
     }
   };
 
+  const handleDiagramChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml'];
+    if (!validTypes.includes(file.type)) {
+      setErrors({ diagram: 'Invalid file type. Please upload an image.' });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors({ diagram: 'File size exceeds 5MB limit' });
+      return;
+    }
+
+    setDiagramFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setDiagramPreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const removeDiagram = () => {
+    setDiagramFile(null);
+    setDiagramPreview(null);
+  };
+
   const handleClose = () => {
     setFormData({
       question_text: '',
@@ -122,7 +163,7 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
       question_text_ta: '',
       question_type: 'MCQ',
       difficulty: 'Medium',
-      bloom_level: 'Remember',
+      blooms_taxonomy: 'Remember',
       options: ['', '', '', ''],
       correct_answer: '',
       explanation: '',
@@ -131,6 +172,8 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
       is_active: true
     });
     setErrors({});
+    setDiagramFile(null);
+    setDiagramPreview(null);
     onClose();
   };
 
@@ -170,7 +213,7 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
           <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Question Text (English) *
+                Question Text *
               </label>
               <textarea
                 value={formData.question_text}
@@ -186,31 +229,51 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Question Text (Sinhala)
-              </label>
-              <textarea
-                value={formData.question_text_si}
-                onChange={(e) => handleInputChange('question_text_si', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="සිංහල ප්‍රශ්නය..."
-              />
-            </div>
+       
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Question Text (Tamil)
-              </label>
-              <textarea
-                value={formData.question_text_ta}
-                onChange={(e) => handleInputChange('question_text_ta', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="தமிழ் கேள்வி..."
-              />
-            </div>
+          </div>
+
+          {/* Diagram Upload */}
+          <div className="bg-gray-50 p-4 rounded-lg border-2 border-dashed border-gray-300">
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-blue-600" />
+              Diagram (Optional)
+            </label>
+            {!diagramPreview ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleDiagramChange}
+                  className="hidden"
+                  id="diagram-upload"
+                />
+                <label
+                  htmlFor="diagram-upload"
+                  className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Choose Image
+                </label>
+              </div>
+            ) : (
+              <div className="relative">
+                <img
+                  src={diagramPreview}
+                  alt="Diagram preview"
+                  className="max-w-full h-auto max-h-64 rounded-lg border-2 border-gray-200"
+                />
+                <button
+                  onClick={removeDiagram}
+                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {errors.diagram && (
+              <p className="mt-1 text-sm text-red-600">{errors.diagram}</p>
+            )}
           </div>
 
           {/* Question Properties */}
@@ -256,8 +319,8 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
                 Bloom's Level
               </label>
               <select
-                value={formData.bloom_level}
-                onChange={(e) => handleInputChange('bloom_level', e.target.value)}
+                value={formData.blooms_taxonomy}
+                onChange={(e) => handleInputChange('blooms_taxonomy', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="Remember">Remember</option>
@@ -339,7 +402,7 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
           <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Explanation (English)
+                Explanation
               </label>
               <textarea
                 value={formData.explanation}
@@ -350,31 +413,7 @@ const QuestionEditModal = ({ question, isOpen, onClose, onSave }) => {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Explanation (Sinhala)
-              </label>
-              <textarea
-                value={formData.explanation_si}
-                onChange={(e) => handleInputChange('explanation_si', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="සිංහල පැහැදිලි කිරීම..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Explanation (Tamil)
-              </label>
-              <textarea
-                value={formData.explanation_ta}
-                onChange={(e) => handleInputChange('explanation_ta', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="தமிழ் விளக்கம்..."
-              />
-            </div>
+           
           </div>
 
           {/* Status */}

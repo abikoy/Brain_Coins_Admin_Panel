@@ -553,9 +553,9 @@ class ContentManagementService {
   // GET ALL QUESTIONS
   async getQuestions(filters = {}) {
     try {
-      // If we need to filter by subject_id or grade, first get the matching learning pack IDs
+      // If we need to filter by subject_id, grade, or language, first get the matching learning pack IDs
       let packIds = null;
-      if (filters.subject_id || filters.grade) {
+      if (filters.subject_id || filters.grade || filters.language) {
         let packsQuery = this.supabase
           .from('learning_packs')
           .select('id');
@@ -569,6 +569,14 @@ class ContentManagementService {
           // Database stores grades as "Grade 11", "Grade 10", etc.
           const gradeFormatted = `Grade ${filters.grade}`;
           packsQuery = packsQuery.eq('grade', gradeFormatted);
+        }
+
+        if (filters.language) {
+          // Convert frontend language names to database codes
+          const langCode = filters.language === 'English' ? 'en' : 
+                          filters.language === 'Sinhala' ? 'si' : 
+                          filters.language === 'Tamil' ? 'ta' : filters.language;
+          packsQuery = packsQuery.eq('language', langCode);
         }
 
         const { data: matchingPacks, error: packsError } = await packsQuery;
@@ -628,21 +636,8 @@ class ContentManagementService {
 
       if (error) throw error;
 
-      // Apply language filtering if specified
+      // Language filtering is now handled at the pack level in the packIds filter above
       let filteredQuestions = questions || [];
-      if (filters.language) {
-        filteredQuestions = questions.filter(question => {
-          // Detect language from question text
-          const questionText = question.question_text || question.question_text_si || question.question_text_ta || '';
-          const detectedLanguage = detectLanguageFromText(questionText);
-          const languageMap = {
-            'English': 'en',
-            'Sinhala': 'si',
-            'Tamil': 'ta'
-          };
-          return languageMap[detectedLanguage] === filters.language;
-        });
-      }
 
       // Get overall statistics for questions (not just current page)
       let statsQuery = this.supabase

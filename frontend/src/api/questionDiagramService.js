@@ -1,63 +1,59 @@
-/**
- * FRONTEND - Question Diagram Service
- * Handles diagram upload/delete for questions
- */
+import { uploadFile } from '../lib/supabaseStorage';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 /**
  * Upload diagram for a question
  * @param {string} questionId - Question ID
  * @param {File} file - Image file
- * @returns {Promise<{diagramUrl: string}>}
+ * @returns {Promise<Object>} - Upload result
  */
 export const uploadQuestionDiagram = async (questionId, file) => {
   try {
-    const formData = new FormData();
-    formData.append('diagram', file);
-
+    // Upload file to Supabase storage
+    const uploadResult = await uploadFile(file);
+    
+    // Update question with diagram path
     const response = await fetch(`${API_BASE_URL}/questions/${questionId}/diagram`, {
-      method: 'POST',
-      body: formData
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        diagram_path: uploadResult.filePath,
+        has_diagram: true
+      })
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to upload diagram');
+      throw new Error('Failed to update question with diagram');
     }
 
-    const data = await response.json();
-    return data.data;
-
+    return uploadResult;
   } catch (error) {
-    console.error('[Frontend] Upload diagram error:', error);
+    console.error('Error uploading question diagram:', error);
     throw error;
   }
 };
 
 /**
- * Delete diagram from a question
+ * Delete question diagram
  * @param {string} questionId - Question ID
  * @returns {Promise<void>}
  */
 export const deleteQuestionDiagram = async (questionId) => {
   try {
     const response = await fetch(`${API_BASE_URL}/questions/${questionId}/diagram`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'include'
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to delete diagram');
+      throw new Error('Failed to delete question diagram');
     }
-
   } catch (error) {
-    console.error('[Frontend] Delete diagram error:', error);
+    console.error('Error deleting question diagram:', error);
     throw error;
   }
-};
-
-export default {
-  uploadQuestionDiagram,
-  deleteQuestionDiagram
 };

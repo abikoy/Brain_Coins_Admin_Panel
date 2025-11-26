@@ -3,7 +3,7 @@
  * Handles API calls to backend for question generation
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 // Helper: Normalize question to UI shape
 const normalizeQuestion = (q) => ({
