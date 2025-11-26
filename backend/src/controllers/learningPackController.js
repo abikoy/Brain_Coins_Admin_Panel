@@ -172,6 +172,18 @@ const analyzeDocumentHandler = async (req, res) => {
     });
   } catch (error) {
     console.error('Document analysis error:', error);
+    
+    // Handle specific Gemini safety/content policy errors
+    if (error.message.includes('Response was blocked due to OTHER') || 
+        error.message.includes('Text not available')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Document content was blocked by AI safety filters. This may happen with certain types of content. Please try a different document or contact support.',
+        errorType: 'CONTENT_BLOCKED',
+        suggestion: 'Try uploading a different document or ensure the content is educational material suitable for grades 6-11.'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       error: error.message,
