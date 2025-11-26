@@ -8,7 +8,6 @@ import contentRoutes from './routes/content.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import geminiErrorRoutes from './routes/geminiErrors.routes.js';
 import contentManagementRoute from './routes/contentManagement.routes.js'
-import jobRoutes from './routes/jobRoutes.js';
 dotenv.config();
 
 const app = express();
@@ -58,7 +57,6 @@ app.use('/api/content', contentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/gemini-errors', geminiErrorRoutes);
 app.use('/api/content-management', contentManagementRoute);
-app.use('/api/jobs', jobRoutes);
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({

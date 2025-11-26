@@ -319,7 +319,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     setAnalysisError('');
   };
 
-  // Generate learning packs from uploaded file (Background Job)
+  // Generate learning packs from uploaded file (Supabase URL)
   const handleGenerateLearningPacks = async () => {
     if (!uploadedFile) {
       setAnalysisError('Please upload a file first');
@@ -329,41 +329,25 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       setIsGeneratingPacks(true);
       setAnalysisError('');
-      
-      // Import job service
-      const { startAnalysisJob, pollJobUntilComplete } = await import('../api/jobService.js');
-      
-      // Start background job
-      const jobResponse = await startAnalysisJob(uploadedFile.fileUrl);
-      const jobId = jobResponse.jobId;
-      
-      setToast({ message: `Analysis started (Job: ${jobId}). This may take up to 10 minutes...`, type: 'info' });
-      
-      // Poll for completion
-      const result = await pollJobUntilComplete(jobId, (job) => {
-        // Update progress
-        if (job.status === 'processing') {
-          setToast({ message: 'Document is being processed by AI...', type: 'info' });
-        }
-      });
-      
-      const packs = result.data || [];
+      console.log("File URL" + uploadedFile.fileUrl);
+      // uploadedFile.fileUrl should now be the Supabase public URL
+      const analysisResponse = await analyzeDocument(uploadedFile.fileUrl);
+      console.log(uploadedFile.fileUrl);
+      const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
 
-      // Auto-detect language
+      // Auto-detect and normalize language in both local and context state
       if (packs.length > 0 && packs[0].language) {
-        const rawDetectedLang = packs[0].language;
+        const rawDetectedLang = packs[0].language; // can be "English", "Sinhala", "Tamil", or codes en/si/ta
         const displayLanguage = getDisplayLanguage(rawDetectedLang);
         setGenLanguage(displayLanguage);
         setDetectedLanguage(displayLanguage);
+        console.log('[Frontend] Auto-detected language (raw):', rawDetectedLang, '=> display:', displayLanguage);
       }
-      
-      setToast({ message: 'Document analysis completed successfully!', type: 'success' });
 
     } catch (error) {
       console.error('Document analysis failed:', error);
       setAnalysisError(error.message || 'Failed to analyze document');
-      setToast({ message: error.message || 'Analysis failed', type: 'error' });
     } finally {
       setIsGeneratingPacks(false);
     }
