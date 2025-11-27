@@ -105,6 +105,7 @@ const createLearningPackHandler = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
 // Analyze document and generate learning packs using Gemini
 const analyzeDocumentHandler = async (req, res) => {
   try {
@@ -113,8 +114,12 @@ const analyzeDocumentHandler = async (req, res) => {
     if (!file_url) {
       return res.status(400).json({ success: false, error: 'file_url is required' });
     }
+
+    const t0 = Date.now();
     // Download the document from Supabase (or other storage) using the public URL
     const response = await fetch(file_url);
+    const t1 = Date.now();
+
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       return res.status(400).json({
@@ -129,7 +134,16 @@ const analyzeDocumentHandler = async (req, res) => {
     const base64Data = buffer.toString('base64');
     const contentType = response.headers.get('content-type') || 'application/pdf';
 
+    const t2 = Date.now();
     const packs = await generateLearningPacksFromBase64(base64Data, contentType);
+    const t3 = Date.now();
+
+    console.log('[AnalyzeDocument] Timings (ms):', {
+      download: t1 - t0,
+      bufferToBase64: t2 - t1,
+      generateLearningPacks: t3 - t2,
+      total: t3 - t0,
+    });
 
     // Normalize packs with duration calculation and difficulty
     const learningPacks = Array.isArray(packs) && packs.length > 0
@@ -179,10 +193,83 @@ const analyzeDocumentHandler = async (req, res) => {
     });
   }
 };
+
+// Start async document analysis job (short request)
+const startAnalyzeDocumentHandler = async (req, res) => {
+  try {
+    const { file_url } = req.body || {};
+
+    if (!file_url) {
+      return res.status(400).json({ success: false, error: 'file_url is required' });
+    }
+
+    const { supabaseAdmin } = await import('../config/supabaseClient.js');
+
+    const { data, error } = await supabaseAdmin
+      .from('document_analysis_jobs')
+      .insert([{
+        file_url,
+        status: 'pending',
+        result: null,
+        error: null,
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({ success: true, jobId: data.id });
+  } catch (err) {
+    console.error('[Backend] Start analyze document job error:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Failed to start analysis job' });
+  }
+};
+
+// Get async document analysis job status/result
+const getAnalyzeJobStatusHandler = async (req, res) => {
+  try {
+    const { id } = req.params || {};
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: 'Job id is required' });
+    }
+
+    const { supabaseAdmin } = await import('../config/supabaseClient.js');
+
+    const { data, error } = await supabaseAdmin
+      .from('document_analysis_jobs')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+
+    return res.json({
+      success: true,
+      status: data.status,
+      result: data.result,
+      error: data.error,
+    });
+  } catch (err) {
+    console.error('[Backend] Get analyze document job status error:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Failed to fetch job status' });
+  }
+};
+
 export {
   listLearningPacksHandler,
   getLearningPackHandler,
   createLearningPackHandler,
   analyzeDocumentHandler,
+  startAnalyzeDocumentHandler,
+  getAnalyzeJobStatusHandler,
   generateQuestionsForPackHandler
 };

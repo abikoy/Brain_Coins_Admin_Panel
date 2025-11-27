@@ -245,7 +245,15 @@ const withRetry = async (fn, options = {}) => {
  */
 export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
   try {
+    const timing = {
+      precheck: 0,
+      gemini: 0,
+      repair: 0,
+      fallback: 0,
+    };
+
     const isPdf = mimeType === 'application/pdf';
+
     const isImage = mimeType.startsWith('image/');
     const isDocx = mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const isDoc = mimeType === 'application/msword';
@@ -258,6 +266,7 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     // Pre-check for Sinhala/Tamil content in PDFs - use Vision API if detected
+    const tPreStart = Date.now();
     if (isPdf) {
       try {
         const buffer = Buffer.from(base64Data, 'base64');
@@ -277,6 +286,8 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
         forceVisionAPI = true;
       }
     }
+    const tPreEnd = Date.now();
+    timing.precheck = tPreEnd - tPreStart;
 
     // Helper: sanitize slightly-malformed JSON array text
     const sanitizeJsonArrayString = (raw) => {
@@ -676,38 +687,64 @@ Create EXACTLY ONE comprehensive learning pack that covers all main themes of th
 - Correct language detection!`;
 
       let result;
+      const tGeminiStart = Date.now();
       try {
         result = await withRetry(() => model.generateContent({
           contents: [{ role: 'user', parts: [{ text: prompt }, imagePart] }]
         }), { maxAttempts: 4, baseDelay: 1500 });
       } catch (e) {
+        const tGeminiFailEnd = Date.now();
+        timing.gemini = tGeminiFailEnd - tGeminiStart;
         await logGeminiApiError(e, {
           apiEndpoint: 'generateContent',
           prompt: prompt.substring(0, 500),
           fileType: mimeType,
           endpoint: 'generateLearningPacksFromBase64'
         });
-        return await localFallbackPacks();
+        const tFallbackStart = Date.now();
+        const fallbackPacks = await localFallbackPacks();
+        const tFallbackEnd = Date.now();
+        timing.fallback = tFallbackEnd - tFallbackStart;
+        console.log('[Backend Gemini] Timing (ms):', timing);
+        return fallbackPacks;
       }
+      const tGeminiEnd = Date.now();
+      timing.gemini = tGeminiEnd - tGeminiStart;
 
       let raw = result.response.text();
+
       const block = raw.match(/<BEGIN_JSON>[\s\S]*?<END_JSON>/);
       if (block) raw = block[0].replace(/<BEGIN_JSON>|<END_JSON>/g, '').trim();
       raw = sanitizeJsonArrayString(raw);
       let packs;
+      const tParseStart = Date.now();
       try {
         packs = JSON.parse(raw);
       } catch (e1) {
         const repairPrompt = `Fix to a valid JSON array only. No extra text.\n\n<INPUT>\n${raw}\n</INPUT>`;
+        const tRepairStart = Date.now();
         try {
           const repair = await withRetry(() => model.generateContent({ contents: [{ role: 'user', parts: [{ text: repairPrompt }] }] }), { maxAttempts: 3, baseDelay: 800 });
           const repairedText = repair.response.text();
           const repaired = sanitizeJsonArrayString(repairedText);
           packs = JSON.parse(repaired);
+          const tRepairEnd = Date.now();
+          timing.repair = tRepairEnd - tRepairStart;
         } catch (e2) {
-          return await localFallbackPacks();
+          const tFallbackStart = Date.now();
+          const fallbackPacks = await localFallbackPacks();
+          const tFallbackEnd = Date.now();
+          timing.fallback = tFallbackEnd - tFallbackStart;
+          console.log('[Backend Gemini] Timing (ms):', timing);
+          return fallbackPacks;
         }
       }
+      const tParseEnd = Date.now();
+      if (!timing.repair) {
+        timing.repair = tParseEnd - tParseStart;
+      }
+      console.log('[Backend Gemini] Timing (ms):', timing);
+
       // Validate and filter packs
       const validPacks = packs
         .filter((p, idx) => {
