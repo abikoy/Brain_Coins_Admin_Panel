@@ -435,14 +435,38 @@ class AnalyticsController {
         interval = 'monthly',
         amount,
         currency = 'LKR',
-        product_id
+        product_id,
+        payment_provider = 'manual'
       } = req.body;
 
       console.log('💰 Creating manual subscription for student:', id, {
         plan_type, interval, amount, currency, product_id
       });
 
-      // Calculate ends_at date based on interval
+      // Generate a unique payment reference
+      const payment_reference = `manual_${Date.now()}`;
+
+      // 1. Create a payment record
+      const { data: payment, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          user_id: id,
+          product_id: product_id || `manual_${plan_type}_${interval}`,
+          amount: amount,
+          currency: currency,
+          plan_type: plan_type,
+          interval: interval,
+          payment_reference: payment_reference,
+          payment_provider: payment_provider,
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (paymentError) throw paymentError;
+
+      // 2. Create a subscription record, which will trigger profile update
       const endsAt = new Date();
       if (interval === 'monthly') {
         endsAt.setMonth(endsAt.getMonth() + 1);
@@ -450,29 +474,28 @@ class AnalyticsController {
         endsAt.setFullYear(endsAt.getFullYear() + 1);
       }
 
-      // Note: The profile will be automatically updated by the trigger
-      // trigger_update_profile_premium after insert on subscription_plan
-
-      // Create subscription record with new schema
       const { data: subscription, error: subscriptionError } = await supabase
         .from('subscription_plan')
         .insert({
           user_id: id,
           product_id: product_id || `manual_${plan_type}_${interval}`,
-          payment_intent_id: `manual_${Date.now()}`,
+          payment_intent_id: payment_reference, // Use the same reference
           amount: amount,
           currency: currency,
           plan_type: plan_type,
           interval: interval,
           ends_at: endsAt.toISOString(),
-          paid_at: new Date().toISOString()
+          paid_at: new Date().toISOString(),
+          payment_reference: payment_reference,
+          payment_provider: payment_provider,
+          is_active: true
         })
         .select()
         .single();
 
       if (subscriptionError) throw subscriptionError;
 
-      // Get updated profile to return
+      // 3. Get updated profile to return
       const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -485,7 +508,8 @@ class AnalyticsController {
         success: true,
         data: {
           profile: updatedProfile,
-          subscription: subscription
+          subscription: subscription,
+          payment: payment
         },
         message: `Premium ${plan_type} ${interval} subscription created successfully`
       });
@@ -494,7 +518,8 @@ class AnalyticsController {
       console.error('❌ Create manual subscription error:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to create manual subscription'
+        error: 'Failed to create manual subscription',
+        details: error.message
       });
     }
   }

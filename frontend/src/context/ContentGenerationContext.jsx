@@ -13,8 +13,9 @@ export const useContentGeneration = () => {
 export const ContentGenerationProvider = ({ children }) => {
   // File upload state
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedFileUrl, setUploadedFileUrl] = useState('');
-  const [uploadedFileType, setUploadedFileType] = useState('');
+  const [uploadedFileUrl, setUploadedFileUrl] = useState(() => localStorage.getItem('uploadedFileUrl') || '');
+  const [uploadedFileType, setUploadedFileType] = useState(() => localStorage.getItem('uploadedFileType') || '');
+  const [uploadedFileName, setUploadedFileName] = useState(() => localStorage.getItem('uploadedFileName') || '');
   
   // Learning packs state
   const [suggestedPacks, setSuggestedPacks] = useState(() => {
@@ -51,6 +52,33 @@ export const ContentGenerationProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('selectedPackIndices', JSON.stringify(selectedPackIndices));
   }, [selectedPackIndices]);
+
+  // Update localStorage when uploaded file info changes
+  useEffect(() => {
+    if (uploadedFileUrl) {
+      localStorage.setItem('uploadedFileUrl', uploadedFileUrl);
+    } else {
+      localStorage.removeItem('uploadedFileUrl');
+    }
+  }, [uploadedFileUrl]);
+
+  useEffect(() => {
+    if (uploadedFileType) {
+      localStorage.setItem('uploadedFileType', uploadedFileType);
+    } else {
+      localStorage.removeItem('uploadedFileType');
+    }
+  }, [uploadedFileType]);
+
+  useEffect(() => {
+    if (uploadedFile?.name) {
+      localStorage.setItem('uploadedFileName', uploadedFile.name);
+      setUploadedFileName(uploadedFile.name);
+    } else if (!uploadedFileUrl) { // Clear name if URL is also cleared
+      localStorage.removeItem('uploadedFileName');
+      setUploadedFileName('');
+    }
+  }, [uploadedFile, uploadedFileUrl]);
   
   // Question generation state
   const [preview, setPreview] = useState(null);
@@ -84,6 +112,7 @@ export const ContentGenerationProvider = ({ children }) => {
     setUploadedFile(null);
     setUploadedFileUrl('');
     setUploadedFileType('');
+    setUploadedFileName('');
     setSuggestedPacks([]);
     setSelectedPackIndex(null);
     setSelectedPackIndices([]);
@@ -100,6 +129,9 @@ export const ContentGenerationProvider = ({ children }) => {
     localStorage.removeItem('selectedPackIndex');
     localStorage.removeItem('selectedPackIndices');
     localStorage.removeItem('suggestedPacks');
+    localStorage.removeItem('uploadedFileUrl');
+    localStorage.removeItem('uploadedFileType');
+    localStorage.removeItem('uploadedFileName');
   };
 
   // Reset only generation state (keep file and packs)
@@ -120,6 +152,8 @@ export const ContentGenerationProvider = ({ children }) => {
       setUploadedFileUrl,
       uploadedFileType,
       setUploadedFileType,
+      uploadedFileName,
+      setUploadedFileName,
       
       // Learning packs
       suggestedPacks,

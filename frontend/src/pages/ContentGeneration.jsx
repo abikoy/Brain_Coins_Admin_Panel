@@ -35,6 +35,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     setUploadedFileUrl,
     uploadedFileType,
     setUploadedFileType,
+    uploadedFileName, // Get the persisted file name
+    setUploadedFileName,
     suggestedPacks,
     setSuggestedPacks,
     selectedPackIndex,
@@ -308,12 +310,18 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   // Handle file upload completion
   const handleUploadComplete = (uploadData) => {
     console.log(uploadData);
+    // Set the full file object, including the raw file for immediate use
     setUploadedFile({
       fileUrl: uploadData.fileUrl,
       fileType: uploadData.fileType,
       name: uploadData.name || uploadData.fileUrl.split('/').pop(),
       file: uploadData.file
     });
+    // Also update the context states that get persisted to localStorage
+    setUploadedFileUrl(uploadData.fileUrl);
+    setUploadedFileType(uploadData.fileType);
+    setUploadedFileName(uploadData.name || uploadData.fileUrl.split('/').pop());
+
     setSuggestedPacks([]);
     setShowUploadForm(false);
     setAnalysisError('');
@@ -321,7 +329,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // Generate learning packs from uploaded file (Supabase URL)
   const handleGenerateLearningPacks = async () => {
-    if (!uploadedFile) {
+    const fileUrlToUse = uploadedFile?.fileUrl || uploadedFileUrl;
+    if (!fileUrlToUse) {
       setAnalysisError('Please upload a file first');
       return;
     }
@@ -329,10 +338,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     try {
       setIsGeneratingPacks(true);
       setAnalysisError('');
-      console.log("File URL" + uploadedFile.fileUrl);
-      // uploadedFile.fileUrl should now be the Supabase public URL
-      const analysisResponse = await analyzeDocument(uploadedFile.fileUrl);
-      console.log(uploadedFile.fileUrl);
+      console.log("File URL: " + fileUrlToUse);
+      const analysisResponse = await analyzeDocument(fileUrlToUse);
       const packs = analysisResponse.data || [];
       setSuggestedPacks(packs);
 
@@ -439,8 +446,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // Preview generation (no DB writes)
   const handlePreview = async () => {
+    const fileUrlToUse = uploadedFile?.fileUrl || uploadedFileUrl;
+    const fileTypeToUse = uploadedFile?.fileType || uploadedFileType;
 
-    if (!uploadedFile) {
+    if (!fileUrlToUse) {
       setGenerationError('Please upload a file first');
       return;
     }
@@ -466,7 +475,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
     setGenerationError('');
 
     try {
-      const isValid = await validateContent(uploadedFile.fileUrl, uploadedFile.fileType);
+      const isValid = await validateContent(fileUrlToUse, fileTypeToUse);
 
       if (!isValid) {
         return;
@@ -499,7 +508,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         console.log(`[ContentGeneration] Generating preview for pack ${i + 1}/${selectedPacks.length}: ${pack.title}`);
 
         try {
-          const pv = await previewFromFile(uploadedFile.fileUrl, uploadedFile.fileType, {
+          const pv = await previewFromFile(fileUrlToUse, fileTypeToUse, {
             language: genLanguage,
             grade,
             subject,
@@ -735,7 +744,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // Generate questions from uploaded file using Gemini API (direct-save)
   const handleGenerateQuestions = async () => {
-    if (!uploadedFile) {
+    const fileUrlToUse = uploadedFile?.fileUrl || uploadedFileUrl;
+    if (!fileUrlToUse) {
       setGenerationError('Please upload a file first');
       return;
     }
@@ -771,9 +781,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       const packId = newPack.id;
 
       const { generateQuestionsFromFile } = await import('../api/questionService');
+      const fileTypeToUse = uploadedFile?.fileType || uploadedFileType;
       const { generatedQuestions, summary_bullets } = await generateQuestionsFromFile(
-        uploadedFile.url,
-        uploadedFile.type,
+        fileUrlToUse,
+        fileTypeToUse,
         {
           pack_id: packId,
           count: genCount,
@@ -1118,7 +1129,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       )}
 
       {/* Generate Learning Packs Button */}
-      {uploadedFile && suggestedPacks.length === 0 && !showUploadForm && (
+      {(uploadedFile || uploadedFileUrl) && suggestedPacks.length === 0 && !showUploadForm && (
         <div className="mb-6 text-center">
           <Button
             onClick={handleGenerateLearningPacks}
@@ -1556,7 +1567,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 <div className="flex items-center justify-center gap-2">
                   <Button
                     onClick={handlePreview}
-                    disabled={isGenerating || !uploadedFile || selectedPackIndices.length === 0}
+                    disabled={isGenerating || !uploadedFileUrl || selectedPackIndices.length === 0}
                     variant="outline"
                     title={selectedPackIndices.length === 0 ? 'Select at least one learning pack first' : `Generate questions for ${selectedPackIndices.length} selected pack${selectedPackIndices.length > 1 ? 's' : ''}`}
                   >
