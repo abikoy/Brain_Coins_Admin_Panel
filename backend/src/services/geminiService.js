@@ -1680,7 +1680,7 @@ Constraints:
 - All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use ONLY proper Unicode characters - NO Latin characters allowed!' : ''}
 - Difficulty: ${difficulty}
 - Bloom level: ${bloom_level}
-- Allowed types: MCQ, FIIB, TF, HOQ (ignore any other types)
+- ⚠️ CRITICAL: Generate ONLY these question types: ${types.join(', ')} - NO OTHER TYPES ALLOWED! (ignore any other types)
 - Generate EXACTLY ${count} questions - no more, no less
 
 Question Format Requirements:
@@ -1810,8 +1810,27 @@ Example for FIIB:
       return false;
     };
 
+    // Log ALL generated questions before filtering
+    console.log(`[Backend Gemini] 📋 RAW TEXT-GENERATED QUESTIONS (${questions.length} total):`);
+    questions.forEach((q, index) => {
+      const qType = (q.type || 'MCQ').toUpperCase();
+      const qText = String(q.question || `Question ${index + 1}`).trim();
+      const qAnswer = String(q.answer || '').trim();
+      const qOptions = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
+      
+      console.log(`[Backend Gemini] Text Question ${index + 1} (${qType}):`, {
+        question: qText.substring(0, 100),
+        answer: qAnswer.substring(0, 50),
+        optionsCount: qOptions.length,
+        options: qOptions.slice(0, 3).map(o => o.substring(0, 30)),
+        fullQuestion: qText,
+        fullAnswer: qAnswer,
+        fullOptions: qOptions
+      });
+    });
+
     // Validate and fix FIIB questions to ensure they have options
-    const validatedQuestions = questions.map(q => {
+    const validatedQuestions = questions.map((q, index) => {
       // Check for garbage characters in Sinhala/Tamil
       if (language === 'Sinhala' || language === 'Tamil') {
         const fieldsToCheck = [q.question, q.answer, ...(q.options || [])];
@@ -2085,8 +2104,51 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       }
     }
 
+    // Filter questions to ONLY include requested types
+    const filteredQuestions = allQuestions.filter(q => {
+      const qType = q.type || q.question_type;
+      return types.includes(qType);
+    });
+
+    console.log(`[generateQuestionsFromFile] Type filtering: ${filteredQuestions.length}/${allQuestions.length} questions match requested types [${types.join(', ')}]`);
+
+    // If we don't have enough questions after filtering, generate more
+    if (filteredQuestions.length < count) {
+      const shortage = count - filteredQuestions.length;
+      console.log(`[generateQuestionsFromFile] Need ${shortage} more questions after filtering, generating additional questions...`);
+      
+      try {
+        const additionalQuestions = await generateQuestions(buffer.toString('utf-8').substring(0, 50000), {
+          count: Math.min(shortage * 2, 40), // Generate extra to account for potential filtering
+          difficulty,
+          types: types, // Only requested types
+          language,
+          bloom_level,
+          packTitle,
+          packDescription
+        });
+
+        console.log(`[generateQuestionsFromFile] Generated ${additionalQuestions?.length || 0} additional questions`);
+
+        if (additionalQuestions && additionalQuestions.length > 0) {
+          // Filter the additional questions too
+          const filteredAdditional = additionalQuestions.filter(q => {
+            const qType = q.type || q.question_type;
+            return types.includes(qType);
+          });
+
+          console.log(`[generateQuestionsFromFile] Additional filtering: ${filteredAdditional.length}/${additionalQuestions.length} questions match requested types`);
+          
+          // Add the filtered additional questions
+          filteredQuestions.push(...filteredAdditional);
+        }
+      } catch (additionalError) {
+        console.error(`[generateQuestionsFromFile] Failed to generate additional questions:`, additionalError.message);
+      }
+    }
+
     // Final validation and limiting
-    const finalQuestions = allQuestions.slice(0, count);
+    const finalQuestions = filteredQuestions.slice(0, count);
 
     // Ensure type distribution as close as possible to requested
     const distributedQuestions = distributeQuestionsByType(finalQuestions, typeCounts, count);
@@ -2286,9 +2348,8 @@ ${packScopePrompt}
 
 Constraints:
 - All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}
-- Difficulty: ${difficulty}
-- Bloom level: ${bloom_level}
-- Allowed types: MCQ, FIIB, TF, HOQ
+
+- ⚠️ CRITICAL: Generate ONLY these question types: ${types.join(', ')} - NO OTHER TYPES ALLOWED!
 
 Question Format Requirements:
 1. MCQ (Multiple Choice):
@@ -2393,6 +2454,25 @@ IMPORTANT: Respect the exact question type counts requested above!`;
       console.error('[Backend Gemini] JSON parse error:', parseError);
       throw new Error(`Failed to parse questions: ${parseError.message}`);
     }
+
+    // Log ALL generated Vision questions before filtering
+    console.log(`[Backend Gemini] 📋 RAW VISION-GENERATED QUESTIONS (${questions.length} total):`);
+    questions.forEach((q, index) => {
+      const qType = (q.type || q.question_type || 'MCQ').toUpperCase();
+      const qText = String(q.question || q.question_text || `Question ${index + 1}`).trim();
+      const qAnswer = String(q.answer || q.correct_answer || '').trim();
+      const qOptions = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
+
+      console.log(`[Backend Gemini] Vision Question ${index + 1} (${qType}):`, {
+        question: qText.substring(0, 100),
+        answer: qAnswer.substring(0, 50),
+        optionsCount: qOptions.length,
+        options: qOptions.slice(0, 3).map(o => o.substring(0, 30)),
+        fullQuestion: qText,
+        fullAnswer: qAnswer,
+        fullOptions: qOptions
+      });
+    });
 
     // Process and validate questions (don't slice yet - we need to account for rejections)
     const processedQuestions = questions.map((q, index) => {
