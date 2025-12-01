@@ -1831,6 +1831,31 @@ Example for FIIB:
 
     // Validate and fix FIIB questions to ensure they have options
     const validatedQuestions = questions.map((q, index) => {
+      // Debug log to show field mapping for text generation
+      console.log(`[Backend Gemini] 🔍 TEXT Field mapping for Question ${index + 1}:`, {
+        originalFields: Object.keys(q),
+        typeField: { type: q.type, question_type: q.question_type },
+        questionField: { question: q.question, question_text: q.question_text },
+        answerField: { answer: q.answer, correct_answer: q.correct_answer },
+        finalValues: {
+          type: q.type || 'MCQ',
+          question: (q.question || q.question_text || 'No question').substring(0, 50),
+          answer: (q.answer || q.correct_answer || 'EMPTY').substring(0, 30)
+        }
+      });
+
+      // 🚨 CRITICAL: Check for empty answer field
+      if (!q.answer && !q.correct_answer || (q.answer || q.correct_answer).trim() === '') {
+        console.error(`[Backend] ❌ TEXT QUESTION REJECTED - EMPTY ANSWER:`, {
+          questionIndex: index + 1,
+          type: q.type || 'Unknown',
+          question: q.question?.substring(0, 100) || 'No question',
+          answer: q.answer || 'EMPTY',
+          correct_answer: q.correct_answer || 'EMPTY',
+          options: (q.options || []).slice(0, 2)
+        });
+        return null;
+      }
       // Check for garbage characters in Sinhala/Tamil
       if (language === 'Sinhala' || language === 'Tamil') {
         const fieldsToCheck = [q.question, q.answer, ...(q.options || [])];
