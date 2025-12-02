@@ -219,7 +219,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const [questionConfig, setQuestionConfig] = useState({
     MCQ: { count: 20, difficulty: 'Medium', enabled: true },
     FIIB: { count: 15, difficulty: 'Medium', enabled: false },
-    TF: { count:10, difficulty: 'Easy', enabled: false },
+    TF: { count: 10, difficulty: 'Easy', enabled: false },
     HOQ: { count: 3, difficulty: 'Hard', enabled: false }
   });
 
@@ -521,6 +521,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           });
 
           if (pv.questions && pv.questions.length > 0) {
+            console.log("Question length" + pv.questions.length);
             packResults.push({
               packIndex: packIndex,
               packTitle: pack.title,

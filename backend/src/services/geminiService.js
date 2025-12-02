@@ -2351,12 +2351,10 @@ TASK:
 Generate questions strictly from the provided document/image content.
 ${packScopePrompt}
 
+${typeRequirements}
+
 ⚠️ IMPORTANT: Generate EXACTLY the requested number of questions. Do NOT generate extra.
 ⚠️ ALL questions must be clean and valid - garbage questions will be rejected!
-
-🚨 CRITICAL CONTENT RULES - VIOLATION WILL RESULT IN REJECTION:
-- NEVER mention figure numbers, page numbers, or textbook names in questions or summaries
-- NEVER reference "Figure 1.2", "Page 45", "Chapter 3", or book titles
 - NEVER include grade levels in question text
 - NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"
 - NEVER refer to "the document", "the content", "the text", "the image", "the file", or "the uploaded material"
