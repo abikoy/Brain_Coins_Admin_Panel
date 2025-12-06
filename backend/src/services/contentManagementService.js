@@ -210,7 +210,7 @@ class ContentManagementService {
           *,
           subjects(name, name_si, name_ta, color, icon)
         `, { count: 'exact' })
-        .order('display_order', { ascending: true });
+        .order('updated_at', { ascending: false });
 
       if (filters.search) {
         query = query.or(`title.ilike.%${filters.search}%,title_si.ilike.%${filters.search}%,title_ta.ilike.%${filters.search}%`);
