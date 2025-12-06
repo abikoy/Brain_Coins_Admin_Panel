@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ToggleLeft, ToggleRight, Package, Crown, Edit, Trash2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ToggleLeft, ToggleRight, Package, Crown, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 const LearningPacksTable = ({ 
   learningPacks, 
@@ -11,6 +11,7 @@ const LearningPacksTable = ({
   onDeletePack 
 }) => {
   const [selectedPacks, setSelectedPacks] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: 'updated_at', direction: 'desc' });
 
   if (!learningPacks.length) {
     return (
@@ -37,6 +38,61 @@ const LearningPacksTable = ({
     );
   };
 
+  const handleSort = (key) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const sortedLearningPacks = useMemo(() => {
+    const sortablePacks = [...learningPacks];
+    sortablePacks.sort((a, b) => {
+      let aValue, bValue;
+      
+      // Handle nested object sorting
+      if (sortConfig.key === 'subjects.name') {
+        aValue = a.subjects?.name || '';
+        bValue = b.subjects?.name || '';
+      } else {
+        aValue = a[sortConfig.key];
+        bValue = b[sortConfig.key];
+      }
+      
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+      
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+    return sortablePacks;
+  }, [learningPacks, sortConfig]);
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Never';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="h-4 w-4 text-blue-600" />
+      : <ArrowDown className="h-4 w-4 text-blue-600" />;
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -50,16 +106,49 @@ const LearningPacksTable = ({
                 className="rounded border-gray-300"
               />
             </th>
-            <th className="text-left py-3 px-4 font-medium text-gray-600">Learning Pack</th>
-            <th className="text-left py-3 px-4 font-medium text-gray-600">Subject</th>
-            <th className="text-left py-3 px-4 font-medium text-gray-600">Grade</th>
+            <th 
+              className="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer hover:bg-gray-50"
+              onClick={() => handleSort('title')}
+            >
+              <div className="flex items-center gap-1">
+                Learning Pack
+                {getSortIcon('title')}
+              </div>
+            </th>
+            <th 
+              className="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer hover:bg-gray-50"
+              onClick={() => handleSort('subjects.name')}
+            >
+              <div className="flex items-center gap-1">
+                Subject
+                {getSortIcon('subjects.name')}
+              </div>
+            </th>
+            <th 
+              className="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer hover:bg-gray-50"
+              onClick={() => handleSort('grade')}
+            >
+              <div className="flex items-center gap-1">
+                Grade
+                {getSortIcon('grade')}
+              </div>
+            </th>
+            <th 
+              className="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer hover:bg-gray-50"
+              onClick={() => handleSort('updated_at')}
+            >
+              <div className="flex items-center gap-1">
+                Updated
+                {getSortIcon('updated_at')}
+              </div>
+            </th>
             <th className="text-left py-3 px-4 font-medium text-gray-600">Status</th>
             <th className="text-left py-3 px-4 font-medium text-gray-600">Premium</th>
             <th className="text-left py-3 px-4 font-medium text-gray-600">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {learningPacks.map((pack) => (
+          {sortedLearningPacks.map((pack) => (
             <tr key={pack.id} className="border-b border-gray-100 hover:bg-gray-50">
               <td className="py-3 px-4">
                 <input
@@ -82,6 +171,9 @@ const LearningPacksTable = ({
               </td>
               <td className="py-3 px-4">
                 <span className="text-sm text-gray-600">{pack.grade || 'Not set'}</span>
+              </td>
+              <td className="py-3 px-4">
+                <span className="text-sm text-gray-600">{formatDate(pack.updated_at)}</span>
               </td>
               <td className="py-3 px-4">
                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${

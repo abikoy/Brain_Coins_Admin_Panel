@@ -79,12 +79,13 @@ const ContentManagement = ({ onNavigate }) => {
             }
 
             // Add other filters if they exist
-            if (currentFilters.grade && currentFilters.grade !== 'All Grades') {
-                filters.grade = currentFilters.grade;
-            }
-
             if (currentFilters.subject_id && currentFilters.subject_id !== 'All Subjects') {
                 filters.subject_id = currentFilters.subject_id;
+            }
+
+            // Add grade filter if specified
+            if (currentFilters.grade && currentFilters.grade !== 'All Grades') {
+                filters.grade = currentFilters.grade;
             }
 
             // For questions, also include pack_id if selected
@@ -93,11 +94,10 @@ const ContentManagement = ({ onNavigate }) => {
                 questionFilters.pack_id = currentFilters.pack_id;
             }
 
-            // Add pagination for all tables
+            // Subjects table always shows ALL subjects without filtering
             const subjectsFilters = {
-                ...filters,
                 page: paginationOptions.subjectsPage || pagination.subjects.currentPage,
-                limit: 10 // 10 items per page
+                limit: 14 // 14 items per page
             };
 
             const packsFilters = {
@@ -122,7 +122,12 @@ const ContentManagement = ({ onNavigate }) => {
                 contentManagementService.getQuestions(questionsFilters)
             ]);
 
-
+            // Debug logging to check what backend returns
+            console.log('Questions Result Debug:', {
+                total: questionsResult.total,
+                overallStats: questionsResult.overallStats,
+                questionsLength: questionsResult.questions?.length
+            });
 
             setSubjects(subjectsResult.subjects || []);
             setLearningPacks(packsResult.learningPacks || []);
@@ -173,10 +178,10 @@ const ContentManagement = ({ onNavigate }) => {
                 premium: filteredPacks?.filter(p => p.is_premium)?.length || 0
             };
 
-            const questionsStats = questionsResult.overallStats || {
+            const questionsStats = {
                 total: questionsResult.total || 0,
-                active: filteredQuestions?.filter(q => q.is_active)?.length || 0,
-                inactive: 0
+                active: questionsResult.overallStats?.active || filteredQuestions?.filter(q => q.is_active)?.length || 0,
+                inactive: questionsResult.overallStats?.inactive || 0
             };
 
             setStats({

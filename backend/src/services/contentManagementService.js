@@ -338,7 +338,9 @@ class ContentManagementService {
       }
 
       if (filters.grade) {
-        packsQuery = packsQuery.eq('grade', filters.grade);
+        // Database stores grades as "Grade 11", "Grade 10", etc.
+        const gradeFormatted = `Grade ${filters.grade}`;
+        packsQuery = packsQuery.eq('grade', gradeFormatted);
       }
 
       if (filters.subject_id) {
@@ -359,32 +361,8 @@ class ContentManagementService {
       // Show ALL possible grades (6-11), not just grades with learning packs
       const grades = [6, 7, 8, 9, 10, 11];
       
-      // Use ALL subjects, not just those with learning packs
+      // Use ALL active subjects - NEVER filter subjects by language for dropdown
       let subjects = allSubjects;
-
-      // Apply language filtering to subjects if specified
-      if (filters.language) {
-        const langCode = filters.language === 'English' ? 'en' : 
-                        filters.language === 'Sinhala' ? 'si' : 
-                        filters.language === 'Tamil' ? 'ta' : filters.language;
-        
-        subjects = subjects.filter(subject => {
-          if (!subject) return false;
-          
-          // Check if subject has content in the requested language
-          if (langCode === 'en') {
-            // For English, check if name exists and is primarily English
-            return subject.name && detectLanguageFromText(subject.name) === 'English';
-          } else if (langCode === 'si') {
-            // For Sinhala, check if name_si exists and has Sinhala content
-            return subject.name_si && detectLanguageFromText(subject.name_si) === 'Sinhala';
-          } else if (langCode === 'ta') {
-            // For Tamil, check if name_ta exists and has Tamil content
-            return subject.name_ta && detectLanguageFromText(subject.name_ta) === 'Tamil';
-          }
-          return false;
-        });
-      }
 
       const learningPacks = packs.map(p => ({
         id: p.id,

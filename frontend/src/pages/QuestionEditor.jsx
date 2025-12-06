@@ -278,13 +278,31 @@ const QuestionEditor = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
               <select
                 value={filters.subject}
-                onChange={(e) => setFilters({ ...filters, subject: e.target.value })}
+                onChange={(e) => setFilters({ ...filters, subject: e.target.value, pack: '' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Subjects</option>
                 {subjects.map(subject => (
                   <option key={subject.id} value={subject.id}>{subject.name}</option>
                 ))}
+              </select>
+            </div>
+
+            {/* Learning Pack */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Learning Pack</label>
+              <select
+                value={filters.pack}
+                onChange={(e) => setFilters({ ...filters, pack: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={!filters.subject && learningPacks.length === 0}
+              >
+                <option value="">All Learning Packs</option>
+                {learningPacks
+                  .filter(pack => !filters.subject || pack.subject_id === filters.subject)
+                  .map(pack => (
+                    <option key={pack.id} value={pack.id}>{pack.title}</option>
+                  ))}
               </select>
             </div>
 
