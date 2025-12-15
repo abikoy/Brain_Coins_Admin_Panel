@@ -74,6 +74,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
   const [generatedCount, setGeneratedCount] = useState(0);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
+  const [generateSinglePack, setGenerateSinglePack] = useState(false);
   const [newQuestion, setNewQuestion] = useState({
     type: 'MCQ',
     difficulty: 'Easy',
@@ -340,7 +341,26 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       setAnalysisError('');
       console.log("File URL: " + fileUrlToUse);
       const analysisResponse = await analyzeDocument(fileUrlToUse);
-      const packs = analysisResponse.data || [];
+      let packs = analysisResponse.data || [];
+
+      // If single pack mode is enabled, create one pack from all chapters
+      if (generateSinglePack && packs.length > 1) {
+        const combinedPack = {
+          title: packs[0].title || 'Learning Pack',
+          content: packs.map(pack => pack.content || pack.description || '').join('\n\n'),
+          description: packs.map(pack => pack.description || '').join(' '),
+          chapters: packs.length,
+          language: packs[0].language,
+          grade: packs[0].grade,
+          subject: packs[0].subject,
+          topics: packs.flatMap(pack => pack.topics || []),
+          difficulty: packs[0].difficulty || 'Medium',
+          duration: packs.reduce((total, pack) => total + (pack.duration || 10), 0)
+        };
+        packs = [combinedPack];
+        console.log('[Frontend] Single pack mode: Combined', packs.length, 'chapters into 1 pack');
+      }
+
       setSuggestedPacks(packs);
 
       // Auto-detect and normalize language in both local and context state
@@ -1132,6 +1152,21 @@ const ContentGeneration = ({ questions, setQuestions }) => {
       {/* Generate Learning Packs Button */}
       {(uploadedFile || uploadedFileUrl) && suggestedPacks.length === 0 && !showUploadForm && (
         <div className="mb-6 text-center">
+          {/* Single Pack Toggle */}
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={generateSinglePack}
+                onChange={(e) => setGenerateSinglePack(e.target.checked)}
+                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Generate single learning pack from entire PDF (instead of splitting by chapters)
+              </span>
+            </label>
+          </div>
+
           <Button
             onClick={handleGenerateLearningPacks}
             disabled={isGeneratingPacks}
@@ -1140,12 +1175,12 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             {isGeneratingPacks ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Generating Learning Packs...
+                {generateSinglePack ? 'Generating Single Pack...' : 'Generating Learning Packs...'}
               </>
             ) : (
               <>
                 <Sparkles className="h-4 w-4 mr-2" />
-                Generate Learning Packs
+                {generateSinglePack ? 'Generate Single Pack' : 'Generate Learning Packs'}
               </>
             )}
           </Button>
