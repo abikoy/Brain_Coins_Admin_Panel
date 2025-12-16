@@ -179,9 +179,9 @@ const ContentManagement = ({ onNavigate }) => {
             };
 
             const questionsStats = {
-                total: questionsResult.overallStats?.total || questionsResult.total || 0,
+                total: questionsResult.total || filteredQuestions?.length || 0,
                 active: questionsResult.overallStats?.active || filteredQuestions?.filter(q => q.is_active)?.length || 0,
-                inactive: questionsResult.overallStats?.inactive || 0
+                inactive: questionsResult.overallStats?.inactive || filteredQuestions?.filter(q => !q.is_active)?.length || 0
             };
 
             setStats({

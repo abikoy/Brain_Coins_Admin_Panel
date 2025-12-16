@@ -495,15 +495,7 @@ class ContentManagementService {
 
       if (sectionsError) throw sectionsError;
 
-      // 2) Delete all user learning progress records for this pack
-      const { error: progressError } = await this.supabase
-        .from('user_learning_progress')
-        .delete()
-        .eq('pack_id', id);
-
-      if (progressError) throw progressError;
-
-      // 3) Delete all questions belonging to this pack
+      // 2) Delete all questions belonging to this pack
       const { error: questionsError } = await this.supabase
         .from('questions')
         .delete()
@@ -511,7 +503,7 @@ class ContentManagementService {
 
       if (questionsError) throw questionsError;
 
-      // 4) Now safely delete the learning pack itself
+      // 3) Now safely delete the learning pack itself
       const { data: pack, error: packError } = await this.supabase
         .from('learning_packs')
         .delete()
@@ -625,20 +617,45 @@ class ContentManagementService {
       // Language filtering is now handled at the pack level in the packIds filter above
       let filteredQuestions = questions || [];
 
-      // Get overall statistics for ALL questions (not just current page or filtered results)
+      // Get statistics for FILTERED questions (not just current page)
+      // We need to apply the same filters as the main query but without pagination
       let statsQuery = this.supabase
         .from('questions')
         .select('is_active');
-      
-      // DON'T apply any filters to stats query - we want to count ALL questions in database
 
-      const { data: allQuestionsStats, error: statsError } = await statsQuery;
+      // Apply the same filters as the main query
+      if (filters.search) {
+        statsQuery = statsQuery.or(`question_text.ilike.%${filters.search}%,question_text_si.ilike.%${filters.search}%,question_text_ta.ilike.%${filters.search}%`);
+      }
+
+      if (filters.pack_id) {
+        statsQuery = statsQuery.eq('pack_id', filters.pack_id);
+      }
+
+      // Filter by pack IDs if we found matching packs
+      if (packIds) {
+        statsQuery = statsQuery.in('pack_id', packIds);
+      }
+
+      if (filters.question_type) {
+        statsQuery = statsQuery.eq('question_type', filters.question_type);
+      }
+
+      if (filters.difficulty) {
+        statsQuery = statsQuery.eq('difficulty', filters.difficulty);
+      }
+
+      if (filters.is_active !== undefined) {
+        statsQuery = statsQuery.eq('is_active', filters.is_active);
+      }
+
+      const { data: filteredQuestionsStats, error: statsError } = await statsQuery;
       if (statsError) {
         console.error('Questions stats query error:', statsError);
       }
       
-      const activeCount = allQuestionsStats?.filter(q => q.is_active === true)?.length || 0;
-      const totalCount = allQuestionsStats?.length || 0;
+      const activeCount = filteredQuestionsStats?.filter(q => q.is_active === true)?.length || 0;
+      const totalCount = filteredQuestionsStats?.length || 0;
       const inactiveCount = totalCount - activeCount;
 
       return {
