@@ -295,11 +295,30 @@ const QuestionEditor = () => {
                 value={filters.pack}
                 onChange={(e) => setFilters({ ...filters, pack: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={!filters.subject && learningPacks.length === 0}
+                disabled={!filters.subject && !filters.grade && !filters.language && learningPacks.length === 0}
               >
                 <option value="">All Learning Packs</option>
                 {learningPacks
-                  .filter(pack => !filters.subject || pack.subject_id === filters.subject)
+                  .filter(pack => {
+                    // Filter by subject
+                    if (filters.subject && pack.subject_id !== filters.subject) {
+                      return false;
+                    }
+                    // Filter by grade
+                    if (filters.grade && !pack.grade.includes(`Grade ${filters.grade}`)) {
+                      return false;
+                    }
+                    // Filter by language
+                    if (filters.language) {
+                      const packLanguage = pack.language === 'en' ? 'English' : 
+                                         pack.language === 'si' ? 'Sinhala' : 
+                                         pack.language === 'ta' ? 'Tamil' : pack.language;
+                      if (packLanguage !== filters.language) {
+                        return false;
+                      }
+                    }
+                    return true;
+                  })
                   .map(pack => (
                     <option key={pack.id} value={pack.id}>{pack.title}</option>
                   ))}
