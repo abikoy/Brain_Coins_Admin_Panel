@@ -174,16 +174,16 @@ const ContentManagement = ({ onNavigate }) => {
             const packsStats = packsResult.overallStats || {
                 total: packsResult.total || 0,
                 active: filteredPacks?.filter(p => p.is_active)?.length || 0,
-                inactive: 0,
+                inactive: filteredPacks?.filter(p => !p.is_active)?.length || 0,
                 premium: filteredPacks?.filter(p => p.is_premium)?.length || 0
             };
 
             const questionsStats = {
-                total: questionsResult.overallStats?.total || questionsResult.total || 0,
-                active: questionsResult.overallStats?.active || filteredQuestions?.filter(q => q.is_active)?.length || 0,
-                inactive: questionsResult.overallStats?.inactive || 0
+                total: questionsResult.total || filteredQuestions?.length || 0,
+                active: filteredQuestions?.filter(q => q.is_active)?.length || 0,
+                inactive: filteredQuestions?.filter(q => !q.is_active)?.length || 0
             };
-
+            console.log("Question statistics"+questionsStats);
             setStats({
                 totalSubjects: subjectsStats.total,
                 activeSubjects: subjectsStats.active,
@@ -197,6 +197,7 @@ const ContentManagement = ({ onNavigate }) => {
                 inactiveQuestions: questionsStats.inactive
             });
 
+            
         } catch (error) {
             console.error('Error fetching content data:', error);
         } finally {
