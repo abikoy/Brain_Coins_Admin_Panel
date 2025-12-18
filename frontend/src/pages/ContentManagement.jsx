@@ -97,7 +97,7 @@ const ContentManagement = ({ onNavigate }) => {
             // Subjects table always shows ALL subjects without filtering
             const subjectsFilters = {
                 page: paginationOptions.subjectsPage || pagination.subjects.currentPage,
-                limit: 30 // 14 items per page
+                limit: 14 // 14 items per page
             };
 
             const packsFilters = {
@@ -179,9 +179,9 @@ const ContentManagement = ({ onNavigate }) => {
             };
 
             const questionsStats = {
-                total: questionsResult.total || filteredQuestions?.length || 0,
+                total: questionsResult.overallStats?.total || questionsResult.total || 0,
                 active: questionsResult.overallStats?.active || filteredQuestions?.filter(q => q.is_active)?.length || 0,
-                inactive: questionsResult.overallStats?.inactive || filteredQuestions?.filter(q => !q.is_active)?.length || 0
+                inactive: questionsResult.overallStats?.inactive || 0
             };
 
             setStats({

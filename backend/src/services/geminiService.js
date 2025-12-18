@@ -130,7 +130,7 @@ async function extractTextFromFile(base64Data, mimeType) {
     }
 
     // For images, use Gemini Vision to extract text
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     const result = await model.generateContent({
       contents: [{
         parts: [
@@ -263,7 +263,7 @@ export const generateLearningPacksFromBase64 = async (base64Data, mimeType) => {
     let textForChapters = '';
     let forceVisionAPI = false;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     // Pre-check for Sinhala/Tamil content in PDFs - use Vision API if detected
     const tPreStart = Date.now();
@@ -1054,7 +1054,7 @@ const GRADE_RANGE = {
  */
 export const generateSummaryFromText = async (text, language = 'English', packTitle = '', packDescription = '') => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const scopePrompt = packTitle ? `
 🚨 SUMMARY SCOPE - CRITICAL INSTRUCTIONS:
@@ -1124,7 +1124,7 @@ export const generateLearningPackFromBase64 = async (base64Data, mimeType, userP
 
     if (isPdf || isImage) {
       // Use Vision with inlineData
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
       const imagePart = { inlineData: { data: base64Data, mimeType } };
       contents = [{ role: 'user', parts: [{ text: prompt }, imagePart] }];
 
@@ -1159,7 +1159,7 @@ export const generateLearningPackFromBase64 = async (base64Data, mimeType, userP
       throw new Error('No text could be extracted from the file');
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     const textPrompt = `${prompt}\n\nSOURCE TEXT (clean Unicode):\n${extractedText.substring(0, 120000)}`; // safety cap
     const result = await withRetry(() => model.generateContent(textPrompt), { maxAttempts: 4, baseDelay: 1500 });
     const text = result.response.text();
@@ -1175,7 +1175,7 @@ export const generateLearningPackFromBase64 = async (base64Data, mimeType, userP
  */
 export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English', packTitle = '', packDescription = '') => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     // Add debug logging for pack context
     console.log('[generateSummaryFromVision] DEBUG - Pack Context:', {
@@ -1264,7 +1264,7 @@ export const generateStructuredMaterialFromFile = async (fileUrl, fileType) => {
     const base64Data = buffer.toString('base64');
     const mimeType = getMimeType(fileType, fileUrl);
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const schema = {
       type: 'OBJECT',
@@ -1416,7 +1416,7 @@ export const extractContentMetadata = async (base64Data, mimeType) => {
     };
 
     // 1. Initialize model
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const prompt = `
 Analyze this educational document and extract the following metadata in JSON format.
@@ -1611,7 +1611,7 @@ export const generateQuestions = async (content, options = {}) => {
     } = options;
     console.log(' From generateQuestion packTitle:', packTitle);
     console.log(' From generateQuestions packDescription:', packDescription);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const prompt = `
 SYSTEM:
@@ -2290,7 +2290,7 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
   console.log('packTitle:', packTitle);
   console.log('packDescription:', packDescription);
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
   // Build type-specific count requirements
   let typeRequirements = '';
