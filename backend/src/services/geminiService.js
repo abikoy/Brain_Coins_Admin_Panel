@@ -1616,6 +1616,13 @@ export const generateQuestions = async (content, options = {}) => {
     const prompt = `
 SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey requested language; align to Bloom's level; ground strictly in provided context.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 SCHOOL TEXTBOOK MATH NOTATION (STRICT)
+- Do NOT use caret notation "^" anywhere. (Forbidden: a^m, (a^m)^n, a^(mn))
+- Use superscripts only: aᵐ, aⁿ, 2³, 5², 2¹²
+- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
+  Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
+- If you cannot follow this notation, regenerate the question.
 
 🚨 🚨 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA AND TAMIL 🚨 🚨 🚨
 ${language === 'Sinhala' || language === 'Tamil' ? `
@@ -2318,6 +2325,14 @@ ${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
 
   const prompt = `SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provided document/image and generate educational questions.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 SCHOOL TEXTBOOK MATH NOTATION (STRICT)
+- Do NOT use caret notation "^" anywhere. (Forbidden: a^m, (a^m)^n, a^(mn))
+- Use superscripts only: aᵐ, aⁿ, 2³, 5², 2¹²
+- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
+  Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
+- If you cannot follow this notation, regenerate the question.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA/TAMIL:
 ${language === 'Sinhala' || language === 'Tamil' ? `

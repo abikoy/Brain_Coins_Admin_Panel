@@ -540,7 +540,15 @@ const QuestionEditor = () => {
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-green-50 to-blue-50">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-gray-800">Edit Question</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-2xl font-bold text-gray-800">Edit Question</DialogTitle>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="rounded-full p-2 hover:bg-gray-100 transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
           </DialogHeader>
           
           {editingQuestion && (
