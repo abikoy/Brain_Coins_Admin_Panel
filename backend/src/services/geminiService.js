@@ -1624,6 +1624,16 @@ You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey reques
   Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
 - If you cannot follow this notation, regenerate the question.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 SCHOOL TEXTBOOK MATH NOTATION (STRICT)
+- Do NOT use caret notation "^" anywhere. (Forbidden: a^m, (a^m)^n, a^(mn))
+- Use superscripts only: aᵐ, aⁿ, 2³, 5², 2¹²
+- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
+  Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
+- If you cannot follow this notation, regenerate the question.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
 🚨 🚨 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA AND TAMIL 🚨 🚨 🚨
 ${language === 'Sinhala' || language === 'Tamil' ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2333,6 +2343,16 @@ You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provid
   Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
 - If you cannot follow this notation, regenerate the question.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 SCHOOL TEXTBOOK MATH NOTATION (STRICT)
+- Do NOT use caret notation "^" anywhere. (Forbidden: a^m, (a^m)^n, a^(mn))
+- Use superscripts only: aᵐ, aⁿ, 2³, 5², 2¹²
+- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
+  Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
+- If you cannot follow this notation, regenerate the question.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 
 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA/TAMIL:
 ${language === 'Sinhala' || language === 'Tamil' ? `
