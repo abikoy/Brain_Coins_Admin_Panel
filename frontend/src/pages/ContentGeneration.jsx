@@ -665,7 +665,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             description: packResult.packDescription || '',
             subject_id: subject,
             grade: safeGrade,
-            difficulty: 'Medium',
+            difficulty: normalizeDifficulty(packResult.difficulty),
             language: getLanguageCode(genLanguage || 'English'),
             is_active: true
           };
@@ -677,7 +677,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             questions: packResult.selectedQuestions,
             summary_bullets: packResult.summary_bullets,
             language: genLanguage,
-            difficulty: 'Intermediate',
+            difficulty: normalizeDifficulty(packResult.difficulty),
             bloom_level: genBloom
           });
 
