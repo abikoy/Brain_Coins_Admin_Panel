@@ -139,25 +139,6 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
     return 'English';
   };
-
-  // Helper function to normalize difficulty values
-  const normalizeDifficulty = (difficulty) => {
-    if (!difficulty) return 'Medium';
-    
-    const normalized = difficulty.toLowerCase().trim();
-    
-    // Map various difficulty terms to standard values
-    if (normalized.includes('easy') || normalized === 'simple' || normalized === 'basic') {
-      return 'Easy';
-    }
-    if (normalized.includes('hard') || normalized === 'difficult' || normalized === 'advanced' || normalized === 'challenging') {
-      return 'Hard';
-    }
-    
-    // Default to Medium for anything else (intermediate, medium, etc.)
-    return 'Medium';
-  };
-
   // helper function fro language context
   const formatPackTitle = (originalTitle, language, index) => {
     if (!originalTitle || typeof originalTitle !== 'string') {
@@ -550,7 +531,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             language: genLanguage,
             grade,
             subject,
-            difficulty: Object.values(typeDifficulties)[0] || 'Medium',
+            difficulty: 'Medium', // Default fallback
             bloom_level: genBloom,
             questionTypes: enabledQuestionTypes,
             typeDifficulties: typeDifficulties,
@@ -684,7 +665,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             description: packResult.packDescription || '',
             subject_id: subject,
             grade: safeGrade,
-            difficulty: normalizeDifficulty(packResult.difficulty),
+            difficulty: 'Medium',
             language: getLanguageCode(genLanguage || 'English'),
             is_active: true
           };
@@ -696,7 +677,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             questions: packResult.selectedQuestions,
             summary_bullets: packResult.summary_bullets,
             language: genLanguage,
-            difficulty: normalizeDifficulty(packResult.difficulty),
+            difficulty: 'Medium',
             bloom_level: genBloom
           });
 
