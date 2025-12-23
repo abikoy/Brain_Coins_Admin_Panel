@@ -139,6 +139,25 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
     return 'English';
   };
+
+  // Helper function to normalize difficulty values
+  const normalizeDifficulty = (difficulty) => {
+    if (!difficulty) return 'Medium';
+    
+    const normalized = difficulty.toLowerCase().trim();
+    
+    // Map various difficulty terms to standard values
+    if (normalized.includes('easy') || normalized === 'simple' || normalized === 'basic') {
+      return 'Easy';
+    }
+    if (normalized.includes('hard') || normalized === 'difficult' || normalized === 'advanced' || normalized === 'challenging') {
+      return 'Hard';
+    }
+    
+    // Default to Medium for anything else (intermediate, medium, etc.)
+    return 'Medium';
+  };
+
   // helper function fro language context
   const formatPackTitle = (originalTitle, language, index) => {
     if (!originalTitle || typeof originalTitle !== 'string') {
