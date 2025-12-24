@@ -218,10 +218,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
   // Question type configuration with default values (only MCQ, FIIB, TF, HOQ)
   const [questionConfig, setQuestionConfig] = useState({
-    MCQ: { count: 20, difficulty: 'Medium', enabled: true },
-    FIIB: { count: 15, difficulty: 'Medium', enabled: false },
-    TF: { count: 10, difficulty: 'Easy', enabled: false },
-    HOQ: { count: 3, difficulty: 'Hard', enabled: false }
+    MCQ: { count: 20, enabled: true },
+    FIIB: { count: 15, enabled: false },
+    TF: { count: 10, enabled: false },
+    HOQ: { count: 3, enabled: false }
   });
 
   // preview is now from context
@@ -508,14 +508,6 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           [type]: config.count
         }), {});
 
-      // Get difficulty for each type
-      const typeDifficulties = Object.entries(questionConfig)
-        .filter(([_, config]) => config.enabled && config.count > 0)
-        .reduce((acc, [type, config]) => ({
-          ...acc,
-          [type]: config.difficulty
-        }), {});
-
       // Generate questions for each pack separately
       const packResults = [];
       let totalQuestions = 0;
@@ -531,10 +523,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             language: genLanguage,
             grade,
             subject,
-            difficulty: 'Medium', // Default fallback
+            difficulty: 'Easy', // Default fallback
             bloom_level: genBloom,
             questionTypes: enabledQuestionTypes,
-            typeDifficulties: typeDifficulties,
             packTitle: pack.title,
             packDescription: pack.content || pack.description
           });
@@ -677,7 +668,6 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             questions: packResult.selectedQuestions,
             summary_bullets: packResult.summary_bullets,
             language: genLanguage,
-            difficulty: 'Medium',
             bloom_level: genBloom
           });
 
@@ -705,7 +695,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           description: selectedPack.content || selectedPack.description || '',
           subject_id: subject,
           grade: safeGrade,
-          difficulty: selectedPack.difficulty || 'Medium',
+          difficulty: selectedPack.difficulty || 'Easy',
           language: getLanguageCode(selectedPack.language || genLanguage || 'English'),
           is_active: true
         };
@@ -717,7 +707,6 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           questions: allChosenQuestions,
           summary_bullets: preview.summary_bullets,
           language: genLanguage,
-          difficulty: 'Intermediate',
           bloom_level: genBloom
         });
 
@@ -793,7 +782,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
         description: selectedPack.content || selectedPack.description,
         subject_id: subject,
         grade: `Grade ${parseInt(grade)}`,
-        difficulty: selectedPack.difficulty || 'Medium', // Use difficulty from pack (set by user via dropdown)
+        difficulty: selectedPack.difficulty || 'Easy', // Use difficulty from pack (set by user via dropdown)
         language: getLanguageCode(selectedPack.language || genLanguage || 'English'),
         is_active: true
       });
@@ -1311,7 +1300,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   <div className="mt-3" onClick={(e) => e.stopPropagation()}>
                     <label className="text-xs font-medium text-gray-600 block mb-1">Difficulty:</label>
                     <select
-                      value={pack.difficulty || 'Medium'}
+                      value={pack.difficulty || 'Easy'}
                       onChange={(e) => {
                         e.stopPropagation();
                         const newPacks = [...suggestedPacks];
@@ -1326,6 +1315,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     </select>
                   </div>
 
+                  
                   {cleanTopics.length > 0 && (
                     <div className="mt-2">
                       <h5 className="text-xs font-medium text-gray-500 mb-1">Topics:</h5>
@@ -1495,10 +1485,10 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
                   {/* Question Type Configuration */}
                   <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700">Question Types & Counts</label>
-                    <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 text-center">Question Types & Counts</label>
+                    <div className="space-y-3">
                       {Object.entries(questionConfig).map(([type, config]) => (
-                        <div key={type} className="flex items-center space-x-3">
+                        <div key={type} className="flex items-center justify-center space-x-4">
                           <input
                             type="checkbox"
                             id={`enable-${type}`}
@@ -1511,11 +1501,11 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                             }}
                             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                           />
-                          <label htmlFor={`enable-${type}`} className="text-sm text-gray-700 w-24">
+                          <label htmlFor={`enable-${type}`} className="text-sm text-gray-700 w-20 text-center">
                             {type}
                           </label>
 
-                          <div className="flex-1 flex items-center space-x-2">
+                          <div className="flex items-center justify-center space-x-2">
                             <input
                               type="number"
                               min="0"
@@ -1529,25 +1519,9 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                                 });
                               }}
                               disabled={!config.enabled}
-                              className="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                              className="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm text-center"
                             />
                             <span className="text-sm text-gray-500">questions</span>
-
-                            <select
-                              value={config.difficulty}
-                              onChange={(e) => {
-                                setQuestionConfig({
-                                  ...questionConfig,
-                                  [type]: { ...config, difficulty: e.target.value }
-                                });
-                              }}
-                              disabled={!config.enabled}
-                              className="ml-2 rounded-md border-gray-300 py-1 pl-2 pr-8 text-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500"
-                            >
-                              {difficulties.map(d => (
-                                <option key={d} value={d}>{d}</option>
-                              ))}
-                            </select>
                           </div>
                         </div>
                       ))}
@@ -1771,7 +1745,45 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                           />
                           <div className="flex-1">
                             <div className="flex items-start justify-between mb-2">
-                              <div className="text-xs text-gray-500">{q.type} · {q.difficulty || 'Intermediate'}</div>
+                              <div className="flex items-center gap-2">
+                                <div className="text-xs text-gray-500">{q.type}</div>
+                                <select
+                                  value={q.difficulty || 'Easy'}
+                                  onChange={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const newDifficulty = e.target.value;
+                                    // Update the question difficulty in preview
+                                    if (preview.packResults) {
+                                      // Multi-pack format
+                                      const updatedPackResults = preview.packResults.map(pack => {
+                                        if (pack.packIndex === packResult.packIndex) {
+                                          return {
+                                            ...pack,
+                                            questions: pack.questions.map((pq, pi) => 
+                                              pi === i ? { ...pq, difficulty: newDifficulty } : pq
+                                            )
+                                          };
+                                        }
+                                        return pack;
+                                      });
+                                      setPreview({ ...preview, packResults: updatedPackResults });
+                                    } else {
+                                      // Single pack format
+                                      const updatedQuestions = preview.questions.map((pq, pi) => 
+                                        pi === i ? { ...pq, difficulty: newDifficulty } : pq
+                                      );
+                                      setPreview({ ...preview, questions: updatedQuestions });
+                                    }
+                                  }}
+                                  className="text-xs px-2 py-1 border border-gray-300 rounded bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+                                  title="Change question difficulty"
+                                >
+                                  <option value="Easy">Easy</option>
+                                  <option value="Medium">Medium</option>
+                                  <option value="Hard">Hard</option>
+                                </select>
+                              </div>
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -1906,7 +1918,28 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                       />
                       <div className="flex-1">
                         <div className="flex items-start justify-between mb-2">
-                          <div className="text-xs text-gray-500">{q.type} · {q.difficulty || 'Intermediate'}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-xs text-gray-500">{q.type}</div>
+                            <select
+                              value={q.difficulty || 'Easy'}
+                              onChange={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const newDifficulty = e.target.value;
+                                // Update the question difficulty in preview
+                                const updatedQuestions = preview.questions.map((pq, pi) => 
+                                  pi === i ? { ...pq, difficulty: newDifficulty } : pq
+                                );
+                                setPreview({ ...preview, questions: updatedQuestions });
+                              }}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded bg-white hover:border-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+                              title="Change question difficulty"
+                            >
+                              <option value="Easy">Easy</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Hard">Hard</option>
+                            </select>
+                          </div>
                           <button
                             onClick={(e) => {
                               e.preventDefault();
@@ -2201,19 +2234,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700">Difficulty</label>
-                  <select
-                    value={editingQuestion.difficulty}
-                    onChange={(e) => setEditingQuestion({ ...editingQuestion, difficulty: e.target.value })}
-                    className="w-full rounded-lg border-2 border-gray-300 px-4 py-3 text-base focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                  >
-                    {['Easy', 'Intermediate', 'Hard'].map(diff => (
-                      <option key={diff} value={diff}>{diff}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                              </div>
 
               {/* Language Selection */}
               <div>
