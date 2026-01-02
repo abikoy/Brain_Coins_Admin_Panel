@@ -25,7 +25,7 @@ const mapLanguageFields = (language, questionText, explanationText) => {
 // POST /api/questions/generate - Generate questions from text content
 export const generateQuestionsHandler = async (req, res) => {
   try {
-    const { content, count, pack_id, difficulty, type } = req.body;
+    const { content, count, pack_id, difficulty, type, subject } = req.body;
 
     if (!content || !pack_id) {
       return res.status(400).json({ success: false, error: 'Content and pack_id are required' });
@@ -34,7 +34,8 @@ export const generateQuestionsHandler = async (req, res) => {
     const questions = await generateQuestions(content, {
       count: Math.min(parseInt(count) || 5, 20),
       difficulty: difficulty || 'Medium',
-      type: type || 'MCQ'
+      type: type || 'MCQ',
+      subject: subject || 'Unknown'
     });
 
     const questionsToSave = questions.map(q => ({
@@ -212,7 +213,7 @@ export const generatePreviewFromFileHandler = async (req, res) => {
 // POST /api/questions/generate-from-file - Generate and save questions from file
 export const generateQuestionsFromFileHandler = async (req, res) => {
   try {
-    const { fileUrl, fileType, pack_id, count, difficulty, types, language, bloom_level } = req.body;
+    const { fileUrl, fileType, pack_id, count, difficulty, types, language, bloom_level, subject } = req.body;
 
     if (!fileUrl || !fileType) {
       return res.status(400).json({ success: false, error: 'fileUrl and fileType are required' });
@@ -259,7 +260,10 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
       difficulty: difficulty || learningPack.difficulty || 'Medium',
       types: filteredTypes.length ? filteredTypes : allowedTypes,
       language,
-      bloom_level
+      bloom_level,
+      subject: subject || learningPack?.subject?.name,
+      packTitle: learningPack?.title || '',
+      packDescription: learningPack?.description || ''
     });
 
     // Format questions for saving

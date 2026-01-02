@@ -36,7 +36,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       difficulty = 'Intermediate',
       types = ['MCQ', 'FIIB', 'TF', 'HOQ', 'MATCH', 'DIAGRAM', 'IMAGE_MCQ'],
       language = 'English',
-      bloom_level = 'Understand'
+      bloom_level = 'Understand',
+      subject
     } = options;
 
     if (!pack_id) {
@@ -57,7 +58,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
         difficulty,
         types,
         language,
-        bloom_level
+        bloom_level,
+        subject
       })
     });
 
@@ -160,7 +162,8 @@ export const generateQuestionsFromText = async (content, options = {}) => {
     const {
       count = 5,
       difficulty = 'Intermediate',
-      types = ['MCQ', 'FIIB', 'TF', 'HOQ', 'Summary']
+      types = ['MCQ', 'FIIB', 'TF', 'HOQ', 'Summary'],
+      subject
     } = options;
 
     const response = await fetch(`${API_BASE_URL}/questions/generate`, {
@@ -172,7 +175,8 @@ export const generateQuestionsFromText = async (content, options = {}) => {
         content,
         count,
         difficulty,
-        types
+        types,
+        subject
       })
     });
 

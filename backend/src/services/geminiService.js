@@ -1052,7 +1052,7 @@ const GRADE_RANGE = {
 /**
  * Generate 5-8 bullet summary from text content
  */
-export const generateSummaryFromText = async (text, language = 'English', packTitle = '', packDescription = '') => {
+export const generateSummaryFromText = async (text, language = 'English', packTitle = '', packDescription = '', subject = 'Unknown') => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
@@ -1082,6 +1082,32 @@ ${scopePrompt}
 4. Focus ONLY on the actual concepts and knowledge relevant to "${packTitle || 'the specific topic'}"
 5. Write as universal facts, not as references to source material
 6. If the pack is about cells, summarize ONLY cells - NOT other biology topics
+
+${subject === 'Mathematics' ? `
+📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
+GLOBAL LATEX REQUIREMENT:
+- ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
+- This applies to ALL bullet points in the summary.
+- Example: "The expression $a^m \times a^n = a^{m+n}$ shows the product rule"
+- Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
+📌 MATHEMATICS LATEX NOTATION (STRICT)
+- ALL math expressions MUST be wrapped in $...$ delimiters
+- Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
+- Power of a power MUST be written as: $(a^m)^n = a^{mn}$
+  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 \\times 4} = 2^{12}$)
+- Use LaTeX for ALL operators: $a^m \\times a^n$, $a^m \\div a^n$
+- If you cannot follow this notation, regenerate the summary.
+📌 MATHEMATICS FRACTION RULES (MANDATORY)
+ALL fractions MUST be written in proper LaTeX format.
+EVERY fraction MUST be wrapped in $...$ delimiters.
+✅ CORRECT EXAMPLES:
+- Fractions: $\\frac{numerator}{denominator}$
+- Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
+❌ PROHIBITED:
+- Plain text: 3/4, 2/3, a/b
+- Unicode: ¾, ½, ⅓ (without $...$)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}
 
 TASK:
 Produce 5-8 concise bullet points strictly grounded in the content relevant to "${packTitle || 'the main topic'}".
@@ -1173,7 +1199,7 @@ export const generateLearningPackFromBase64 = async (base64Data, mimeType, userP
 /**
  * Generate 5-8 bullet summary from image/PDF using Vision
  */
-export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English', packTitle = '', packDescription = '') => {
+export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English', packTitle = '', packDescription = '', subject = 'Unknown') => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
@@ -1194,7 +1220,7 @@ ${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
 **RESTRICTION:** Generate summary ONLY from content related to this specific learning pack.
 **PROHIBITED:** Ignore other chapters, sections, or general knowledge.
 **FOCUS:** Extract and summarize ONLY the material relevant to "${packTitle || 'the main topic'}"
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🚨 CRITICAL INSTRUCTIONS - VIOLATION WILL RESULT IN REJECTION:
 - DO NOT mention figure numbers, page numbers, chapter numbers, or textbook names in the summary
 - NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"
@@ -1202,6 +1228,33 @@ ${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
 - NEVER start bullet points with "According to...", "As mentioned in...", "As shown in...", "Based on..."
 - Write bullet points as if they are from a textbook - these are established facts
 - Focus ONLY on the actual concepts and knowledge related to "${packTitle || 'the specified focus area'}"
+
+${subject === 'Mathematics' ? `
+📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
+GLOBAL LATEX REQUIREMENT:
+- ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
+- This applies to ALL bullet points in the summary.
+- Example: "The expression $a^m \times a^n = a^{m+n}$ shows the product rule"
+- Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
+📌 MATHEMATICS LATEX NOTATION (STRICT)
+- ALL math expressions MUST be wrapped in $...$ delimiters
+- Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
+- Power of a power MUST be written as: $(a^m)^n = a^{mn}$
+  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 \\times 4} = 2^{12}$)
+- Use LaTeX for ALL operators: $a^m \\times a^n$, $a^m \\div a^n$
+- If you cannot follow this notation, regenerate the summary.
+📌 MATHEMATICS FRACTION RULES (MANDATORY)
+ALL fractions MUST be written in proper LaTeX format.
+EVERY fraction MUST be wrapped in $...$ delimiters.
+✅ CORRECT EXAMPLES:
+- Fractions: $\\frac{numerator}{denominator}$
+- Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
+❌ PROHIBITED:
+- Plain text: 3/4, 2/3, a/b
+- Unicode: ¾, ½, ⅓ (without $...$)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}
+
 
 TASK:
 Produce 5-8 concise bullet points strictly grounded in content relevant to "${packTitle || 'the main topic'}". 
@@ -1225,7 +1278,7 @@ OUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
 /**
  * Download a file and produce a 5-8 bullet summary in the specified language
  */
-export const generateSummaryFromFile = async (fileUrl, fileType, language = 'English', packTitle = '', packDescription = '') => {
+export const generateSummaryFromFile = async (fileUrl, fileType, language = 'English', packTitle = '', packDescription = '', subject = 'Unknown') => {
   try {
     const buffer = await downloadAny(fileUrl);
     const mimeType = getMimeType(fileType, fileUrl);
@@ -1239,10 +1292,10 @@ export const generateSummaryFromFile = async (fileUrl, fileType, language = 'Eng
 
     if (fileType === 'image' || fileType === 'pdf') {
       const base64Data = buffer.toString('base64');
-      return await generateSummaryFromVision(base64Data, mimeType, language, packTitle, packDescription);
+      return await generateSummaryFromVision(base64Data, mimeType, language, packTitle, packDescription, subject);
     } else {
       const text = buffer.toString('utf-8');
-      return await generateSummaryFromText(text, language, packTitle, packDescription);
+      return await generateSummaryFromText(text, language, packTitle, packDescription, subject);
     }
   } catch (err) {
     console.error('[Backend Gemini] Summary (file) error:', err);
@@ -1594,6 +1647,7 @@ Return ONLY valid JSON in the format strictly defined by the schema.
  * @param {Array<string>} options.types - Question types to generate
  * @param {string} options.packTitle - Pack title
  * @param {string} options.packDescription - Pack description
+ * @param {string} options.subject - Subject (e.g. Mathematics, Science, etc.)
  * @returns {Promise<Array>} - Generated questions
  */
 
@@ -1607,8 +1661,11 @@ export const generateQuestions = async (content, options = {}) => {
       language = 'English',
       bloom_level = 'Understand',
       packTitle = '',
-      packDescription = ''
+      packDescription = '',
+      subject = 'Unknown'
     } = options;
+
+    console.log(`[generateQuestions] Subject passed: ${subject}`);
     console.log(' From generateQuestion packTitle:', packTitle);
     console.log(' From generateQuestions packDescription:', packDescription);
     const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
@@ -1675,6 +1732,54 @@ Before you output ANYTHING, you MUST check EVERY SINGLE CHARACTER:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
+${subject === 'Mathematics' ? `
+  
+ 📌 MATHEMATICS UNICODE NOTATION (STRICT)
+- Use Unicode superscripts: aᵐ, aⁿ, 2³, 5², 2¹²
+- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
+  Example: (2³)⁴ = 2¹² (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
+📌 MATHEMATICS FRACTION RULES (MANDATORY)
+
+ALL fractions MUST be written in proper LaTeX format.
+EVERY fraction MUST be wrapped in $...$ delimiters.
+
+✅ CORRECT EXAMPLES:
+• Fractions: $\\frac{numerator}{denominator}$
+• Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
+
+❌ PROHIBITED:
+• Plain text: 3/4, 2/3, a/b
+• Unicode: ¾, ½, ⅓ (without $...$)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 MATHEMATICS FIIB STRUCTURAL RULES (CRITICAL)
+
+1. THE "NO-UNDERSCORE-IN-LATEX" RULE:
+   - NEVER place "___" inside dollar sign "$ ... $" delimiters.
+   - If a blank occurs in the middle of a mathematical expression, you MUST end the LaTeX block, place the blank, and start a new LaTeX block for the remainder.
+
+   ✅ CORRECT (The Sandwich): 
+   "If $5x +$ ___ $= 20$, what is the value of $x$?"
+   "The square of $a + b$ is $(a + b)^2 =$ ___ $+ 2ab + b^2$."
+
+   ❌ WRONG (Crashes Flutter Parser):
+   "If $5x + ___ = 20$, what is the value of $x$?"
+   "The square of $a + b$ is $(a + b)^2 = ___ + 2ab + b^2$."
+
+2. THE "PLAIN-TEXT FRACTION" EXCEPTION:
+   - If the blank "___" is the numerator or the denominator, DO NOT use LaTeX "\\frac". 
+   - Instead, write the fraction using a plain text slash "/" so the underscore remains in standard text.
+   
+   ✅ CORRECT: "In the fraction 3/___, the denominator is 4."
+   ✅ CORRECT: "If ___/5 = 1, the missing number is 5."
+   
+   ❌ WRONG: "In the fraction $\\frac{3}{___}$, the denominator is 4."
+
+3. TERMINATION LOGIC:
+   - Any question text containing the sequence "_$" or "$_" is strictly forbidden. 
+   - There must always be at least one space or a character between a "$" and a "_".
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}
+
 
 TASK:
 Generate EXACTLY ${count} questions strictly from the provided content.
@@ -1798,7 +1903,8 @@ Example for FIIB:
       if (lang === 'Sinhala') {
         // Check for common garbage patterns in Sinhala
         const garbagePatterns = [
-          /[a-zA-Z]{3,}/, // Latin characters (3+ consecutive)
+          // Allow LaTeX patterns first
+          /(?<!\\)(?:[a-zA-Z]{3,})(?!\\frac|\\times|\\div|\\sqrt|\\left|\\right|\\begin|\\end|\\frac|\\sqrt|\\times|\\div|\\left|\\right|\\begin|\\end)/, // Latin letters not in LaTeX
           /[;%`]/,        // Common garbage symbols
           /msró|fkd|uqyq|hehs|lshkq|,efõ|wdOdr|odrh|wrh|jQ|mßud|iQ;%|ksjer|fiù/i
         ];
@@ -1808,7 +1914,8 @@ Example for FIIB:
       if (lang === 'Tamil') {
         // Check for common garbage patterns in Tamil
         const garbagePatterns = [
-          /[a-zA-Z]{3,}/, // Latin characters (3+ consecutive)
+          // Allow LaTeX patterns first
+          /(?<!\\)(?:[a-zA-Z]{3,})(?!\\frac|\\times|\\div|\\sqrt|\\left|\\right|\\begin|\\end|\\frac|\\sqrt|\\times|\\div|\\left|\\right|\\begin|\\end)/, // Latin letters not in LaTeX
           /[;%`¸£©÷ø¨]/,  // Common garbage symbols
           /USP|Á\|õh|Gs÷P|÷Áõ®|Euõµn|Po¨|ö\´|_¸UP|Âv|©hUøP|£¯ß£kzv/i, // Known Tamil garbage
           /[©£÷ø¨õ]{5,}/ // Too many Tamil-looking garbage chars in sequence
@@ -1826,7 +1933,7 @@ Example for FIIB:
       const qText = String(q.question || `Question ${index + 1}`).trim();
       const qAnswer = String(q.answer || '').trim();
       const qOptions = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
-      
+
       console.log(`[Backend Gemini] Text Question ${index + 1} (${qType}):`, {
         question: qText.substring(0, 100),
         answer: qAnswer.substring(0, 50),
@@ -1999,6 +2106,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       packDescription = ''
     } = options;
 
+    console.log(`[generateQuestionsFromFile] Subject passed: ${subject}`);
     console.log(`[generateQuestionsFromFile] Starting generation for ${count} questions`, {
       fileType,
       language,
@@ -2029,11 +2137,14 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
         language,
         bloom_level,
         packTitle,
-        packDescription
+        packDescription,
+        subject
       });
 
       console.log(`[generateQuestionsFromFile] Vision API generated ${visionQuestions?.length || 0} questions`);
-
+      console.log(`[generateQuestions] Subject passed: ${subject}`);
+      console.log(' From generateQuestion packTitle:', packTitle);
+      console.log(' From generateQuestions packDescription:', packDescription);
       if (visionQuestions && visionQuestions.length > 0) {
         allQuestions = visionQuestions.slice(0, count);
       }
@@ -2065,7 +2176,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
             language,
             bloom_level,
             packTitle,
-            packDescription
+            packDescription,
+            subject
           });
 
           console.log(`[generateQuestionsFromFile] Text-based generated ${textQuestions?.length || 0} questions`);
@@ -2150,7 +2262,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
     if (filteredQuestions.length < count) {
       const shortage = count - filteredQuestions.length;
       console.log(`[generateQuestionsFromFile] Need ${shortage} more questions after filtering, generating additional questions...`);
-      
+
       try {
         const additionalQuestions = await generateQuestions(buffer.toString('utf-8').substring(0, 50000), {
           count: Math.min(shortage * 2, 40), // Generate extra to account for potential filtering
@@ -2159,7 +2271,8 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
           language,
           bloom_level,
           packTitle,
-          packDescription
+          packDescription,
+          subject
         });
 
         console.log(`[generateQuestionsFromFile] Generated ${additionalQuestions?.length || 0} additional questions`);
@@ -2172,7 +2285,7 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
           });
 
           console.log(`[generateQuestionsFromFile] Additional filtering: ${filteredAdditional.length}/${additionalQuestions.length} questions match requested types`);
-          
+
           // Add the filtered additional questions
           filteredQuestions.push(...filteredAdditional);
         }
@@ -2291,9 +2404,11 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
     bloom_level = 'Understand',
     counts = {},
     packTitle = '',
-    packDescription = ''
+    packDescription = '',
+    subject = 'Unknown'
   } = params;
 
+  console.log(`[generateQuestionsFromVision] Subject passed: ${subject}`);
   console.log('packTitle:', packTitle);
   console.log('packDescription:', packDescription);
 
@@ -2326,11 +2441,12 @@ ${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
   const prompt = `SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provided document/image and generate educational questions.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 SCHOOL TEXTBOOK MATH NOTATION (STRICT)
-- Do NOT use caret notation "^" anywhere. (Forbidden: a^m, (a^m)^n, a^(mn))
-- Use superscripts only: aᵐ, aⁿ, 2³, 5², 2¹²
-- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
-  Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
+📌 MATHEMATICS LATEX NOTATION (STRICT)
+- ALL math expressions MUST be wrapped in $...$ delimiters
+- Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
+- Power of a power MUST be written as: $(a^m)^n = a^{mn}$
+  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 times 4} = 2^{12}$)
+- Use LaTeX for ALL operators: $a^m a^n$, $a^m div a^n$
 - If you cannot follow this notation, regenerate the question.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2363,6 +2479,60 @@ If ANY answer is NO, you MUST re-read the image and try again.
 ⚠️ If you generate garbage, the user will receive FEWER questions than requested!
 ⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
+
+${subject === 'Mathematics' ? `
+📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
+
+    GLOBAL LATEX REQUIREMENT:
+   - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
+   - This applies to: "question_text", "correct_answer", "options", and "explanation".
+   - Example MCQ Options: ["$x = 5$", "$x = 10$", "$x = 15$", "$x = 20$"]
+   - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
+📌 MATHEMATICS FRACTION RULES (MANDATORY)
+
+ALL fractions MUST be written in proper LaTeX format.
+EVERY fraction MUST be wrapped in $...$ delimiters.
+
+✅ CORRECT EXAMPLES:
+• Fractions: $\\frac{numerator}{denominator}$
+• Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
+
+❌ PROHIBITED:
+• Plain text: 3/4, 2/3, a/b
+• Unicode: ¾, ½, ⅓ (without $...$)
+• Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 MATHEMATICS FIIB STRUCTURAL RULES (CRITICAL)
+
+1. THE "NO-UNDERSCORE-IN-LATEX" RULE:
+   - NEVER place "___" inside dollar sign "$ ... $" delimiters.
+   - If a blank occurs in the middle of a mathematical expression, you MUST end the LaTeX block, place the blank, and start a new LaTeX block for the remainder.
+
+   ✅ CORRECT (The Sandwich): 
+   "If $5x +$ ___ $= 20$, what is the value of $x$?"
+   "The square of $a + b$ is $(a + b)^2 =$ ___ $+ 2ab + b^2$."
+
+   ❌ WRONG (Crashes Flutter Parser):
+   "If $5x + ___ = 20$, what is the value of $x$?"
+   "The square of $a + b$ is $(a + b)^2 = ___ + 2ab + b^2$."
+
+2. THE "PLAIN-TEXT FRACTION" EXCEPTION:
+   - If the blank "___" is the numerator or the denominator, DO NOT use LaTeX "\\frac". 
+   - Instead, write the fraction using a plain text slash "/" so the underscore remains in standard text.
+   
+   ✅ CORRECT: "In the fraction 3/___, the denominator is 4."
+   ✅ CORRECT: "If ___/5 = 1, the missing number is 5."
+   
+   ❌ WRONG: "In the fraction $\\frac{3}{___}$, the denominator is 4."
+
+3. TERMINATION LOGIC:
+   - Any question text containing the sequence "_$" or "$_" is strictly forbidden. 
+   - There must always be at least one space or a character between a "$" and a "_".
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}
+
 
 TASK:
 Generate questions strictly from the provided document/image content.

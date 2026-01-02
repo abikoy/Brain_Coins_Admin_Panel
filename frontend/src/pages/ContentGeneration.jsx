@@ -522,7 +522,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           const pv = await previewFromFile(fileUrlToUse, fileTypeToUse, {
             language: genLanguage,
             grade,
-            subject,
+            subject: subjects.find(s => s.id === subject)?.name || subject,
             difficulty: 'Easy', // Default fallback
             bloom_level: genBloom,
             questionTypes: enabledQuestionTypes,
@@ -802,7 +802,8 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           language: genLanguage,
           bloom_level: genBloom,
           packTitle: selectedPack.title, // Add pack title for focused generation
-          packDescription: selectedPack.content || selectedPack.description // Add pack description for context
+          packDescription: selectedPack.content || selectedPack.description, // Add pack description for context
+          subject: subjects.find(s => s.id === subject)?.name || subject // Add subject name for LaTeX math formatting
         }
       );
 
