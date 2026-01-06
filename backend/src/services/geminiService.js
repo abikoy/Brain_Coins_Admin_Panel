@@ -1088,7 +1088,7 @@ ${subject === 'Mathematics' ? `
 GLOBAL LATEX REQUIREMENT:
 - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
 - This applies to ALL bullet points in the summary.
-- Example: "The expression $a^m \times a^n = a^{m+n}$ shows the product rule"
+- Example: "The expression $a^m \\times a^n = a^{m+n}$ shows the product rule"
 - Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
 📌 MATHEMATICS LATEX NOTATION (STRICT)
 - ALL math expressions MUST be wrapped in $...$ delimiters
@@ -1234,7 +1234,7 @@ ${subject === 'Mathematics' ? `
 GLOBAL LATEX REQUIREMENT:
 - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
 - This applies to ALL bullet points in the summary.
-- Example: "The expression $a^m \times a^n = a^{m+n}$ shows the product rule"
+- Example: "The expression $a^m \\times a^n = a^{m+n}$ shows the product rule"
 - Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
 📌 MATHEMATICS LATEX NOTATION (STRICT)
 - ALL math expressions MUST be wrapped in $...$ delimiters
