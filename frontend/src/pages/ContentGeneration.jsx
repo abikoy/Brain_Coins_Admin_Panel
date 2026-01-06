@@ -25,6 +25,8 @@ import { analyzeDocument } from '../api/learningPackService';
 import LearningPackSelector from '../components/LearningPackSelector';
 import CreateLearningPackModal from '../components/CreateLearningPackModal';
 import { useContentGeneration } from '../context/ContentGenerationContext';
+import Latex from 'react-latex-next';
+import 'katex/dist/katex.min.css';
 
 const ContentGeneration = ({ questions, setQuestions }) => {
   // Use context for persistent state
@@ -1805,14 +1807,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                                 ✏️ Edit
                               </button>
                             </div>
-                            <div className="font-medium mb-1">{q.question}</div>
+                            <div className="font-medium mb-1"><Latex>{q.question}</Latex></div>
 
                             {/* Question type specific displays */}
                             {q.type === 'MCQ' && Array.isArray(q.options) && q.options.length > 0 && (
                               <ul className="list-disc list-inside text-sm text-gray-700 space-y-0.5">
                                 {q.options.map((o, j) => (
                                   <li key={j} className={o === q.answer ? 'font-semibold text-green-700' : ''}>
-                                    {o} {o === q.answer && '✓'}
+                                    <Latex>{o}</Latex> {o === q.answer && '✓'}
                                   </li>
                                 ))}
                               </ul>
@@ -1827,7 +1829,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                                       ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
                                       : 'bg-blue-50 border-blue-300 text-blue-700'
                                       }`}>
-                                      {o} {o === q.answer && '✓'}
+                                      <Latex>{o}</Latex> {o === q.answer && '✓'}
                                     </span>
                                   ))}
                                 </div>
@@ -1847,7 +1849,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                                           ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
                                           : 'bg-gray-50 border-gray-300 text-gray-700'
                                           }`}>
-                                          {option} {isCorrect && '✓'}
+                                          <Latex>{option}</Latex> {isCorrect && '✓'}
                                         </span>
                                       );
                                     });
@@ -1858,14 +1860,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
                             {q.type === 'HOQ' && q.answer && (
                               <p className="text-sm text-gray-600 mt-1">
-                                <span className="font-medium">Answer:</span> {q.answer}
+                                <span className="font-medium">Answer:</span> <Latex>{q.answer}</Latex>
                               </p>
                             )}
 
                             {(q.explanation || q.explanations) && (
                               <div className="mt-2 p-2 bg-blue-50 border-l-4 border-blue-400 rounded">
                                 <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
-                                <p className="text-xs text-blue-700">{q.explanation || q.explanations}</p>
+                                <p className="text-xs text-blue-700"><Latex>{q.explanation || q.explanations}</Latex></p>
                               </div>
                             )}
                           </div>
@@ -1960,14 +1962,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                             ✏️ Edit
                           </button>
                         </div>
-                        <div className="font-medium mb-1">{q.question}</div>
+                        <Latex className="font-medium mb-1">{q.question}</Latex>
 
                         {/* Single pack question displays - same as above */}
                         {q.type === 'MCQ' && Array.isArray(q.options) && q.options.length > 0 && (
                           <ul className="list-disc list-inside text-sm text-gray-700 space-y-0.5">
                             {q.options.map((o, j) => (
                               <li key={j} className={o === q.answer ? 'font-semibold text-green-700' : ''}>
-                                {o} {o === q.answer && '✓'}
+                                <Latex>{o}</Latex> {o === q.answer && '✓'}
                               </li>
                             ))}
                           </ul>
@@ -1982,7 +1984,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                                   ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
                                   : 'bg-blue-50 border-blue-300 text-blue-700'
                                   }`}>
-                                  {o} {o === q.answer && '✓'}
+                                  <Latex>{o}</Latex> {o === q.answer && '✓'}
                                 </span>
                               ))}
                             </div>
@@ -2002,7 +2004,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                                       ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
                                       : 'bg-gray-50 border-gray-300 text-gray-700'
                                       }`}>
-                                      {option} {isCorrect && '✓'}
+                                      <Latex>{option}</Latex> {isCorrect && '✓'}
                                     </span>
                                   );
                                 });
@@ -2013,14 +2015,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
                         {q.type === 'HOQ' && q.answer && (
                           <p className="text-sm text-gray-600 mt-1">
-                            <span className="font-medium">Answer:</span> {q.answer}
+                            <span className="font-medium">Answer:</span> <Latex>{q.answer}</Latex>
                           </p>
                         )}
 
                         {(q.explanation || q.explanations) && (
                           <div className="mt-2 p-2 bg-blue-50 border-l-4 border-blue-400 rounded">
                             <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
-                            <p className="text-xs text-blue-700">{q.explanation || q.explanations}</p>
+                            <p className="text-xs text-blue-700"><Latex>{q.explanation || q.explanations}</Latex></p>
                           </div>
                         )}
                       </div>
@@ -2080,7 +2082,14 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   </div>
                   <div className="flex space-x-2 self-end sm:self-auto">
                     <button
-                      onClick={() => handleEditQuestion(question)}
+                      onClick={() => {
+                        setEditingQuestion({
+                          ...question,
+                          language: question.language || 'English',
+                          explanations: question.explanation || question.explanations || ''
+                        });
+                        setIsEditModalOpen(true);
+                      }}
                       className="p-2 hover:bg-gradient-glass rounded-lg transition-colors"
                     >
                       <Edit className="h-4 w-4 text-royal-purple" />
@@ -2093,7 +2102,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                     </button>
                   </div>
                 </div>
-                <p className="font-medium mb-2">{question.question}</p>
+                <p className="font-medium mb-2"><Latex>{question.question}</Latex></p>
 
                 {/* Display MCQ and IMAGE_MCQ options if available */}
                 {(question.type === 'MCQ' || question.type === 'IMAGE_MCQ') && question.type !== 'TF' && question.options && question.options.length > 0 && (
@@ -2106,7 +2115,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                           : 'bg-gray-50 text-gray-700'
                           }`}
                       >
-                        {String.fromCharCode(65 + index)}. {option}
+                        {String.fromCharCode(65 + index)}. <Latex>{option}</Latex>
                         {option === question.answer && ' ✓'}
                       </div>
                     ))}
@@ -2127,7 +2136,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                             : 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
                             }`}
                         >
-                          {option}
+                          <Latex>{option}</Latex>
                           {option === question.answer && ' ✓'}
                         </div>
                       ))}
@@ -2156,7 +2165,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                               ? 'bg-green-100 border-green-500 text-green-800 font-semibold'
                               : 'bg-gray-50 border-gray-300 text-gray-700'
                               }`}>
-                              {option} {isCorrect && '✓'}
+                              <Latex>{option}</Latex> {isCorrect && '✓'}
                             </span>
                           );
                         });
@@ -2170,7 +2179,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                 {/* Answer line - show for HOQ and FIIB if not already shown in options */}
                 {question.answer && question.type !== 'MCQ' && question.type !== 'IMAGE_MCQ' && question.type !== 'TF' && (
                   <p className="text-sm text-gray-600 mt-2">
-                    <span className="font-medium">Answer:</span> {question.answer}
+                    <span className="font-medium">Answer:</span> <Latex>{question.answer}</Latex>
                   </p>
                 )}
 
@@ -2179,7 +2188,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
                   <div className="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
                     <p className="text-xs font-semibold text-blue-800 mb-1">💡 Explanation:</p>
                     <p className="text-sm text-blue-700">
-                      {question.explanation || question.explanations || question.explanation_si || question.explanation_ta}
+                      <Latex>{question.explanation || question.explanations || question.explanation_si || question.explanation_ta}</Latex>
                     </p>
                   </div>
                 )}

@@ -21,6 +21,8 @@ import { getSubjects } from '../api/subjectService';
 import { getLearningPacks } from '../api/learningPackService';
 import { uploadQuestionDiagram } from '../api/questionDiagramService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
+import Latex from 'react-latex-next';
+import 'katex/dist/katex.min.css';
 
 const QuestionEditor = () => {
   // Data state
@@ -454,7 +456,7 @@ const QuestionEditor = () => {
                 {/* Question Text */}
                 <div className="flex-1 mb-4">
                   <p className="font-medium text-gray-900 mb-2 line-clamp-3">
-                    {question.question_text || question.question}
+                    <Latex>{question.question_text || question.question}</Latex>
                   </p>
 
                   {/* Options Preview for MCQ */}
@@ -462,7 +464,7 @@ const QuestionEditor = () => {
                     <div className="space-y-1">
                       {question.options.slice(0, 2).map((option, index) => (
                         <div key={index} className="text-xs text-gray-600 truncate">
-                          {String.fromCharCode(65 + index)}. {option}
+                          {String.fromCharCode(65 + index)}. <Latex>{option}</Latex>
                         </div>
                       ))}
                       {question.options.length > 2 && (
@@ -477,8 +479,8 @@ const QuestionEditor = () => {
                   <div className="mt-2 text-xs text-gray-600">
                     <span className="font-medium">Answer:</span> {
                       (question.correct_answer || question.answer || '').length > 50
-                        ? (question.correct_answer || question.answer || '').substring(0, 50) + '...'
-                        : (question.correct_answer || question.answer || '')
+                        ? <Latex>{(question.correct_answer || question.answer || '').substring(0, 50) + '...'}</Latex>
+                        : <Latex>{question.correct_answer || question.answer || ''}</Latex>
                     }
                   </div>
                 </div>
