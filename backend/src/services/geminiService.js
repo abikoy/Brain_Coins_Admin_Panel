@@ -1667,12 +1667,14 @@ export const generateQuestions = async (content, options = {}) => {
 SYSTEM:
 You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey requested language; align to Bloom's level; ground strictly in provided context.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 SCHOOL TEXTBOOK MATH NOTATION (STRICT)
-- Do NOT use caret notation "^" anywhere. (Forbidden: a^m, (a^m)^n, a^(mn))
-- Use superscripts only: aᵐ, aⁿ, 2³, 5², 2¹²
-- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
-  Example: (2³)⁴ = 2¹²  (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
-- If you cannot follow this notation, regenerate the question.
+📌 MATHEMATICS LATEX NOTATION (STRICT - CONSISTENT ACROSS ALL LANGUAGES)
+- ALL math expressions MUST be wrapped in $...$ delimiters
+- Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
+- Multiplication: Use $\\times$ or implicit multiplication: $ab$, $2x$
+- Power of a power MUST be: $(a^m)^n = a^{mn}$
+  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 \\times 4} = 2^{12}$)
+- Division: Use $\\div$ or fractions: $\\frac{a}{b}$
+- ALWAYS use LaTeX, NEVER Unicode superscripts (no aᵐ, 2³, etc.)
 
 🚨 🚨 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA AND TAMIL 🚨 🚨 🚨
 ${language === 'Sinhala' || language === 'Tamil' ? `
