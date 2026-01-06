@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5001;
 // CORS configuration for frontend domains
 const allowedOrigins = [
     'http://localhost:3000',
-    'https://braincoins.vercel.app'
+    'https://braincoins-ruddy.vercel.app'
 ];
 
 app.use(cors({
