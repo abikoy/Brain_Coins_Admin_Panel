@@ -1,11 +1,4 @@
-/**
- * BACKEND - Gemini AI Service
- * This file contains AI question generation logic using Google's Gemini API
- * Used by backend API controllers
- * DO NOT use this in frontend - this should only run on the server
- */
 
-// Core Node.js modules
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
