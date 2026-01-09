@@ -1099,6 +1099,35 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 ❌ PROHIBITED:
 - Plain text: 3/4, 2/3, a/b
 - Unicode: ¾, ½, ⅓ (without $...$)
+🔸 ANGLES
+• Angle symbols (∠) are strictly forbidden
+• Use hat notation on the vertex letter only
+━━━━━━━━━━━━━━━━━━━━━━
+🔸 TRIANGLES
+• Triangle symbols (△, \\triangle) are strictly forbidden
+Write only in words:
+• Triangle ABC
+• The triangle formed by points A, B and C
+🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
+
+❌ ∠ ❌ △ ❌ ⟂ ❌ ∥ ❌ → ❌ \overline{AB} ❌ AB̅ ❌ \widehat{ABC}
+
+🔸 PERPENDICULAR & PARALLEL
+❌ AB ⟂ CD
+❌ AB ∥ CD
+
+✅ Write in words only:
+ AB is perpendicular to CD
+ AB is parallel to CD
+
+🔸 LINE SEGMENTS & RAYS
+
+❌ \\overline{AB}
+❌ \\overrightarrow{AB}
+
+✅ Write in words:
+ Line segment AB
+ Ray AB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
 
@@ -1237,8 +1266,8 @@ GLOBAL LATEX REQUIREMENT:
 - Use LaTeX for ALL operators: $a^m \\times a^n$, $a^m \\div a^n$
 - If you cannot follow this notation, regenerate the summary.
 📌 MATHEMATICS FRACTION RULES (MANDATORY)
-ALL fractions MUST be written in proper LaTeX format.
-EVERY fraction MUST be wrapped in $...$ delimiters.
+ ALL fractions MUST be written in proper LaTeX format.
+ EVERY fraction MUST be wrapped in $...$ delimiters.
 ✅ CORRECT EXAMPLES:
 - Fractions: $\\frac{numerator}{denominator}$
 - Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
@@ -1746,6 +1775,35 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔸 ANGLES
+• Angle symbols (∠) are strictly forbidden
+• Use hat notation on the vertex letter only
+━━━━━━━━━━━━━━━━━━━━━━
+🔸 TRIANGLES
+• Triangle symbols (△, \\triangle) are strictly forbidden
+Write only in words:
+• Triangle ABC
+• The triangle formed by points A, B and C
+🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
+
+❌ ∠ ❌ △ ❌ ⟂ ❌ ∥ ❌ → ❌ \overline{AB} ❌ AB̅ ❌ \widehat{ABC}
+
+🔸 PERPENDICULAR & PARALLEL
+❌ AB ⟂ CD
+❌ AB ∥ CD
+
+✅ Write in words only:
+ AB is perpendicular to CD
+ AB is parallel to CD
+
+🔸 LINE SEGMENTS & RAYS
+
+❌ \\overline{AB}
+❌ \\overrightarrow{AB}
+
+✅ Write in words:
+ Line segment AB
+ Ray AB
 📌 MATHEMATICS FIIB STRUCTURAL RULES (CRITICAL)
 
 1. THE "NO-UNDERSCORE-IN-LATEX" RULE:
@@ -2497,6 +2555,36 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 • Unicode: ¾, ½, ⅓ (without $...$)
 • Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
 
+
+🔸 ANGLES
+• Angle symbols (∠) are strictly forbidden
+• Use hat notation on the vertex letter only
+━━━━━━━━━━━━━━━━━━━━━━
+🔸 TRIANGLES
+• Triangle symbols (△, \\triangle) are strictly forbidden
+Write only in words:
+• Triangle ABC
+• The triangle formed by points A, B and C
+🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
+
+❌ ∠ ❌ △ ❌ ⟂ ❌ ∥ ❌ → ❌ \overline{AB} ❌ AB̅ ❌ \widehat{ABC}
+
+🔸 PERPENDICULAR & PARALLEL
+❌ AB ⟂ CD
+❌ AB ∥ CD
+
+✅ Write in words only:
+ AB is perpendicular to CD
+ AB is parallel to CD
+
+🔸 LINE SEGMENTS & RAYS
+
+❌ \\overline{AB}
+❌ \\overrightarrow{AB}
+
+✅ Write in words:
+ Line segment AB
+ Ray AB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 MATHEMATICS FIIB STRUCTURAL RULES (CRITICAL)
 
