@@ -3,11 +3,12 @@ import React, { useState } from 'react';
 import Header from '../components/shared/Header';
 import Sidebar from '../components/shared/Sidebar';
 import Analytics from './Analytics';
-import { BarChart3, FileText, Settings, AlertCircle, Layers, Edit3 } from 'lucide-react';
+import { BarChart3, FileText, Settings, AlertCircle, Layers, Edit3, Flag } from 'lucide-react';
 import ContentGeneration from './ContentGeneration';
 import ContentManagement from './ContentManagement';
 import QuestionEditor from './QuestionEditor';
-import SystemLogs from './system_logs'; 
+import SystemLogs from './system_logs';
+import Reports from './Reports'; 
 
 const Dashboard = ({ onLogout, user, students, progressData, questions, setQuestions, logs }) => {
   const [activeTab, setActiveTab] = useState('analytics');
@@ -44,6 +45,12 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
           label: 'Configuration',
           icon: AlertCircle,
           description: 'System settings and error logs'
+        },
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: Flag,
+          description: 'Manage reported questions'
         },
       ].map((tab) => {
         const Icon = tab.icon;
@@ -93,6 +100,10 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
 
           {activeTab === 'systemlogs' && (
             <SystemLogs />
+          )}
+
+          {activeTab === 'reports' && (
+            <Reports />
           )}
         </main>
       </div>

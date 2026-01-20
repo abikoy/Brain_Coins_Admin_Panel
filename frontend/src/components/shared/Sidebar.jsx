@@ -3,7 +3,8 @@ import {
   FileText,
   Layers,
   AlertTriangle,
-  Edit3
+  Edit3,
+  Flag
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab }) => {
@@ -37,6 +38,12 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
       label: 'Error Logs',
       icon: AlertTriangle,
       description: 'AI error monitoring and logs'
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      icon: Flag,
+      description: 'Manage reported questions'
     },
 
   ];

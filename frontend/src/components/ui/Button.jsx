@@ -14,6 +14,8 @@ const Button = React.forwardRef(({
     outline: "border-2 border-royal-purple text-royal-purple hover:bg-royal-purple hover:text-white",
     ghost: "hover:bg-gradient-glass text-royal-purple",
     secondary: "bg-electric-cyan text-white hover:opacity-90",
+    green: "bg-green-600 text-white hover:bg-green-700",
+    gray: "bg-gray-500 text-white hover:bg-gray-600",
   };
   
   const sizes = {

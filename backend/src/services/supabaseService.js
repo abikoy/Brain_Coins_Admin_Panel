@@ -402,4 +402,132 @@ export const upsertSummaryByPack = async (pack_id, bullets) => {
   }
 };
 
+/**
+ * Get all reports from database
+ * @param {Object} filters - Filter options
+ * @returns {Promise<{data: Array, count: number}>} - Reports and total count
+ */
+export const getAllReports = async (filters = {}) => {
+  try {
+    let query = supabaseAdmin
+      .from('reports')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false });
+
+    // Apply filters
+    if (filters.status && filters.status !== 'all') {
+      query = query.eq('status', filters.status);
+    }
+
+    // Apply pagination if provided
+    if (filters.page && filters.limit) {
+      const page = parseInt(filters.page) || 1;
+      const limit = Math.min(parseInt(filters.limit) || 20, 100);
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      query = query.range(from, to);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) throw error;
+
+    return {
+      data: data || [],
+      count: count || 0
+    };
+  } catch (error) {
+    console.error('[Backend DB] Get reports error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update report status
+ * @param {string} reportId - Report ID
+ * @param {string} status - New status
+ * @returns {Promise<Object>} - Updated report
+ */
+export const updateReportStatus = async (reportId, status) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('reports')
+      .update({ 
+        status: status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', reportId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return data;
+  } catch (error) {
+    console.error('[Backend DB] Update report status error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get reports statistics
+ * @returns {Promise<Object>} - Reports statistics
+ */
+export const getReportsStats = async () => {
+  try {
+    // Get total reports count
+    const { count: totalReports, error: totalError } = await supabaseAdmin
+      .from('reports')
+      .select('*', { count: 'exact', head: true });
+
+    if (totalError) throw totalError;
+
+    // Get pending reports count
+    const { count: pendingReports, error: pendingError } = await supabaseAdmin
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (pendingError) throw pendingError;
+
+    // Get resolved reports count
+    const { count: resolvedReports, error: resolvedError } = await supabaseAdmin
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'resolved');
+
+    if (resolvedError) throw resolvedError;
+
+    // Get dismissed reports count
+    const { count: dismissedReports, error: dismissedError } = await supabaseAdmin
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'dismissed');
+
+    if (dismissedError) throw dismissedError;
+
+    // Get reports created in the last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const { count: recentReports, error: recentError } = await supabaseAdmin
+      .from('reports')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', sevenDaysAgo.toISOString());
+
+    if (recentError) throw recentError;
+
+    return {
+      total: totalReports || 0,
+      pending: pendingReports || 0,
+      resolved: resolvedReports || 0,
+      dismissed: dismissedReports || 0,
+      recent: recentReports || 0
+    };
+  } catch (error) {
+    console.error('[Backend DB] Get reports stats error:', error);
+    throw error;
+  }
+};
+
 export default supabaseAdmin;
