@@ -1,9 +1,11 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { ContentGenerationProvider } from './context/ContentGenerationContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import AccountDeletion from './pages/AccountDeletion';
 
 const AppContent = () => {
   const { user, isLoggedIn, loading, login, logout } = useAuth();
@@ -21,32 +23,42 @@ const AppContent = () => {
     );
   }
 
-  if (!isLoggedIn) {
-    return <Login onLogin={login} />;
-  }
-
   return (
-    <Dashboard
-      onLogout={logout}
-      user={user}
-      students={students}
-      progressData={progressData}
-      questions={questions}
-      setQuestions={setQuestions}
-      logs={logs}
-    />
+    <Routes>
+      <Route path="/account-deletion" element={<AccountDeletion />} />
+      <Route 
+        path="/*" 
+        element={
+          !isLoggedIn ? (
+            <Login onLogin={login} />
+          ) : (
+            <Dashboard
+              onLogout={logout}
+              user={user}
+              students={students}
+              progressData={progressData}
+              questions={questions}
+              setQuestions={setQuestions}
+              logs={logs}
+            />
+          )
+        } 
+      />
+    </Routes>
   );
 };
 
 const App = () => {
   return (
-    <AuthProvider>
-      <DataProvider>
-        <ContentGenerationProvider>
-          <AppContent />
-        </ContentGenerationProvider>
-      </DataProvider>
-    </AuthProvider>
+    <Router>
+      <AuthProvider>
+        <DataProvider>
+          <ContentGenerationProvider>
+            <AppContent />
+          </ContentGenerationProvider>
+        </DataProvider>
+      </AuthProvider>
+    </Router>
   );
 };
 
