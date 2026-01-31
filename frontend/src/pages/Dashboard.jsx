@@ -3,12 +3,13 @@ import React, { useState } from 'react';
 import Header from '../components/shared/Header';
 import Sidebar from '../components/shared/Sidebar';
 import Analytics from './Analytics';
-import { BarChart3, FileText, Settings, AlertCircle, Layers, Edit3, Flag } from 'lucide-react';
+import { BarChart3, FileText, Settings, AlertCircle, Layers, Edit3, Flag, Trash2 } from 'lucide-react';
 import ContentGeneration from './ContentGeneration';
 import ContentManagement from './ContentManagement';
 import QuestionEditor from './QuestionEditor';
 import SystemLogs from './system_logs';
-import Reports from './Reports'; 
+import Reports from './Reports';
+import UserAccountDeletion from './UserAccountDeletion'; 
 
 const Dashboard = ({ onLogout, user, students, progressData, questions, setQuestions, logs }) => {
   const [activeTab, setActiveTab] = useState('analytics');
@@ -51,6 +52,12 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
           label: 'Reports',
           icon: Flag,
           description: 'Manage reported questions'
+        },
+        {
+          id: 'accountdeletion',
+          label: 'Account Deletion',
+          icon: Trash2,
+          description: 'Delete user accounts and data'
         },
       ].map((tab) => {
         const Icon = tab.icon;
@@ -104,6 +111,10 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
 
           {activeTab === 'reports' && (
             <Reports />
+          )}
+
+          {activeTab === 'accountdeletion' && (
+            <UserAccountDeletion />
           )}
         </main>
       </div>

@@ -4,7 +4,8 @@ import {
   Layers,
   AlertTriangle,
   Edit3,
-  Flag
+  Flag,
+  Trash2
 } from 'lucide-react';
 
 const Sidebar = ({ activeTab, setActiveTab }) => {
@@ -44,6 +45,12 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
       label: 'Reports',
       icon: Flag,
       description: 'Manage reported questions'
+    },
+    {
+      id: 'accountdeletion',
+      label: 'Account Deletion',
+      icon: Trash2,
+      description: 'Delete user accounts and data'
     },
 
   ];

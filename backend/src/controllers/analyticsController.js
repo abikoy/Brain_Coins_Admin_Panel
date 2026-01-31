@@ -360,7 +360,7 @@ class AnalyticsController {
         .from('profiles')
         .select(`
         *,
-        subscription_plan(
+        subscription_plan!subscription_plan_user_id_fkey(
           amount, 
           currency, 
           paid_at, 
@@ -446,27 +446,7 @@ class AnalyticsController {
       // Generate a unique payment reference
       const payment_reference = `manual_${Date.now()}`;
 
-      // 1. Create a payment record
-      const { data: payment, error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          user_id: id,
-          product_id: product_id || `manual_${plan_type}_${interval}`,
-          amount: amount,
-          currency: currency,
-          plan_type: plan_type,
-          interval: interval,
-          payment_reference: payment_reference,
-          payment_provider: payment_provider,
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (paymentError) throw paymentError;
-
-      // 2. Create a subscription record, which will trigger profile update
+      // Calculate end date
       const endsAt = new Date();
       if (interval === 'monthly') {
         endsAt.setMonth(endsAt.getMonth() + 1);
@@ -474,12 +454,48 @@ class AnalyticsController {
         endsAt.setFullYear(endsAt.getFullYear() + 1);
       }
 
+      // 1. Get the auth.users ID for this profile
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(id);
+      
+      if (authError) {
+        console.log('⚠️ Could not get auth user, trying alternative approach...');
+        // If we can't get auth user, we'll skip the payment record
+      }
+
+      // 2. Create payment record only if we have a valid auth user
+      let payment = null;
+      if (authUser?.user?.id) {
+        const { data: paymentData, error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            user_id: authUser.user.id, // Use auth.users ID
+            product_id: product_id || `manual_${plan_type}_${interval}`,
+            amount: amount,
+            currency: currency.toLowerCase(),
+            plan_type: plan_type,
+            interval: interval,
+            payment_reference: payment_reference,
+            payment_provider: payment_provider,
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (paymentError) {
+          console.warn('⚠️ Payment creation failed, continuing with subscription:', paymentError);
+        } else {
+          payment = paymentData;
+        }
+      }
+
+      // 3. Create a subscription record
       const { data: subscription, error: subscriptionError } = await supabase
         .from('subscription_plan')
         .insert({
-          user_id: id,
+          user_id: id, // Use profiles ID for subscription
           product_id: product_id || `manual_${plan_type}_${interval}`,
-          payment_intent_id: payment_reference, // Use the same reference
+          payment_intent_id: payment_reference,
           amount: amount,
           currency: currency,
           plan_type: plan_type,
@@ -495,11 +511,16 @@ class AnalyticsController {
 
       if (subscriptionError) throw subscriptionError;
 
-      // 3. Get updated profile to return
+      // 4. Update the user's premium status directly
       const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .update({
+          is_premium: true,
+          premium_until: endsAt.toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id)
+        .select()
         .single();
 
       if (profileError) throw profileError;

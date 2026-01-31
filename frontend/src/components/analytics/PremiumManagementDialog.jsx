@@ -176,10 +176,10 @@ const PremiumManagementDialog = ({ student, isOpen, onClose, onSuccess }) => {
                 {!student.isPremium ? (
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <select
-                            value={Object.entries(planOptions).find(([key, plan]) =>
+                            value={planOptions.find(plan =>
                                 plan.data.plan_type === formData.plan_type &&
                                 plan.data.interval === formData.interval
-                            )?.[0]}
+                            )?.value || 'monthly_individual'}
                             onChange={(e) => handlePlanChange(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-royal-purple focus:border-transparent"
                             required
