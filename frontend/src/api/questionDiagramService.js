@@ -3,34 +3,45 @@ import { uploadFile } from '../lib/supabaseStorage';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 /**
- * Upload diagram for a question
+ * Upload diagram for a question using backend API
  * @param {string} questionId - Question ID
  * @param {File} file - Image file
  * @returns {Promise<Object>} - Upload result
  */
 export const uploadQuestionDiagram = async (questionId, file) => {
   try {
-    // Upload file to Supabase storage
-    const uploadResult = await uploadFile(file);
-    
-    // Update question with diagram path
-    const response = await fetch(`${API_BASE_URL}/questions/${questionId}/diagram`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        diagram_path: uploadResult.filePath,
-        has_diagram: true
-      })
+    console.log('[Frontend] Uploading diagram:', {
+      questionId,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      fileLastModified: file.lastModified
     });
 
+    // Create FormData for file upload
+    const formData = new FormData();
+    formData.append('diagram', file);
+    
+    console.log('[Frontend] FormData created, sending to backend...');
+    
+    // Upload via backend API (uses admin privileges)
+    const response = await fetch(`${API_BASE_URL}/questions/${questionId}/diagram`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData
+    });
+
+    console.log('[Frontend] Backend response status:', response.status);
+
     if (!response.ok) {
-      throw new Error('Failed to update question with diagram');
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[Frontend] Backend error response:', errorData);
+      throw new Error(errorData.message || 'Failed to upload diagram');
     }
 
-    return uploadResult;
+    const result = await response.json();
+    console.log('[Frontend] Upload successful:', result);
+    return result.data;
   } catch (error) {
     console.error('Error uploading question diagram:', error);
     throw error;

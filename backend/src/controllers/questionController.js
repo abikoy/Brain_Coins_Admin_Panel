@@ -542,12 +542,21 @@ export const uploadQuestionDiagramHandler = async (req, res) => {
   upload.single('diagram')(req, res, async (err) => {
     try {
       if (err) {
+        console.log('[Controller] Multer error:', err);
         return res.status(400).json({ success: false, error: err.message });
       }
 
       if (!req.file) {
+        console.log('[Controller] No file uploaded');
         return res.status(400).json({ success: false, error: 'No file uploaded' });
       }
+
+      console.log('[Controller] File received:', {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferLength: req.file.buffer.length
+      });
 
       const { id: questionId } = req.params;
 

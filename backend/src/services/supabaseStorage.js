@@ -1,7 +1,7 @@
 /**
  * BACKEND - Supabase Storage Service
  * Handles secure file uploads to Supabase Storage
- * Bucket: content-uploads
+ * Buckets: content-uploads, diagrams
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -20,6 +20,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabaseStorage = createClient(supabaseUrl, supabaseServiceKey);
 
 const BUCKET_NAME = 'content-uploads';
+const DIAGRAMS_BUCKET_NAME = 'diagrams';
 
 /**
  * Upload file to Supabase Storage
@@ -105,6 +106,138 @@ export const uploadFile = async (file, fileName = null) => {
 
   } catch (error) {
     console.error('[Backend Storage] Upload failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Upload diagram to Supabase Storage diagrams bucket
+ * @param {Buffer} fileBuffer - File buffer for diagram
+ * @param {string} fileName - File name for diagram
+ * @returns {Promise<{filePath: string, fileUrl: string, fileType: string}>}
+ * @throws {Error} - Upload error including RLS failures
+ */
+export const uploadDiagram = async (fileBuffer, fileName) => {
+  try {
+    // Validate file
+    if (!fileBuffer || !fileName) {
+      throw new Error('No file buffer or file name provided for diagram');
+    }
+
+    // Validate file type - only images for diagrams
+    const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'];
+    const extension = fileName.split('.').pop().toLowerCase();
+    
+    if (!allowedExtensions.includes(extension)) {
+      throw new Error(`Invalid file type for diagram. Allowed: ${allowedExtensions.join(', ')}`);
+    }
+
+    // Validate file size (max 5MB for diagrams)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (fileBuffer.length > maxSize) {
+      throw new Error('Diagram file size exceeds 5MB limit');
+    }
+
+    // Generate unique file name
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    const uniqueFileName = `${timestamp}_${randomString}.${extension}`;
+
+    // Determine file path in diagrams bucket uploads folder
+    const filePath = `uploads/${uniqueFileName}`;
+
+    console.log('[Backend Storage] Uploading diagram:', {
+      originalName: fileName,
+      uniqueName: uniqueFileName,
+      size: fileBuffer.length,
+      path: filePath,
+      bucket: DIAGRAMS_BUCKET_NAME
+    });
+
+    // Upload to Supabase Storage diagrams bucket
+    const { data, error } = await supabaseStorage
+      .storage
+      .from(DIAGRAMS_BUCKET_NAME)
+      .upload(filePath, fileBuffer, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: `image/${extension}`
+      });
+
+    if (error) {
+      // Check for bucket not found
+      if (error.message.includes('Bucket not found')) {
+        console.error('[Backend Storage] Diagram Bucket Error:', error);
+        throw new Error(`Storage bucket "${DIAGRAMS_BUCKET_NAME}" not found. Please create the bucket in Supabase Dashboard.`);
+      }
+
+      // Check for duplicate file
+      if (error.message.includes('already exists')) {
+        console.error('[Backend Storage] Duplicate diagram file:', error);
+        throw new Error('A diagram file with this name already exists. Please try again.');
+      }
+
+      console.error('[Backend Storage] Diagram upload error:', error);
+      throw new Error(error.message || 'Failed to upload diagram');
+    }
+
+    // Get signed URL with 1 year expiry
+    const { data: urlData, error: urlError } = await supabaseStorage
+      .storage
+      .from(DIAGRAMS_BUCKET_NAME)
+      .createSignedUrl(filePath, 3122064000); // 1 year in seconds
+
+    if (urlError) {
+      console.error('[Backend Storage] Failed to create diagram signed URL:', urlError);
+      throw new Error('Failed to create signed URL for diagram');
+    }
+
+    const fileUrl = urlData.signedUrl;
+
+    // Determine file type
+    const fileType = getFileType(uniqueFileName);
+
+    console.log('[Backend Storage] Diagram upload successful:', {
+      filePath: data.path,
+      fileUrl,
+      fileType
+    });
+
+    return {
+      filePath: data.path,
+      fileUrl,
+      fileType,
+      fileName: uniqueFileName
+    };
+
+  } catch (error) {
+    console.error('[Backend Storage] Diagram upload failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete diagram file from Supabase Storage diagrams bucket
+ * @param {string} filePath - Path to diagram file in diagrams bucket
+ * @returns {Promise<void>}
+ */
+export const deleteDiagram = async (filePath) => {
+  try {
+    const { error } = await supabaseStorage
+      .storage
+      .from(DIAGRAMS_BUCKET_NAME)
+      .remove([filePath]);
+
+    if (error) {
+      if (error.statusCode === 403 || error.statusCode === 401) {
+        throw new Error('Unauthorized: You do not have permission to delete this diagram.');
+      }
+      throw new Error(error.message || 'Failed to delete diagram');
+    }
+
+    console.log('[Backend Storage] Diagram file deleted:', filePath);
+  } catch (error) {
+    console.error('[Backend Storage] Diagram delete error:', error);
     throw error;
   }
 };
