@@ -2621,6 +2621,14 @@ Write only in words:
    - There must always be at least one space or a character between a "$" and a "_".
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 📌 STEPWISE MATH SOLUTIONS (MANDATORY)
+  - For any calculation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.
+  - Each step must be 1–2 short sentences and show intermediate expressions in LaTex.
+  - Avoid long paragraphs, narrative elaboration, or ellipses — show only the computation steps.
+  - End with **Final Answer:** followed by the result in LaTeX.
+  -  If multiple valid methods exist, choose the shortest clear method; do not include alternate derivations unless requested.
+
+
 ` : ''}
 
 
@@ -2647,6 +2655,33 @@ ${typeRequirements}
 - Example BAD: "As mentioned in the text, water boils at 100°C."
 
 ${subject === 'English Language' ? `
+This is NOT a translation task.
+This is NOT a comprehension/history question generator.
+
+Goal: Teach English language using the chapter.
+
+Therefore override all language rules:
+
+For Tamil/Sinhala medium students:
+- Question MUST be mixed: English sentence + small native hints
+- Options MUST be English
+- Explanation MUST be native language
+- Never produce full native language question
+- Never translate entire question
+- Never ask factual/story questions (who, when, where, names)
+
+You are generating English learning exercises, not subject knowledge questions.
+
+If output becomes 100% Tamil/Sinhala → it is WRONG.
+If question asks about story facts → it is WRONG.
+
+Focus on:
+- grammar
+- vocabulary
+- usage
+- reference words
+- sentence correction
+- meaning in context
 
 - The "ENGLISH SUBJECT LANGUAGE SUPPORT RULE" applies ONLY if subject is exactly "English Language".
 - This mode should generate **English-learning style** quizzes: EASY difficulty focusing on **vocabulary**, **grammar**, and short **comprehension** items (practice-style questions useful for learners).
