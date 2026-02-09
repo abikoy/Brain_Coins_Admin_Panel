@@ -2622,7 +2622,11 @@ Write only in words:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 4. 📌 STEPWISE MATH SOLUTIONS (MANDATORY)
-  - For any calculation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.
+  - ss
+  ${language='English'? `For any calculation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.`:''}
+  ${language='Tamil'? `For any calculation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.`:''}
+  ${language='Sinhala'? `For any calculation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.`:''}
+  
   - Each step must be 1–2 short sentences and show intermediate expressions in LaTex.
   - Avoid long paragraphs, narrative elaboration, or ellipses — show only the computation steps.
   - End with **Final Answer:** followed by the result in LaTeX.
