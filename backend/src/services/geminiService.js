@@ -2502,6 +2502,13 @@ You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provid
 - Use LaTeX for ALL operators: $a^m a^n$, $a^m div a^n$
 - If you cannot follow this notation, regenerate the question.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GLOBAL RULES (MUST FOLLOW):
+ You MUST output ONLY valid JSON. No markdown. No backticks. No extra text.
+ Use ONLY the textbook/past-paper source text given. Do not invent facts outside it.
+ Keep questions age-appropriate for Grade 6-11.
+ Each question MUST have a clear, correct answer + a short explanation.
+ Avoid duplicates. Each item must be meaningfully different.
+ No harmful, sexual, extremist, or unsafe content.
 
 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA/TAMIL:
 ${language === 'Sinhala' || language === 'Tamil' ? `
@@ -2638,6 +2645,16 @@ ${typeRequirements}
 - Example BAD: "Based on the uploaded file, water boils at 100°C."
 - Example BAD: "According to the document, water boils at 100°C."
 - Example BAD: "As mentioned in the text, water boils at 100°C."
+
+${subject === 'English Language' ? `
+
+- The "ENGLISH SUBJECT LANGUAGE SUPPORT RULE" applies ONLY if subject is exactly "English Language".
+- This mode should generate **English-learning style** quizzes: EASY difficulty focusing on **vocabulary**, **grammar**, and short **comprehension** items (practice-style questions useful for learners).
+- Avoid memory-based comprehension questions. Do NOT ask for exact page/paragraph/date/figure recalls — focus on grammar, vocabulary, usage, and meaning.
+- If the selected language is English: Questions and options must be 100% English; explanations must be in English.
+- If the selected language is Tamil or Sinhala (for English Language only): Questions must be mostly English; add small native hint words in brackets for difficult words only (e.g., verb (வினைச்சொல்) / tense (காலம்)). Do NOT translate the full sentence. Options must remain English. Explanations must be fully in the selected native language.
+- For all other subjects, DO NOT apply these English-subject constraints; follow subject-specific rules and the selected language settings.
+` : ''}
 
 Constraints:
 - All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}

@@ -10,19 +10,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
  */
 export const uploadQuestionDiagram = async (questionId, file) => {
   try {
-    console.log('[Frontend] Uploading diagram:', {
-      questionId,
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      fileLastModified: file.lastModified
-    });
-
     // Create FormData for file upload
     const formData = new FormData();
     formData.append('diagram', file);
-    
-    console.log('[Frontend] FormData created, sending to backend...');
     
     // Upload via backend API (uses admin privileges)
     const response = await fetch(`${API_BASE_URL}/questions/${questionId}/diagram`, {
@@ -31,16 +21,12 @@ export const uploadQuestionDiagram = async (questionId, file) => {
       body: formData
     });
 
-    console.log('[Frontend] Backend response status:', response.status);
-
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('[Frontend] Backend error response:', errorData);
       throw new Error(errorData.message || 'Failed to upload diagram');
     }
 
     const result = await response.json();
-    console.log('[Frontend] Upload successful:', result);
     return result.data;
   } catch (error) {
     console.error('Error uploading question diagram:', error);
