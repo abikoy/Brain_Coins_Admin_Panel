@@ -8,7 +8,9 @@ import {
 
   AlertTriangle,
 
-  Edit3
+  Edit3,
+
+  User
 
 } from 'lucide-react';
 
@@ -64,6 +66,20 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
 
       description: 'Enhanced question editing interface'
 
+    },
+
+    {
+      id: 'reports',
+      label: 'Reports',
+      icon: AlertTriangle,
+      description: 'Review and manage reported questions'
+    },
+
+    {
+      id: 'useraccountdeletion',
+      label: 'User Account Deletion',
+      icon: User,
+      description: 'Search and permanently delete user accounts'
     },
 
     {

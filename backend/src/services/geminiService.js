@@ -1277,6 +1277,39 @@ GLOBAL LATEX REQUIREMENT:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
 
+${subject === 'English Language' ? `
+This is NOT a translation task.
+This is NOT a comprehension/history summary.
+
+Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can use to teach English.
+
+Therefore override generic language rules only for producing TEACHER/LEARNER summary content:
+- Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
+  - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
+  - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
+  - (Usage) Collocations/phrases — one-line note and a 1-line example.
+  - (Practice) Short learner prompt (non-memory) like a sentence-correction, fill-in-the-blank, or paraphrase task (one line).
+  - (Activity) One suggested classroom/home activity (one line).
+
+- Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
+
+For Tamil/Sinhala medium students:
+- Bullets MUST be mostly English; you MAY add small native hint words in parentheses for difficult words only (e.g., noun (பெயர்ச்சொல்), verb (வினைச்சொல்)).
+- Do NOT translate entire sentences or produce full native-language bullets.
+- If you include a short "Teacher Note", it may be in native language but keep it to a single line and mark it (Teacher Note (සිංහල) / Teacher Note (தமிழ்)).
+
+Validation rules:
+- If output becomes 100% Tamil/Sinhala → it is WRONG (reject/regenerate).
+- If any bullet asks for factual/story recall → it is WRONG (reject/regenerate).
+
+- The "ENGLISH SUBJECT LANGUAGE SUPPORT RULE" applies ONLY if subject is exactly "English Language".
+- For all other subjects, DO NOT apply these English-subject constraints; follow subject-specific rules and the selected language settings.
+` : ''}
+
+Constraints:
+- All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}
+
+- ⚠️ CRITICAL: Generate ONLY these question types: ${types.join(', ')} - NO OTHER TYPES ALLOWED!
 
 TASK:
 Produce 5-8 concise bullet points strictly grounded in content relevant to "${packTitle || 'the main topic'}". 

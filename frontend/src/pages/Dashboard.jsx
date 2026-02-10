@@ -8,7 +8,7 @@ import Sidebar from '../components/shared/Sidebar';
 
 import Analytics from './Analytics';
 
-import { BarChart3, FileText, Settings, AlertCircle, Layers, Edit3 } from 'lucide-react';
+import { BarChart3, FileText, Settings, AlertCircle, Layers, Edit3, AlertTriangle, User } from 'lucide-react';
 
 import ContentGeneration from './ContentGeneration';
 
@@ -17,6 +17,9 @@ import ContentManagement from './ContentManagement';
 import QuestionEditor from './QuestionEditor';
 
 import SystemLogs from './system_logs'; 
+
+import Reports from './Reports';
+import UserAccountDeletion from './UserAccountDeletion'; 
 
 
 
@@ -78,6 +81,20 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
 
           description: 'Enhanced question editing interface'
 
+        },
+
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: AlertTriangle,
+          description: 'Review and manage reported questions'
+        },
+
+        {
+          id: 'useraccountdeletion',
+          label: 'User Account Deletion',
+          icon: User,
+          description: 'Search and permanently delete user accounts'
         },
 
         {
@@ -179,6 +196,18 @@ const Dashboard = ({ onLogout, user, students, progressData, questions, setQuest
           {activeTab === 'questioneditor' && (
 
             <QuestionEditor />
+
+          )}
+
+          {activeTab === 'reports' && (
+
+            <Reports />
+
+          )}
+
+          {activeTab === 'useraccountdeletion' && (
+
+            <UserAccountDeletion />
 
           )}
 
