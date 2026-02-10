@@ -1130,7 +1130,29 @@ Write only in words:
  Ray AB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
+${subject === 'English Language' ? `
+  This is NOT a translation task.
+  This is NOT a comprehension/history summary.
 
+Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can use to teach English.
+
+Therefore override generic language rules only for producing TEACHER/LEARNER summary content:
+- Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
+  - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
+  - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
+  - (Usage) Collocations/phrases — one-line note and a 1-line example.
+  - (Practice) Short learner prompt (non-memory) like a sentence-correction, fill-in-the-blank, or paraphrase task (one line).
+  - (Activity) One suggested classroom/home activity (one line).
+
+- Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
+
+If selected language is  Tamil/Sinhala:
+- Bullets MUST be mostly English; you MAY add small native hint words in parentheses for difficult words only (e.g., noun (பெயர்ச்சொல்), verb (வினைச்சொல்)).
+If selected language is English 
+ -Bullets Must be strictly in full  English 
+
+
+` : ''}
 TASK:
 Produce 5-8 concise bullet points strictly grounded in the content relevant to "${packTitle || 'the main topic'}".
 
@@ -1222,6 +1244,7 @@ export const generateLearningPackFromBase64 = async (base64Data, mimeType, userP
  * Generate 5-8 bullet summary from image/PDF using Vision
  */
 export const generateSummaryFromVision = async (base64Data, mimeType, language = 'English', packTitle = '', packDescription = '', subject = 'Unknown') => {
+  console.log('[generateSummaryFromVision] summary generation for ', subject)
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
@@ -1278,12 +1301,18 @@ GLOBAL LATEX REQUIREMENT:
 ` : ''}
 
 ${subject === 'English Language' ? `
-This is NOT a translation task.
-This is NOT a comprehension/history summary.
+  This is NOT a translation task.
+  This is NOT a comprehension/history summary.
 
 Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can use to teach English.
 
-Therefore override generic language rules only for producing TEACHER/LEARNER summary content:
+ Bullets MUST be written predominantly in English (Latin letters). Each bullet: 8–18 words.
+- Do NOT translate full sentences or produce bullets entirely in the native language.
+- For Tamil/Sinhala medium students (when language === 'Tamil' || language === 'Sinhala'):
+  - You MAY include **at most one short native hint** in parentheses per bullet (1–3 native words) — e.g., noun (பெயர்ச்சொல்).
+  - **Do NOT** use full native sentences; keep any native text to tiny hints only. Bullets MUST be written predominantly in English (Latin letters). Each bullet: 8–18 words.
+- Do NOT translate full sentences or produce bullets entirely in the native language.
+
 - Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
   - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
   - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
@@ -1293,23 +1322,20 @@ Therefore override generic language rules only for producing TEACHER/LEARNER sum
 
 - Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
 
-For Tamil/Sinhala medium students:
+If selected language is  Tamil/Sinhala:
 - Bullets MUST be mostly English; you MAY add small native hint words in parentheses for difficult words only (e.g., noun (பெயர்ச்சொல்), verb (வினைச்சொல்)).
-- Do NOT translate entire sentences or produce full native-language bullets.
-- If you include a short "Teacher Note", it may be in native language but keep it to a single line and mark it (Teacher Note (සිංහල) / Teacher Note (தமிழ்)).
+If selected language is English 
+ -Bullets Must be strictly in full  English 
 
-Validation rules:
-- If output becomes 100% Tamil/Sinhala → it is WRONG (reject/regenerate).
-- If any bullet asks for factual/story recall → it is WRONG (reject/regenerate).
 
-- The "ENGLISH SUBJECT LANGUAGE SUPPORT RULE" applies ONLY if subject is exactly "English Language".
-- For all other subjects, DO NOT apply these English-subject constraints; follow subject-specific rules and the selected language settings.
 ` : ''}
+${subject !== 'English Language'
+  ? `Constraints:
+- All text must be in ${language}. ${ (language === 'Sinhala' || language === 'Tamil') ? 'Use PURE Unicode only - NO garbage characters!' : '' }`
+  : ''
+}
 
-Constraints:
-- All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}
 
-- ⚠️ CRITICAL: Generate ONLY these question types: ${types.join(', ')} - NO OTHER TYPES ALLOWED!
 
 TASK:
 Produce 5-8 concise bullet points strictly grounded in content relevant to "${packTitle || 'the main topic'}". 
@@ -1319,11 +1345,76 @@ OUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
     const imagePart = { inlineData: { data: base64Data, mimeType } };
     const result = await withRetry(() => model.generateContent([prompt, imagePart]));
     const textOut = result.response.text();
-    const match = textOut.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('Invalid summary response');
-    const parsed = JSON.parse(match[0]);
-    const bullets = Array.isArray(parsed.bullets) ? parsed.bullets.slice(0, 8) : [];
-    return bullets;
+
+    // Resilient parsing: prefer JSON { bullets: [...] } but fall back to parsing plain bullets/lines
+    try {
+      let bullets = [];
+
+      // 1) Try to extract a JSON object first
+      const jsonMatch = textOut.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+
+          if (Array.isArray(parsed.bullets)) {
+            bullets = parsed.bullets.slice(0, 8);
+          } else if (Array.isArray(parsed)) {
+            bullets = parsed.slice(0, 8);
+          } else if (typeof parsed.bullets === 'string') {
+            bullets = parsed.bullets.split(/\r?\n/).map(s => s.trim()).filter(Boolean).slice(0, 8);
+          } else if (Array.isArray(parsed.summary)) {
+            bullets = parsed.summary.slice(0, 8);
+          }
+        } catch (e) {
+          console.warn('[Backend Gemini] JSON parse of summary failed, will try fallback parsing:', e.message);
+        }
+      }
+
+      // 2) If no bullets yet, try to parse plain bullet lines from the raw text
+      if (!bullets || bullets.length === 0) {
+        const lines = textOut.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+        // Lines that look like bullets or numbered lists
+        const candidates = lines.filter(l => /^[-•*]\s+/.test(l) || /^\d+[\).]\s+/.test(l) || /^•/.test(l));
+        if (candidates.length > 0) {
+          bullets = candidates.map(l => l.replace(/^[-•*]\s+|^\d+[\).]\s+/, '').trim()).slice(0, 8);
+        } else {
+          // As a last resort, take the first 5-8 short lines as bullets
+          const shortLines = lines.filter(l => l.split(/\s+/).length <= 30).slice(0, 8);
+          bullets = shortLines;
+        }
+      }
+
+      if (!bullets || bullets.length === 0) {
+        // Log for debugging and create an error record
+        await logGeminiParsingError(new Error('No valid bullets found in summary response'), {
+          apiEndpoint: 'generateContent',
+          prompt: prompt?.substring(0, 500),
+          responseText: textOut?.substring(0, 2000),
+          fileType: mimeType,
+          language,
+          subject
+        });
+
+        console.error('[Backend Gemini] Invalid summary response (no bullets) - raw response preview:', textOut?.substring(0, 1000));
+        return [];
+      }
+
+      console.log('[Backend Gemini] Summary bullets extracted:', bullets.length);
+      return bullets;
+
+    } catch (err) {
+      await logGeminiParsingError(err, {
+        apiEndpoint: 'generateContent',
+        prompt: prompt?.substring(0, 500),
+        responseText: textOut?.substring(0, 2000),
+        fileType: mimeType,
+        language,
+        subject
+      });
+      console.error('[Backend Gemini] Summary (vision) parsing error:', err);
+      return [];
+    }
   } catch (err) {
     console.error('[Backend Gemini] Summary (vision) error:', err);
     return [];

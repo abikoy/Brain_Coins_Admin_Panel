@@ -192,7 +192,7 @@ export const generatePreviewFromFileHandler = async (req, res) => {
       selected.push(...available.slice(0, countToTake).map(q => ({ ...q, difficulty: typeDifficulty })));
     }
 
-    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English', packTitle, packDescription);
+    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English', packTitle, packDescription, subject || 'Unknown');
 
     return res.json({
       success: true,
@@ -291,7 +291,7 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
     // Get pack title and description for focused summary generation
     const packTitle = learningPack?.title || '';
     const packDescription = learningPack?.description || '';
-    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English', packTitle, packDescription);
+    const summary_bullets = await generateSummaryFromFile(fileUrl, fileType, language || 'English', packTitle, packDescription, subject || learningPack?.subject?.name);
 
     // Save summary
     let saved_summary = null;
