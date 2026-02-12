@@ -1328,10 +1328,10 @@ If selected language is English
 
 ` : ''}
 ${subject !== 'English Language'
-  ? `Constraints:
-- All text must be in ${language}. ${ (language === 'Sinhala' || language === 'Tamil') ? 'Use PURE Unicode only - NO garbage characters!' : '' }`
-  : ''
-}
+        ? `Constraints:
+- All text must be in ${language}. ${(language === 'Sinhala' || language === 'Tamil') ? 'Use PURE Unicode only - NO garbage characters!' : ''}`
+        : ''
+      }
 
 
 
@@ -2586,6 +2586,7 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
   console.log(`[generateQuestionsFromVision] Subject passed: ${subject}`);
   console.log('packTitle:', packTitle);
   console.log('packDescription:', packDescription);
+   console.log('Language:', language);
 
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
@@ -2743,11 +2744,11 @@ Write only in words:
    - There must always be at least one space or a character between a "$" and a "_".
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-4. 📌 STEPWISE MATH SOLUTIONS (MANDATORY)
-  - ss
-  ${language='English'? `For any calculation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.`:''}
-  ${language='Tamil'? `For any calculation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.`:''}
-  ${language='Sinhala'? `For any calculation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.`:''}
+4. 📌 MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
   
   - Each step must be 1–2 short sentences and show intermediate expressions in LaTex.
   - Avoid long paragraphs, narrative elaboration, or ellipses — show only the computation steps.
@@ -2829,28 +2830,62 @@ Question Format Requirements:
    - correct_answer: The correct answer
    - options: Array of 4 options (including the correct answer)
    - explanation: WHY the correct answer is correct (2-3 sentences explaining the reasoning)
-
+       ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
 2. FIIB (Fill In The Blank):
    - question_type: "FIIB"
    - question_text: Text with ___ for blank (e.g., "The capital of France is ___")
    - correct_answer: The correct word/phrase to fill the blank
    - options: REQUIRED Array of 4-6 possible answers (MUST include correct answer and distractors) for drag-and-drop
    - explanation: WHY this answer fills the blank correctly (2-3 sentences)
+     ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
    - ⚠️ CRITICAL: FIIB questions MUST have an options array - this is mandatory!
-
+   
 3. TF (True/False):
    - question_type: "TF"
    - question_text: A statement
    - correct_answer: "True" or "False"
    - explanation: WHY the statement is true or false (2-3 sentences with evidence)
-
+       ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
 4. HOQ (Higher Order Question - Open-ended):
    - question_type: "HOQ"
    - question_text: An analytical, evaluative, or creative question requiring extended response
    - correct_answer: A SHORT, concise model answer (1-2 sentences ONLY) demonstrating key understanding
    - explanation: REQUIRED - Brief guidance on key points to include (2 sentences in ${language})
+       ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
    - Example HOQ explanation: "A good answer should identify the main causes and provide one specific example. This question assesses critical thinking and analysis skills."
-
+    
 ⚠️ CRITICAL: ALL questions MUST include an "explanation" field in ${language}!
 ⚠️ HOQ questions MUST have detailed explanations that guide students on how to approach the answer!
 
