@@ -1313,12 +1313,10 @@ Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can u
   - **Do NOT** use full native sentences; keep any native text to tiny hints only. Bullets MUST be written predominantly in English (Latin letters). Each bullet: 8–18 words.
 - Do NOT translate full sentences or produce bullets entirely in the native language.
 
-- Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
-  - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
-  - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
-  - (Usage) Collocations/phrases — one-line note and a 1-line example.
-  - (Practice) Short learner prompt (non-memory) like a sentence-correction, fill-in-the-blank, or paraphrase task (one line).
-  - (Activity) One suggested classroom/home activity (one line).
+ FOCUS ONLY ON:
+   • VOCABULARY - Key words/phrases with definitions + example
+   • GRAMMAR - Important rules/structures + example  
+   • USAGE - Collocations, common phrases + example
 
 - Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
 
