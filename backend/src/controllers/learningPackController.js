@@ -93,7 +93,7 @@ const createLearningPackHandler = async (req, res) => {
       title,
       title_si,
       title_ta,
-      difficulty: difficulty || 'Medium',
+      difficulty: difficulty || 'Easy',
       description: description || '',
       language: finalLanguage,
       is_active: is_active !== false
@@ -158,7 +158,7 @@ const analyzeDocumentHandler = async (req, res) => {
           content,
           order: p.order || (i + 1),
           language: p.language || 'English',
-          difficulty: p.difficulty || 'Medium',
+          difficulty: p.difficulty || 'Easy',
           duration,
         };
       })
@@ -167,7 +167,7 @@ const analyzeDocumentHandler = async (req, res) => {
         content: 'No content available',
         order: 1,
         language: 'English',
-        difficulty: 'Medium',
+        difficulty: 'Easy',
         duration: 10,
       }];
 

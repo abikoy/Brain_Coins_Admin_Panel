@@ -33,7 +33,7 @@ export const generateQuestionsHandler = async (req, res) => {
 
     const questions = await generateQuestions(content, {
       count: Math.min(parseInt(count) || 5, 20),
-      difficulty: difficulty || 'Medium',
+      difficulty: difficulty || 'Easy',
       type: type || 'MCQ',
       subject: subject || 'Unknown'
     });
@@ -62,7 +62,7 @@ export const generateQuestionsHandler = async (req, res) => {
 export const createQuestionHandler = async (req, res) => {
   try {
     const {
-      pack_id, type = 'MCQ', difficulty = 'Medium', question = '', answer = '',
+      pack_id, type = 'MCQ', difficulty = 'Easy', question = '', answer = '',
       options = [], language = 'English', blooms_taxonomy = 'Understand'
     } = req.body || {};
 
@@ -145,7 +145,7 @@ export const generatePreviewFromFileHandler = async (req, res) => {
     try {
       gen = await generateQuestionsFromFile(fileUrl, fileType, {
         count: totalRequested,
-        difficulty: difficulty || 'Medium',
+        difficulty: difficulty || 'Easy',
         types: requestedTypes,
         counts: normalizedCounts,
         language: language || 'English',
@@ -186,7 +186,7 @@ export const generatePreviewFromFileHandler = async (req, res) => {
     const selected = [];
     for (const type of requestedTypes) {
       const available = questionsByType[type] || [];
-      const typeDifficulty = (typeDifficulties && typeDifficulties[type]) || difficulty || 'Medium';
+      const typeDifficulty = (typeDifficulties && typeDifficulties[type]) || difficulty || 'Easy';
       const countToTake = Math.min(available.length, normalizedCounts[type]);
 
       selected.push(...available.slice(0, countToTake).map(q => ({ ...q, difficulty: typeDifficulty })));
@@ -238,7 +238,7 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
         grade,
         title: pack_title || `Auto Pack - ${new Date().toLocaleDateString()}`,
         description: pack_description || 'Auto-created for AI question generation',
-        difficulty: pack_difficulty || difficulty || 'Medium',
+        difficulty: pack_difficulty || difficulty || 'Easy',
         is_active: true
       });
 
@@ -257,7 +257,7 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
 
     const questions = await generateQuestionsFromFile(fileUrl, fileType, {
       count: Math.min(parseInt(count) || 5, 20),
-      difficulty: difficulty || learningPack.difficulty || 'Medium',
+      difficulty: difficulty || learningPack.difficulty || 'Easy',
       types: filteredTypes.length ? filteredTypes : allowedTypes,
       language,
       bloom_level,
@@ -280,7 +280,7 @@ export const generateQuestionsFromFileHandler = async (req, res) => {
         diagram_path: null,
         blooms_taxonomy: q.blooms_taxonomy || bloom_level || 'Understand',
         display_order: idx + 1,
-        difficulty: q.difficulty || difficulty || learningPack.difficulty || 'Medium',
+        difficulty: q.difficulty || difficulty || learningPack.difficulty || 'Easy',
         generated: true,
         ...languageFields // ← This ensures question_text is always set
       };
@@ -482,7 +482,7 @@ export const approveFromPreviewHandler = async (req, res) => {
         diagram_path: null,
         blooms_taxonomy: q.blooms_taxonomy || q.bloom || 'Remember',
         display_order: index,
-        difficulty: q.difficulty || 'Medium',
+        difficulty: q.difficulty || 'Easy',
         generated: true,
         created_at: new Date().toISOString(),
         metadata: q.metadata || {},

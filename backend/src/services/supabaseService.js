@@ -326,7 +326,7 @@ export const saveQuestions = async (questions) => {
 
       display_order: q.display_order || 0,
 
-      difficulty: q.difficulty || 'Medium',
+      difficulty: q.difficulty || 'Easy',
 
       generated: q.generated === undefined ? true : !!q.generated
 

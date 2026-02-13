@@ -356,7 +356,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           grade: packs[0].grade,
           subject: packs[0].subject,
           topics: packs.flatMap(pack => pack.topics || []),
-          difficulty: packs[0].difficulty || 'Medium',
+          difficulty: packs[0].difficulty || 'Easy',
           duration: packs.reduce((total, pack) => total + (pack.duration || 10), 0)
         };
         packs = [combinedPack];
@@ -658,7 +658,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
             description: packResult.packDescription || '',
             subject_id: subject,
             grade: safeGrade,
-            difficulty: 'Medium',
+            difficulty: 'Easy',
             language: getLanguageCode(genLanguage || 'English'),
             is_active: true
           };
