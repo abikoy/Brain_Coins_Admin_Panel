@@ -83,7 +83,6 @@ async function extractTextFromFile(base64Data, mimeType) {
         // More lenient PDF parsing with better error handling
         const data = await pdfParse(buffer, {
           max: 50, // Increase page limit
-          pagerender: render_page, // Custom renderer for better text extraction
           version: 'v1.10.100'
         });
 
@@ -2165,8 +2164,86 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     }
 
     console.log('[generateQuestions] JSON match found, parsing...');
-    const questions = JSON.parse(jsonMatch[0]);
-    console.log('[generateQuestions] ✅ Parsed questions count:', questions?.length || 0);
+    
+    let questions;
+    try {
+      // Clean JSON string to handle common escape character issues
+      let cleanedJson = jsonMatch[0];
+      
+      // More comprehensive cleaning for Tamil/Sinhala text
+      cleanedJson = cleanedJson
+        // Fix common escape sequences
+        .replace(/\\u[\d]{4}/g, (match) => {
+          try {
+            return String.fromCharCode(parseInt(match.slice(2), 16));
+          } catch {
+            return match;
+          }
+        })
+        // Fix double backslashes
+        .replace(/\\\\/g, "\\")
+        // Fix escaped quotes
+        .replace(/\\"/g, '"')
+        .replace(/\\'/g, "'")
+        // Fix problematic control characters
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        // Fix malformed Unicode escapes
+        .replace(/\\u[0-9a-fA-F]{0,4}[^\d]/g, '')
+        // Normalize whitespace
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      
+      console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
+      
+      // Try parsing with fallback for malformed JSON
+      try {
+        questions = JSON.parse(cleanedJson);
+      } catch (firstParseError) {
+        console.warn('[generateQuestions] First parse attempt failed, trying aggressive cleaning...');
+        
+        // More aggressive cleaning for problematic cases
+        cleanedJson = cleanedJson
+          // Remove all backslashes except in valid escape sequences
+          .replace(/\\[^"\\\/bfnrtu]/g, '')
+          // Fix quotes
+          .replace(/[""]/g, '"')
+          // Remove any remaining control characters
+          .replace(/[\x00-\x1F\x7F]/g, '')
+          .trim();
+        
+        questions = JSON.parse(cleanedJson);
+      }
+      
+      console.log('[generateQuestions] ✅ Parsed questions count:', questions?.length || 0);
+    } catch (parseError) {
+      console.error('[generateQuestions] ❌ CRITICAL ERROR:', {
+        errorMessage: parseError.message,
+        errorName: parseError.name,
+        errorStack: parseError.stack?.substring(0, 500),
+        errorStack: parseError.stack,
+        language: options.language,
+        questionTypes: options.types,
+        questionCount: options.count,
+        contentLength: content?.length || 0
+      });
+      
+      // Log the problematic JSON for debugging
+      console.error('[generateQuestions] Problematic JSON:', jsonMatch[0].substring(0, 500));
+      
+      await logGeminiParsingError(
+        parseError,
+        {
+          apiEndpoint: 'generateContent',
+          prompt: prompt.substring(0, 500),
+          responseText: jsonMatch[0].substring(0, 1000),
+          language: options.language,
+          questionTypes: options.types,
+          questionCount: options.count
+        }
+      );
+      throw new Error(`Failed to parse questions: ${parseError.message}`);
+    }
 
     // Helper function to detect garbage characters for Sinhala/Tamil
     const hasGarbageCharacters = (text, lang) => {
@@ -2418,7 +2495,9 @@ export const generateQuestionsFromFile = async (fileUrl, fileType, options = {})
       console.log(' From generateQuestion packTitle:', packTitle);
       console.log(' From generateQuestions packDescription:', packDescription);
       if (visionQuestions && visionQuestions.length > 0) {
-        allQuestions = visionQuestions.slice(0, count);
+        // Use all Vision API questions first, then add more if needed
+        allQuestions = visionQuestions.slice(0, Math.min(visionQuestions.length, count));
+        console.log(`[generateQuestionsFromFile] Using ${Math.min(visionQuestions.length, count)} Vision questions out of ${visionQuestions.length} generated`);
       }
     } catch (visionError) {
       console.error(`[generateQuestionsFromFile] Vision API failed:`, visionError.message);
@@ -3049,7 +3128,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
       questions = JSON.parse(jsonStr);
-
+      console.log("Respoded json:jsonStr", jsonStr);
       if (!Array.isArray(questions)) {
         throw new Error('Expected an array of questions');
       }
