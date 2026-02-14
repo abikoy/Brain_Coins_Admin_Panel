@@ -1814,76 +1814,87 @@ export const generateQuestions = async (content, options = {}) => {
     console.log(' From generateQuestions packDescription:', packDescription);
     const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
-    const prompt = `
-SYSTEM:
-You are EduQuestLab, a multilingual pedagogy-aware generator. Always obey requested language; align to Bloom's level; ground strictly in provided context.
+    // Build type-specific count requirements
+    let typeRequirements = '';
+    if (options.counts && Object.keys(options.counts).length > 0) {
+      typeRequirements = '\n\nEXACT QUESTION TYPE COUNTS REQUIRED:\n';
+      Object.entries(options.counts).forEach(([type, cnt]) => {
+        if (cnt > 0) {
+          typeRequirements += `- Generate EXACTLY ${cnt} ${type} questions\n`;
+        }
+      });
+    } else {
+      typeRequirements = `\n\nGenerate EXACTLY ${count} questions using these types: ${types.join(', ')}`;
+    }
+    const packScopePrompt = packTitle ? `
+🚨 VISION CONTEXT SCOPING:
+
+YOU ARE ANALYZING: "${packTitle}"
+${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
+
+**RESTRICTION:** Generate questions ONLY from this specific learning pack's content.
+**PROHIBITED:** Ignore other chapters, sections, or general knowledge.
+**FOCUS:** Extract and question ONLY the material relevant to "${packTitle}"
+
+` : '';
+
+    const prompt = `SYSTEM:
+You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provided document/image and generate educational questions.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 MATHEMATICS LATEX NOTATION (STRICT - CONSISTENT ACROSS ALL LANGUAGES)
+📌 MATHEMATICS LATEX NOTATION (STRICT)
 - ALL math expressions MUST be wrapped in $...$ delimiters
 - Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
-- Multiplication: Use $\\times$ or implicit multiplication: $ab$, $2x$
-- Power of a power MUST be: $(a^m)^n = a^{mn}$
-  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 \\times 4} = 2^{12}$)
-- Division: Use $\\div$ or fractions: $\\frac{a}{b}$
-- ALWAYS use LaTeX, NEVER Unicode superscripts (no aᵐ, 2³, etc.)
+- Power of a power MUST be written as: $(a^m)^n = a^{mn}$
+  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 times 4} = 2^{12}$)
+- Use LaTeX for ALL operators: $a^m a^n$, $a^m div a^n$
+- If you cannot follow this notation, regenerate the question.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GLOBAL RULES (MUST FOLLOW):
+ You MUST output ONLY valid JSON. No markdown. No backticks. No extra text.
+ Use ONLY the textbook/past-paper source text given. Do not invent facts outside it.
+ Keep questions age-appropriate for Grade 6-11.
+ Each question MUST have a clear, correct answer + a short explanation.
+ Avoid duplicates. Each item must be meaningfully different.
+ No harmful, sexual, extremist, or unsafe content.
 
-🚨 🚨 🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA AND TAMIL 🚨 🚨 🚨
+🚨 CRITICAL UNICODE REQUIREMENT FOR SINHALA/TAMIL:
 ${language === 'Sinhala' || language === 'Tamil' ? `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ ABSOLUTE REQUIREMENT: You MUST output PROPER UNICODE characters for ${language}. 
-⚠️ ANY LATIN CHARACTERS = COMPLETE FAILURE
-⚠️ ANY GARBAGE CHARACTERS = COMPLETE FAILURE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ ABSOLUTE REQUIREMENT: You MUST output PURE Unicode characters. NO EXCEPTIONS.
 
-**❌❌❌ FORBIDDEN OUTPUT - THESE ARE GARBAGE - NEVER PRODUCE THESE ❌❌❌**
-${language === 'Sinhala' ? `
-❌ "msróvhla", "y\`Èkafõ", ";s%fldaKdldr", "fkdjk", "uqyqK;g", "hehs", "lshkq", ",efõ"
-❌ "wdOdrlh", "YS¾Ihwe", "odrh;s%fldaKdldr", "uqyqK;", "wrh", "jQ", "f.da,hl"
-❌ "mßudj", "iQ;%fhka", ",efí", "f.da,fha", "fiùfï", "ksjerÈ", "iQ;%h", "fõ"
-❌ ANY text with Latin letters (a-z, A-Z) mixed with symbols
-` : `
-❌ "¸USP", "©hUøP", "AmhÁønø¯", "£¯ß£kzv", "Gs÷PõøÁPøÍa", "_¸UPÀ", "÷Áõ®"
-❌ "Euõµn[PÎß", "ö\´²®", "Âuzøua", "Po¨¦a", "£õh¡À", "C»Á\", "÷©ØSÔzu"
-❌ "lg P", "antilog", "öPõÒ÷Áõ®", "A¨÷£õx", "Âv", "ö£Ö©õÚ[", "PõsP"
-❌ ANY text with Latin letters (a-z, A-Z) mixed with symbols
-`}
+**FORBIDDEN OUTPUT (GARBAGE - DO NOT PRODUCE):**
+❌ "f.da,hlska odr fyda YS¾I"
+❌ ";d;aúl ixLHd"
+❌ "o¾Yl yd ,>q.Kl"
+❌ "fkdñ,a fnod yeÿ"
+❌ ">k jia;=j,"
+❌ "iudka;r f¾Ld"
 
-**✅✅✅ REQUIRED OUTPUT - ONLY USE THESE PROPER UNICODE CHARACTERS ✅✅✅**
-${language === 'Sinhala' ? `
-✅ "පළමු", "දෙවන", "තුන්වන", "සිව්වන", "පස්වන"
-✅ "ගණිතය", "විද්‍යාව", "ඉතිහාසය", "භූගෝල විද්‍යාව", "සිංහල"
-✅ "පරිච්ඡේදය", "පාඩම", "ප්‍රශ්නය", "පිළිතුර", "විකල්පය", "පැහැදිලි කිරීම"
-✅ "සත්‍ය", "අසත්‍ය", "නිවැරදි", "වැරදි", "නිවැරදි පිළිතුර"
-✅ ONLY characters from Unicode range: U+0D80 to U+0DFF
-✅ NO Latin letters (a-z, A-Z) allowed AT ALL
-` : `
-✅ "முதல்", "இரண்டாவது", "மூன்றாவது", "நான்காவது", "ஐந்தாவது"
-✅ "கணிதம்", "அறிவியல்", "வரலாறு", "புவியியல்", "தமிழ்"
-✅ "அத்தியாயம்", "பாடம்", "கேள்வி", "பதில்", "விருப்பம்", "விளக்கம்"
-✅ "உண்மை", "தவறு", "சரியான", "தவறான", "சரியான பதில்"
-✅ ONLY characters from Unicode range: U+0B80 to U+0BFF
-✅ NO Latin letters (a-z, A-Z) allowed AT ALL
-`}
+**REQUIRED OUTPUT (Proper Unicode):**
+${language === 'Sinhala' ? '✅ Sinhala: "පළමු පරිච්ඡේදය", "ගණිතය", "සංඛ්‍යා පද්ධති", "වීජ ගණිතය"' : ''}
+${language === 'Tamil' ? '✅ Tamil: "முதல் அத்தியாயம்", "கணிதம்", "எண் முறைகள்", "இயற்கணிதம்"' : ''}
 
-**🔍🔍🔍 MANDATORY SELF-VALIDATION BEFORE RESPONDING 🔍🔍🔍**
-Before you output ANYTHING, you MUST check EVERY SINGLE CHARACTER:
-1. ✓ Does EVERY character come from the CORRECT Unicode range (${language === 'Sinhala' ? 'U+0D80-U+0DFF' : 'U+0B80-U+0BFF'})?
-2. ✓ Are there ZERO Latin letters (a-z, A-Z) in my output?
-3. ✓ Do the words look like REAL ${language} words that a native speaker would recognize?
-4. ✓ Is there NO mixing of symbols and Latin characters (like "lg", "antilog", "A¨÷£õx")?
-5. ✓ Would a ${language} teacher approve this text?
+**SELF-VALIDATION BEFORE RESPONDING:**
+1. Does my output contain characters from the CORRECT Unicode range?
+   - Sinhala: U+0D80 to U+0DFF (ක ග ච ජ ට ඩ ණ ත ද න ප බ ම ය ර ල ව ශ ෂ ස හ ළ)
+   - Tamil: U+0B80 to U+0BFF (க ங ச ஞ ட ண த ந ப ம ய ர ல வ ழ ள ற ன)
+2. Do the words look like real ${language} words (not Latin gibberish)?
+3. Would a native speaker recognize these as proper words?
 
-❌ If ANY answer is NO → STOP → Re-read the content → Try again with PROPER Unicode
-✅ If ALL answers are YES → Proceed with output
+If ANY answer is NO, you MUST re-read the image and try again.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ CRITICAL: Questions with garbage characters will be REJECTED. Generate ONLY clean Unicode!
+⚠️ If you generate garbage, the user will receive FEWER questions than requested!
+⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
+
 ${subject === 'Mathematics' ? `
-  
- 📌 MATHEMATICS UNICODE NOTATION (STRICT)
-- Use Unicode superscripts: aᵐ, aⁿ, 2³, 5², 2¹²
-- Power of a power MUST be written as: (aᵐ)ⁿ = aᵐⁿ
-  Example: (2³)⁴ = 2¹² (you may show: (2³)⁴ = 2³×⁴ = 2¹²)
+📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
+
+    GLOBAL LATEX REQUIREMENT:
+   - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
+   - This applies to: "question_text", "correct_answer", "options", and "explanation".
+   - Example MCQ Options: ["$x = 5$", "$x = 10$", "$x = 15$", "$x = 20$"]
+   - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
 📌 MATHEMATICS FRACTION RULES (MANDATORY)
 
 ALL fractions MUST be written in proper LaTeX format.
@@ -1896,7 +1907,9 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 ❌ PROHIBITED:
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
+
+
 🔸 ANGLES
 • Angle symbols (∠) are strictly forbidden
 • Use hat notation on the vertex letter only
@@ -1926,6 +1939,7 @@ Write only in words:
 ✅ Write in words:
  Line segment AB
  Ray AB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 MATHEMATICS FIIB STRUCTURAL RULES (CRITICAL)
 
 1. THE "NO-UNDERSCORE-IN-LATEX" RULE:
@@ -1953,81 +1967,164 @@ Write only in words:
    - Any question text containing the sequence "_$" or "$_" is strictly forbidden. 
    - There must always be at least one space or a character between a "$" and a "_".
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 📌 MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+  - Each step must be 1–2 short sentences and show intermediate expressions in LaTex.
+  - Avoid long paragraphs, narrative elaboration, or ellipses — show only the computation steps.
+  - End with **Final Answer:** followed by the result in LaTeX.
+  -  If multiple valid methods exist, choose the shortest clear method; do not include alternate derivations unless requested.
+
+
 ` : ''}
 
 
 TASK:
-Generate EXACTLY ${count} questions strictly from the provided content.
+Generate questions strictly from the provided document/image content.
+${packScopePrompt}
 
-${packTitle ? `FOCUS AREA: ${packTitle}` : ''}
-${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
+${typeRequirements}
 
-Content (use only this):
-${content}
-
-Constraints:
-- All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use ONLY proper Unicode characters - NO Latin characters allowed!' : ''}
-- Difficulty: ${difficulty}
-- Bloom level: ${bloom_level}
-- ⚠️ CRITICAL: Generate ONLY these question types: ${types.join(', ')} - NO OTHER TYPES ALLOWED! (ignore any other types)
-- Generate EXACTLY ${count} questions - no more, no less
-
-Question Format Requirements:
-1. MCQ (Multiple Choice):
-   - question_type: "MCQ"
-   - question_text: Clear, unambiguous question testing key concepts
-   - correct_answer: Precise and correct
-   - options: 4 plausible options with ONE clearly correct answer
-   - explanation: Brief reasoning
-
-2. FIIB (Fill In The Blank):
-   - question_type: "FIIB" 
-   - question_text: Sentence with ___ for blank testing important terms
-   - correct_answer: Key term or concept
-   - options: 4-6 related terms including correct answer
-   - explanation: Clear, direct explanation of why this term is correct (NO references to "file", "image", "document", or "uploaded content")
-
-3.  TF (True/False):
-   - question_type: "TF"
-   - question_text: Clear factual statement
-   - correct_answer: "True" or "False"
-   - explanation: Clear, direct evidence for why true/false (NO references to "file", "image", "document", or "uploaded content")
-
-4. HOQ (Higher Order Question - Short Answer):
-   - question_type: "HOQ"
-   - question_text: Analytical/evaluative question requiring critical thinking
-   - correct_answer: CONCISE answer (1-2 sentences, 15-25 words MAX)
-   - explanation: Clear, direct key points and reasoning (NO references to "file", "image", "document", or "uploaded content")
-   - ⚠️ HOQ answers MUST be SHORT - no essays!
-
-⚠️ CRITICAL FOR EXPLANATIONS - VIOLATION WILL RESULT IN REJECTION:
-- Write explanations as if they are from a textbook - these are established facts
-- NEVER mention "based on the file", "according to the image", "from the document", "uploaded content"
+⚠️ IMPORTANT: Generate EXACTLY the requested number of questions. Do NOT generate extra.
+⚠️ ALL questions must be clean and valid - garbage questions will be rejected!
+- NEVER include grade levels in question text
 - NEVER use phrases like "according to the document", "based on the content", "in this text", "as shown", "as mentioned"
 - NEVER refer to "the document", "the content", "the text", "the image", "the file", or "the uploaded material"
 - NEVER start explanations with "According to...", "As mentioned in...", "As shown in...", "Based on..."
-- Provide direct, factual explanations without referencing the source
+- Focus ONLY on the actual concepts and knowledge
+- Write questions as if testing pure understanding, not document navigation
+- Write explanations as if they are from a textbook - these are established facts
+- Example: Instead of "According to Figure 2.1, what is...", write "What is..."
+- Example: Instead of "On page 15, the text states...", write "The concept states..."
 - Example GOOD: "Water boils at 100°C at sea level due to atmospheric pressure."
 - Example BAD: "Based on the uploaded file, water boils at 100°C."
 - Example BAD: "According to the document, water boils at 100°C."
 - Example BAD: "As mentioned in the text, water boils at 100°C."
 
-Output: JSON array only. Each item object must include:
-- type (MCQ|FIIB|TF|HOQ)
-- difficulty
-- question
-- answer
-- options (array for MCQ and FIIB only)
+${subject === 'English Language' ? `
+This is NOT a translation task.
+This is NOT a comprehension/history question generator.
 
-Example for FIIB:
-{
-  "type": "FIIB",
-  "difficulty": "Intermediate",
-  "question": "The process of converting light energy into chemical energy is called ___",
-  "answer": "photosynthesis",
-  "options": ["photosynthesis", "respiration", "digestion", "transpiration", "fermentation"]
-}
-`;
+Goal: Teach English language using the chapter.
+
+Therefore override all language rules:
+
+For Tamil/Sinhala medium students:
+- Question MUST be mixed: English sentence + small native hints
+- Options MUST be English
+- Explanation MUST be native language
+- Never produce full native language question
+- Never translate entire question
+- Never ask factual/story questions (who, when, where, names)
+
+You are generating English learning exercises, not subject knowledge questions.
+
+If output becomes 100% Tamil/Sinhala → it is WRONG.
+If question asks about story facts → it is WRONG.
+
+Focus on:
+- grammar
+- vocabulary
+- usage
+- reference words
+- sentence correction
+- meaning in context
+
+- The "ENGLISH SUBJECT LANGUAGE SUPPORT RULE" applies ONLY if subject is exactly "English Language".
+- This mode should generate **English-learning style** quizzes: EASY difficulty focusing on **vocabulary**, **grammar**, and short **comprehension** items (practice-style questions useful for learners).
+- Avoid memory-based comprehension questions. Do NOT ask for exact page/paragraph/date/figure recalls — focus on grammar, vocabulary, usage, and meaning.
+- If the selected language is English: Questions and options must be 100% English; explanations must be in English.
+- If the selected language is Tamil or Sinhala (for English Language only): Questions must be mostly English; add small native hint words in brackets for difficult words only (e.g., verb (வினைச்சொல்) / tense (காலம்)). Do NOT translate the full sentence. Options must remain English. Explanations must be fully in the selected native language.
+- For all other subjects, DO NOT apply these English-subject constraints; follow subject-specific rules and the selected language settings.
+` : ''}
+
+Constraints:
+- All text must be in ${language}. ${language === 'Sinhala' || language === 'Tamil' ? 'Use PURE Unicode only - NO garbage characters!' : ''}
+
+- ⚠️ CRITICAL: Generate ONLY these question types: ${types.join(', ')} - NO OTHER TYPES ALLOWED!
+
+Question Format Requirements:
+1. MCQ (Multiple Choice):
+   - question_type: "MCQ"
+   - question_text: The question
+   - correct_answer: The correct answer
+   - options: Array of 4 options (including the correct answer)
+   - explanation: WHY the correct answer is correct (2-3 sentences explaining the reasoning)
+       ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
+2. FIIB (Fill In The Blank):
+   - question_type: "FIIB"
+   - question_text: Text with ___ for blank (e.g., "The capital of France is ___")
+   - correct_answer: The correct word/phrase to fill the blank
+   - options: REQUIRED Array of 4-6 possible answers (MUST include correct answer and distractors) for drag-and-drop
+   - explanation: WHY this answer fills the blank correctly (2-3 sentences)
+     ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
+   - ⚠️ CRITICAL: FIIB questions MUST have an options array - this is mandatory!
+   
+3. TF (True/False):
+   - question_type: "TF"
+   - question_text: A statement
+   - correct_answer: "True" or "False"
+   - explanation: WHY the statement is true or false (2-3 sentences with evidence)
+       ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
+4. HOQ (Higher Order Question - Open-ended):
+   - question_type: "HOQ"
+   - question_text: An analytical, evaluative, or creative question requiring extended response
+   - correct_answer: A SHORT, concise model answer (1-2 sentences ONLY) demonstrating key understanding
+   - explanation: REQUIRED - Brief guidance on key points to include (2 sentences in ${language})
+       ${subject === 'Mathematics' ? `
+       MATHEMATICS EXPLANATION (MANDATORY)
+  
+  ${language === 'English' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "Step 1:", "Step 2:", ... on separate lines.` : ''}
+  ${language === 'Tamil' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "படி 1:", "படி 2:", ... on separate lines.` : ''}
+  ${language === 'Sinhala' ? `For any explanation, provide a **numbered, concise step-by-step solution** using exactly "පියවර 1:", "පියවර 2:", ... on separate lines.` : ''}
+  
+      
+      `: ``};
+   - Example HOQ explanation: "A good answer should identify the main causes and provide one specific example. This question assesses critical thinking and analysis skills."
+    
+⚠️ CRITICAL: ALL questions MUST include an "explanation" field in ${language}!
+⚠️ HOQ questions MUST have detailed explanations that guide students on how to approach the answer!
+
+OUTPUT FORMAT: Return ONLY a valid JSON array. Example for FIIB:
+[{
+  "question_type": "FIIB",
+  "difficulty": "Medium",
+  "blooms_taxonomy": "Understand",
+  "question_text": "The process of converting light energy into chemical energy is called ___",
+  "correct_answer": "photosynthesis",
+  "options": ["photosynthesis", "respiration", "digestion", "transpiration", "fermentation"],
+  "explanation": "Photosynthesis is the process by which plants convert light energy from the sun into chemical energy stored in glucose. This occurs in the chloroplasts of plant cells using chlorophyll."
+}]
+
+IMPORTANT: Respect the exact question type counts requested above!`;
 
     console.log('[generateQuestions] Calling Gemini API with:', {
       language,
@@ -2042,7 +2139,7 @@ Example for FIIB:
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-
+    console.log("response from generated question from gemini:", response);
     console.log('[generateQuestions] Gemini response received, length:', text?.length || 0);
 
     // Parse JSON response
@@ -2586,7 +2683,7 @@ export const generateQuestionsFromVision = async (base64Data, mimeType, params =
   console.log(`[generateQuestionsFromVision] Subject passed: ${subject}`);
   console.log('packTitle:', packTitle);
   console.log('packDescription:', packDescription);
-   console.log('Language:', language);
+  console.log('Language:', language);
 
   const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
@@ -2918,12 +3015,12 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     packTitle: packTitle ? `"${packTitle}"` : 'not provided',
     packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided'
   });
-
+  
   try {
     const result = await model.generateContent([prompt, imagePart]);
     const response = await result.response;
     const text = response.text();
-
+    console.log("response from gemini generating question from gemini:",text);
     // Parse JSON response with better error handling
     let jsonText = text.trim();
 
