@@ -1844,7 +1844,7 @@ You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provid
 - ALL math expressions MUST be wrapped in $...$ delimiters
 - Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
 - Power of a power MUST be written as: $(a^m)^n = a^{mn}$
-  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 times 4} = 2^{12}$)
+  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 \\times 4} = 2^{12}$)
 - Use LaTeX for ALL operators: $a^m a^n$, $a^m div a^n$
 - If you cannot follow this notation, regenerate the question.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2797,7 +2797,7 @@ You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provid
 - ALL math expressions MUST be wrapped in $...$ delimiters
 - Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
 - Power of a power MUST be written as: $(a^m)^n = a^{mn}$
-  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 times 4} = 2^{12}$)
+  Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 \\times 4} = 2^{12}$)
 - Use LaTeX for ALL operators: $a^m a^n$, $a^m div a^n$
 - If you cannot follow this notation, regenerate the question.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
