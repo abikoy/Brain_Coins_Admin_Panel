@@ -3198,7 +3198,10 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         throw new Error('Expected an array of questions');
       }
     } catch (parseError) {
-      console.error('[Backend Gemini] JSON parse error:', parseError);
+       console.error('[Backend Gemini] JSON parse error:', parseError);
+  // More aggressive cleaning for retry
+  const superCleaned = jsonStr.replace(/\\/g, '\\\\').replace(/\\\\/g, '\\');
+  questions = JSON.parse(superCleaned);
       throw new Error(`Failed to parse questions: ${parseError.message}`);
     }
 
