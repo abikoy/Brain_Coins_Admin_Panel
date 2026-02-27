@@ -1155,7 +1155,7 @@ If selected language is English
 TASK:
 Produce 5-8 concise bullet points strictly grounded in the content relevant to "${packTitle || 'the main topic'}".
 
-OUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+`;
 
     const result = await model.generateContent(prompt);
     const textOut = result.response.text();
@@ -1336,8 +1336,7 @@ ${subject !== 'English Language'
 
 TASK:
 Produce 5-8 concise bullet points strictly grounded in content relevant to "${packTitle || 'the main topic'}". 
-
-OUTPUT: JSON object {"bullets": string[]} with 5-8 items.`;
+`;
 
     const imagePart = { inlineData: { data: base64Data, mimeType } };
     const result = await withRetry(() => model.generateContent([prompt, imagePart]));
@@ -1900,9 +1899,16 @@ ALL fractions MUST be written in proper LaTeX format.
 EVERY fraction MUST be wrapped in $...$ delimiters.
 
 ✅ CORRECT EXAMPLES:
+ 
 • Fractions: $\\frac{numerator}{denominator}$
 • Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
 
+All Square roots must be
+✅ CORRECT EXAMPLES:
+Square roots: $\\sqrt{number}$
+Example- $\\sqrt{20}$
+❌ PROHIBITED FORMATS:
+- \\/\sqrt{20} (missing $ delimiters)
 ❌ PROHIBITED:
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
@@ -2856,6 +2862,7 @@ If ANY answer is NO, you MUST re-read the image and try again.
 ⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
 
+
 ${subject === 'Mathematics' ? `
 📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
 
@@ -2870,14 +2877,38 @@ ALL fractions MUST be written in proper LaTeX format.
 EVERY fraction MUST be wrapped in $...$ delimiters.
 
 ✅ CORRECT EXAMPLES:
+ 
 • Fractions: $\\frac{numerator}{denominator}$
 • Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
 
+All Square roots must be
+✅ CORRECT EXAMPLES:
+Square roots: $\\sqrt{number}$
+Example- $\\sqrt{20}$
+❌ PROHIBITED FORMATS:
+- \\/\sqrt{20} (missing $ delimiters)
 ❌ PROHIBITED:
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
 • Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
-
+ UNITS AND MEASUREMENTS (MANDATORY)
+- ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
+- Format: $\\text{unit}$ inside math expressions
+- Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
+- Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
+- Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
+ 
+❌ PROHIBITED UNIT FORMATS:
+- $8 ext{ cm}$ (wrong command)
+- $5 cm$ (missing LaTeX)
+- $8\\text{cm}$ (missing space)
+ 
+✅ CORRECT UNIT EXAMPLES:
+- Length: $8 \\text{ cm}$, $5 \\text{ m}$
+- Area: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
+- Volume: $125 \\text{ cm}^3$
+- Weight: $2 \\text{ kg}$, $500 \\text{ g}$
+ 
 
 🔸 ANGLES
 • Angle symbols (∠) are strictly forbidden
