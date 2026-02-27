@@ -3182,7 +3182,17 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      questions = JSON.parse(jsonStr);  // ❌ This is line 3178 where it fails
+    let cleanedJson = jsonStr
+    // Fix double-escaped backslashes (this is the main issue)
+    .replace(/\\\\/g, '\\')
+    // Fix specific LaTeX commands that get corrupted
+    .replace(/\\{/g, '{')     // Fix \{ 
+    .replace(/\\}/g, '}')     // Fix \}
+    .replace(/\\n/g, '\\n')   // Preserve newlines
+    // Remove any control characters
+    .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+    .trim();
+      questions = JSON.parse(cleanedJson);  // ❌ This is line 3178 where it fails
       console.log("Respoded json:jsonStr", jsonStr);
       if (!Array.isArray(questions)) {
         throw new Error('Expected an array of questions');
