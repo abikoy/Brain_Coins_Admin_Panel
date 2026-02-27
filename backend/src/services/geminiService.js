@@ -1893,8 +1893,14 @@ ${subject === 'Mathematics' ? `
    - This applies to: "question_text", "correct_answer", "options", and "explanation".
    - Example MCQ Options: ["$x = 5$", "$x = 10$", "$x = 15$", "$x = 20$"]
    - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
+📌 UNITS AND MEASUREMENTS (MANDATORY)
+   - ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
+   - Format: $\\text{unit}$ inside math expressions
+   - Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
+   - Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
+   - Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
+ 
 📌 MATHEMATICS FRACTION RULES (MANDATORY)
-
 ALL fractions MUST be written in proper LaTeX format.
 EVERY fraction MUST be wrapped in $...$ delimiters.
 
@@ -1905,21 +1911,18 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 
 All Square roots must be
 ✅ CORRECT EXAMPLES:
-Square roots: $\\sqrt{number}$
-Example- $\\sqrt{20}$
+ • Square roots: $\\sqrt{number}$
+ • Example- $\\sqrt{20}$
+
 ❌ PROHIBITED FORMATS:
-- \\/\sqrt{20} (missing $ delimiters)
+   - \\/\sqrt{20} (missing $ delimiters)
+
 ❌ PROHIBITED:
-• Plain text: 3/4, 2/3, a/b
-• Unicode: ¾, ½, ⅓ (without $...$)
-• Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
- UNITS AND MEASUREMENTS (MANDATORY)
-- ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
-- Format: $\\text{unit}$ inside math expressions
-- Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
-- Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
-- Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
- 
+    • Plain text: 3/4, 2/3, a/b
+    • Unicode: ¾, ½, ⅓ (without $...$)
+    • Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
+
+
 ❌ PROHIBITED UNIT FORMATS:
 - $8 ext{ cm}$ (wrong command)
 - $5 cm$ (missing LaTeX)
@@ -2187,44 +2190,46 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     }
 
     console.log('[generateQuestions] JSON match found, parsing...');
-    
+
     let questions;
     try {
       // Clean JSON string to handle common escape character issues
-      let cleanedJson = jsonMatch[0];
-      
-      // More comprehensive cleaning for Tamil/Sinhala text
-      cleanedJson = cleanedJson
-        // Fix common escape sequences
-        .replace(/\\u[\d]{4}/g, (match) => {
-          try {
-            return String.fromCharCode(parseInt(match.slice(2), 16));
-          } catch {
-            return match;
-          }
-        })
-        // Fix double backslashes
-        .replace(/\\\\/g, "\\")
-        // Fix escaped quotes
-        .replace(/\\"/g, '"')
-        .replace(/\\'/g, "'")
-        // Fix problematic control characters
-        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-        // Fix malformed Unicode escapes
-        .replace(/\\u[0-9a-fA-F]{0,4}[^\d]/g, '')
-        // Normalize whitespace
-        .replace(/[ \t]+/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-      
+      let cleanedJson = jsonMatch[0]
+        // Fix common LaTeX escape issues
+        .replace(/\\t/g, '\\t')  // This won't work directly due to string escaping
+        .replace(/\\\\t/g, '\\t') // Try this first
+        .replace(/\\t([a-z])/g, '\\\\$1') // Convert \t to \ before the command
+
+        // Specific fixes for known issues
+        .replace(/\\t/g, '\\t')
+        .replace(/\\t/g, '\\t')
+        .replace(/\\t/g, '\\t')
+        .replace(/\\t/g, '\\t')
+
+        // Fix specific broken commands
+        .replace(/\\t/g, '\\t')
+        .replace(/\\t/g, '\\t')
+
+        // Fix log formatting
+        .replace(/og_(\d+)/g, '\\log_$1')
+        .replace(/og\{/g, '\\log{')
+
+        // Fix times and div
+        .replace(/\\t/g, '\\t')
+        .replace(/\\t/g, '\\t')
+        .replace(/\\t/g, '\\t')
+
+        // Fix any remaining escaped backslashes
+        .replace(/\\\\/g, '\\');
+
       console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
-      
+
       // Try parsing with fallback for malformed JSON
       try {
         questions = JSON.parse(cleanedJson);
       } catch (firstParseError) {
         console.warn('[generateQuestions] First parse attempt failed, trying aggressive cleaning...');
-        
+
         // More aggressive cleaning for problematic cases
         cleanedJson = cleanedJson
           // Remove all backslashes except in valid escape sequences
@@ -2234,10 +2239,10 @@ IMPORTANT: Respect the exact question type counts requested above!`;
           // Remove any remaining control characters
           .replace(/[\x00-\x1F\x7F]/g, '')
           .trim();
-        
+
         questions = JSON.parse(cleanedJson);
       }
-      
+
       console.log('[generateQuestions] ✅ Parsed questions count:', questions?.length || 0);
     } catch (parseError) {
       console.error('[generateQuestions] ❌ CRITICAL ERROR:', {
@@ -2250,10 +2255,10 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         questionCount: options.count,
         contentLength: content?.length || 0
       });
-      
+
       // Log the problematic JSON for debugging
       console.error('[generateQuestions] Problematic JSON:', jsonMatch[0].substring(0, 500));
-      
+
       await logGeminiParsingError(
         parseError,
         {
@@ -2871,10 +2876,17 @@ ${subject === 'Mathematics' ? `
    - This applies to: "question_text", "correct_answer", "options", and "explanation".
    - Example MCQ Options: ["$x = 5$", "$x = 10$", "$x = 15$", "$x = 20$"]
    - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
-📌 MATHEMATICS FRACTION RULES (MANDATORY)
+ MATHEMATICS FRACTION RULES (MANDATORY)
 
 ALL fractions MUST be written in proper LaTeX format.
 EVERY fraction MUST be wrapped in $...$ delimiters.
+
+📌 UNITS AND MEASUREMENTS (MANDATORY)
+- ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
+- Format: $\\text{unit}$ inside math expressions
+- Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
+- Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
+- Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
 
 ✅ CORRECT EXAMPLES:
  
@@ -2891,12 +2903,7 @@ Example- $\\sqrt{20}$
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
 • Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
- UNITS AND MEASUREMENTS (MANDATORY)
-- ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
-- Format: $\\text{unit}$ inside math expressions
-- Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
-- Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
-- Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
+ 
  
 ❌ PROHIBITED UNIT FORMATS:
 - $8 ext{ cm}$ (wrong command)
@@ -3142,12 +3149,12 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     packTitle: packTitle ? `"${packTitle}"` : 'not provided',
     packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided'
   });
-  
+
   try {
     const result = await model.generateContent([prompt, imagePart]);
     const response = await result.response;
     const text = response.text();
-    console.log("response from gemini generating question from gemini:",text);
+    console.log("response from gemini generating question from gemini:", text);
     // Parse JSON response with better error handling
     let jsonText = text.trim();
 
