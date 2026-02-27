@@ -1081,7 +1081,7 @@ GLOBAL LATEX REQUIREMENT:
 - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
 - This applies to ALL bullet points in the summary.
 - Example: "The expression $a^m \\times a^n = a^{m+n}$ shows the product rule"
-- Example: "Fractions like $\frac{3}{4}$ must use LaTeX format"
+- Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
 📌 MATHEMATICS LATEX NOTATION (STRICT)
 - ALL math expressions MUST be wrapped in $...$ delimiters
 - Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
@@ -1093,8 +1093,8 @@ GLOBAL LATEX REQUIREMENT:
 ALL fractions MUST be written in proper LaTeX format.
 EVERY fraction MUST be wrapped in $...$ delimiters.
 ✅ CORRECT EXAMPLES:
-- Fractions: $\frac{numerator}{denominator}$
-- Examples: $\frac{3}{4}$, $\frac{2x}{y}$, $\frac{a+b}{c-d}$
+- Fractions: $\\frac{numerator}{denominator}$
+- Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
 ❌ PROHIBITED:
 - Plain text: 3/4, 2/3, a/b
 - Unicode: ¾, ½, ⅓ (without $...$)
@@ -1279,7 +1279,7 @@ GLOBAL LATEX REQUIREMENT:
 - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
 - This applies to ALL bullet points in the summary.
 - Example: "The expression $a^m \\times a^n = a^{m+n}$ shows the product rule"
-- Example: "Fractions like $\frac{3}{4}$ must use LaTeX format"
+- Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
 📌 MATHEMATICS LATEX NOTATION (STRICT)
 - ALL math expressions MUST be wrapped in $...$ delimiters
 - Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
@@ -1291,8 +1291,8 @@ GLOBAL LATEX REQUIREMENT:
  ALL fractions MUST be written in proper LaTeX format.
  EVERY fraction MUST be wrapped in $...$ delimiters.
 ✅ CORRECT EXAMPLES:
-- Fractions: $\frac{numerator}{denominator}$
-- Examples: $\frac{3}{4}$, $\frac{2x}{y}$, $\frac{a+b}{c-d}$
+- Fractions: $\\frac{numerator}{denominator}$
+- Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
 ❌ PROHIBITED:
 - Plain text: 3/4, 2/3, a/b
 - Unicode: ¾, ½, ⅓ (without $...$)
@@ -1892,7 +1892,7 @@ ${subject === 'Mathematics' ? `
    - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
    - This applies to: "question_text", "correct_answer", "options", and "explanation".
    - Example MCQ Options: ["$x = 5$", "$x = 10$", "$x = 15$", "$x = 20$"]
-   - Example FIIB Options: ["$\frac{1}{2}$", "$\frac{1}{4}$", "$\frac{3}{4}$"]
+   - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
 📌 MATHEMATICS FRACTION RULES (MANDATORY)
 
 ALL fractions MUST be written in proper LaTeX format.
@@ -1900,25 +1900,25 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 
 ✅ CORRECT EXAMPLES:
  
-• Fractions: $\frac{numerator}{denominator}$
-• Examples: $\frac{3}{4}$, $\frac{2x}{y}$, $\frac{a+b}{c-d}$
+• Fractions: $\\frac{numerator}{denominator}$
+• Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
 
 All Square roots must be
 ✅ CORRECT EXAMPLES:
-Square roots: $\sqrt{number}$
-Example- $\sqrt{20}$
+Square roots: $\\sqrt{number}$
+Example- $\\sqrt{20}$
 ❌ PROHIBITED FORMATS:
 - \\/\sqrt{20} (missing $ delimiters)
 ❌ PROHIBITED:
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
-• Blanks inside LaTeX: $\frac{4}{___}$, $\frac{___}{5}$ (use plain text for blanks)
+• Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
  UNITS AND MEASUREMENTS (MANDATORY)
-- ALL units (cm, m, kg, g, etc.) MUST use LaTeX \text{} command
-- Format: $\text{unit}$ inside math expressions
-- Examples: $8 \text{ cm}$, $5 \text{ kg}$, $10 \text{ m}^2$
-- Areas: $40 \text{ cm}^2$, $100 \text{ m}^2$
-- Volumes: $125 \text{ cm}^3$, $1000 \text{ m}^3$
+- ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
+- Format: $\\text{unit}$ inside math expressions
+- Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
+- Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
+- Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
  
 ❌ PROHIBITED UNIT FORMATS:
 - $8 ext{ cm}$ (wrong command)
@@ -1926,10 +1926,10 @@ Example- $\sqrt{20}$
 - $8\\text{cm}$ (missing space)
  
 ✅ CORRECT UNIT EXAMPLES:
-- Length: $8 \text{ cm}$, $5 \text{ m}$
-- Area: $40 \text{ cm}^2$, $100 \text{ m}^2$
-- Volume: $125 \text{ cm}^3$
-- Weight: $2 \text{ kg}$, $500 \text{ g}$
+- Length: $8 \\text{ cm}$, $5 \\text{ m}$
+- Area: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
+- Volume: $125 \\text{ cm}^3$
+- Weight: $2 \\text{ kg}$, $500 \\text{ g}$
  
 
 🔸 ANGLES
@@ -1955,8 +1955,8 @@ Write only in words:
 
 🔸 LINE SEGMENTS & RAYS
 
-❌ \overline{AB}
-❌ \overrightarrow{AB}
+❌ \\overline{AB}
+❌ \\overrightarrow{AB}
 
 ✅ Write in words:
  Line segment AB
@@ -1977,13 +1977,13 @@ Write only in words:
    "The square of $a + b$ is $(a + b)^2 = ___ + 2ab + b^2$."
 
 2. THE "PLAIN-TEXT FRACTION" EXCEPTION:
-   - If the blank "___" is the numerator or the denominator, DO NOT use LaTeX "\frac". 
+   - If the blank "___" is the numerator or the denominator, DO NOT use LaTeX "\\frac". 
    - Instead, write the fraction using a plain text slash "/" so the underscore remains in standard text.
    
    ✅ CORRECT: "In the fraction 3/___, the denominator is 4."
    ✅ CORRECT: "If ___/5 = 1, the missing number is 5."
    
-   ❌ WRONG: "In the fraction $\frac{3}{___}$, the denominator is 4."
+   ❌ WRONG: "In the fraction $\\frac{3}{___}$, the denominator is 4."
 
 3. TERMINATION LOGIC:
    - Any question text containing the sequence "_$" or "$_" is strictly forbidden. 
@@ -2193,21 +2193,6 @@ IMPORTANT: Respect the exact question type counts requested above!`;
       // Clean JSON string to handle common escape character issues
       let cleanedJson = jsonMatch[0];
       
-      // More comprehensive cleaning for Tamil/Sinhala text
-      cleanedJson = cleanedJson
-        // Fix common escape sequences
-        .replace(/\\u[\d]{4}/g, (match) => {
-          try {
-            return String.fromCharCode(parseInt(match.slice(2), 16));
-          } catch {
-            return match;
-          }
-        })
-        // Fix double backslashes only
-        .replace(/\\\\/g, "\\")
-        // Remove control characters only
-        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-        .trim();
       
       console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
       
@@ -2862,7 +2847,7 @@ ${subject === 'Mathematics' ? `
    - ALL mathematical values, numbers in a math context, variables, and expressions MUST be wrapped in $...$ delimiters.
    - This applies to: "question_text", "correct_answer", "options", and "explanation".
    - Example MCQ Options: ["$x = 5$", "$x = 10$", "$x = 15$", "$x = 20$"]
-   - Example FIIB Options: ["$\frac{1}{2}$", "$\frac{1}{4}$", "$\frac{3}{4}$"]
+   - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
 📌 MATHEMATICS FRACTION RULES (MANDATORY)
 
 ALL fractions MUST be written in proper LaTeX format.
@@ -2870,22 +2855,22 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 
 ✅ CORRECT EXAMPLES:
  
-• Fractions: $\frac{numerator}{denominator}$
-• Examples: $\frac{3}{4}$, $\frac{2x}{y}$, $\frac{a+b}{c-d}$
+• Fractions: $\\frac{numerator}{denominator}$
+• Examples: $\\frac{3}{4}$, $\\frac{2x}{y}$, $\\frac{a+b}{c-d}$
 
 All Square roots must be
 ✅ CORRECT EXAMPLES:
-Square roots: $\sqrt{number}$
-Example- $\sqrt{20}$
+Square roots: $\\sqrt{number}$
+Example- $\\sqrt{20}$
 ❌ PROHIBITED FORMATS:
 - \\/\sqrt{20} (missing $ delimiters)
 ❌ PROHIBITED:
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
-• Blanks inside LaTeX: $\frac{4}{___}$, $\frac{___}{5}$ (use plain text for blanks)
+• Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
  UNITS AND MEASUREMENTS (MANDATORY)
 - ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
-- Format: $\text{unit}$ inside math expressions
+- Format: $\\text{unit}$ inside math expressions
 - Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
 - Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
 - Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
@@ -2953,7 +2938,7 @@ Write only in words:
    ✅ CORRECT: "In the fraction 3/___, the denominator is 4."
    ✅ CORRECT: "If ___/5 = 1, the missing number is 5."
    
-   ❌ WRONG: "In the fraction $\frac{3}{___}$, the denominator is 4."
+   ❌ WRONG: "In the fraction $\\frac{3}{___}$, the denominator is 4."
 
 3. TERMINATION LOGIC:
    - Any question text containing the sequence "_$" or "$_" is strictly forbidden. 
@@ -3167,16 +3152,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      
-      // LaTeX-safe JSON cleaning (same as generateQuestions)
-      let cleanedJson = jsonStr
-        // Fix double-escaped backslashes only
-        .replace(/\\\\/g, "\\")
-        // Remove control characters only
-        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-        .trim();
-      
-      questions = JSON.parse(cleanedJson);
+      questions = JSON.parse(jsonStr);
       console.log("Respoded json:jsonStr", jsonStr);
       if (!Array.isArray(questions)) {
         throw new Error('Expected an array of questions');
