@@ -3182,7 +3182,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      questions = JSON.parse(jsonStr);
+      questions = JSON.parse(jsonStr);  // ❌ This is line 3178 where it fails
       console.log("Respoded json:jsonStr", jsonStr);
       if (!Array.isArray(questions)) {
         throw new Error('Expected an array of questions');
