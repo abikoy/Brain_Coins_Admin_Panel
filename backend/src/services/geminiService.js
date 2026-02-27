@@ -2203,17 +2203,10 @@ IMPORTANT: Respect the exact question type counts requested above!`;
             return match;
           }
         })
-        // Fix double backslashes
+        // Fix double backslashes only
         .replace(/\\\\/g, "\\")
-        // Fix escaped quotes
-     
-        // Fix problematic control characters
+        // Remove control characters only
         .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-        // Fix malformed Unicode escapes
-        .replace(/\\u[0-9a-fA-F]{0,4}[^\d]/g, '')
-        // Normalize whitespace
-        .replace(/[ \t]+/g, ' ')
-       
         .trim();
       
       console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
@@ -3174,7 +3167,16 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      questions = JSON.parse(jsonStr);
+      
+      // LaTeX-safe JSON cleaning (same as generateQuestions)
+      let cleanedJson = jsonStr
+        // Fix double-escaped backslashes only
+        .replace(/\\\\/g, "\\")
+        // Remove control characters only
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        .trim();
+      
+      questions = JSON.parse(cleanedJson);
       console.log("Respoded json:jsonStr", jsonStr);
       if (!Array.isArray(questions)) {
         throw new Error('Expected an array of questions');
