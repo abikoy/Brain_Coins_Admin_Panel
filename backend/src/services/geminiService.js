@@ -3186,8 +3186,8 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     // Fix double-escaped backslashes (this is the main issue)
     .replace(/\\\\/g, '\\')
     // Fix specific LaTeX commands that get corrupted
-    .replace(/\\{/g, '{')     // Fix \{ 
-    .replace(/\\}/g, '}')     // Fix \}
+    // .replace(/\\{/g, '{')     // Fix \{ 
+    // .replace(/\\}/g, '}')     // Fix \}
     .replace(/\\n/g, '\\n')   // Preserve newlines
     // Remove any control characters
     .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
