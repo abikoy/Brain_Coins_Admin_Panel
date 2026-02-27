@@ -2206,15 +2206,14 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         // Fix double backslashes
         .replace(/\\\\/g, "\\")
         // Fix escaped quotes
-        .replace(/\\"/g, '"')
-        .replace(/\\'/g, "'")
+     
         // Fix problematic control characters
         .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
         // Fix malformed Unicode escapes
         .replace(/\\u[0-9a-fA-F]{0,4}[^\d]/g, '')
         // Normalize whitespace
         .replace(/[ \t]+/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
+       
         .trim();
       
       console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
