@@ -535,12 +535,18 @@ const ContentGeneration = ({ questions, setQuestions }) => {
           if (pv.questions && pv.questions.length > 0) {
             console.log("Question length" + pv.questions.length);
             
-            console.log("Question length" + pv.questions[0]);
-            console.log("Question length" + pv.questions[1]);
-            console.log("Question length" + pv.questions[2]);
-            console.log("Question length" + pv.questions[3]);
-            console.log("Question length" + pv.questions[4]);
-            console.log("Question length" + pv.questions[5]);
+            console.log("Question length" + pv.questions[0]['question']);
+            console.log("Question length" + pv.questions[1]['question']);
+            console.log("Question length" + pv.questions[2]['question']);
+            console.log("Question length" + pv.questions[3]['question']);
+            console.log("Question length" + pv.questions[4]['question']);
+            console.log("Question length" + pv.questions[5]['question']);
+             console.log("Question length" + pv.questions[0]['source']);
+            console.log("Question length" + pv.questions[1]['source']);
+            console.log("Question length" + pv.questions[2]['source']);
+            console.log("Question length" + pv.questions[3]['source']);
+            console.log("Question length" + pv.questions[4]['source']);
+            console.log("Question length" + pv.questions[5]['source']);
 
             packResults.push({
               packIndex: packIndex,
