@@ -2314,7 +2314,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         questionField: { question: q.question, question_text: q.question_text },
         answerField: { answer: q.answer, correct_answer: q.correct_answer },
         finalValues: {
-          type: q.type || 'MCQ',
+          type: q.type || q.question_type || 'MCQ',
           question: (q.question || q.question_text || 'No question').substring(0, 50),
           answer: (q.answer || q.correct_answer || 'EMPTY').substring(0, 30)
         }
@@ -3156,26 +3156,6 @@ IMPORTANT: Respect the exact question type counts requested above!`;
           questionCount: count
         }
       );
-      throw new Error('No valid JSON array found in response');
-    }
-
-    // Clean and parse the JSON
-    let questions;
-    try {
-      const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      // LaTeX-safe JSON cleaning (same as generateQuestions)
-      let cleanedJson = jsonStr
-        // Fix double-escaped backslashes only
-        .replace(/\\\\/g, "\\")
-        // Remove control characters only
-        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-        .trim();
-      questions = JSON.parse(cleanedJson);
-      console.log("Respoded json:jsonStr", jsonStr);
-      if (!Array.isArray(questions)) {
-        throw new Error('Expected an array of questions');
-      }
-    } catch (parseError) {
       console.error('[Backend Gemini] JSON parse error:', parseError);
       throw new Error(`Failed to parse questions: ${parseError.message}`);
     }
