@@ -534,6 +534,7 @@ const ContentGeneration = ({ questions, setQuestions }) => {
 
           if (pv.questions && pv.questions.length > 0) {
             console.log("Question length" + pv.questions.length);
+            console.log("Questions" + pv.questions)
             packResults.push({
               packIndex: packIndex,
               packTitle: pack.title,
