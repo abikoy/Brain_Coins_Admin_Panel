@@ -2202,9 +2202,9 @@ IMPORTANT: Respect the exact question type counts requested above!`;
       } catch (firstParseError) {
         console.warn('[generateQuestions] First parse attempt failed, trying aggressive cleaning...');
         
-        // More aggressive cleaning for problematic cases
+        // LaTeX-safe aggressive cleaning for problematic cases
         cleanedJson = cleanedJson
-          // Remove all backslashes except in valid escape sequences
+          // Remove all backslashes except in valid LaTeX escape sequences
           .replace(/\\[^"\\\/bfnrtu]/g, '')
           // Fix quotes
           .replace(/[""]/g, '"')
