@@ -2192,7 +2192,28 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     try {
       // Clean JSON string to handle common escape character issues
       let cleanedJson = jsonMatch[0];
-      
+         cleanedJson = cleanedJson
+        // Fix common escape sequences
+        .replace(/\\u[\d]{4}/g, (match) => {
+          try {
+            return String.fromCharCode(parseInt(match.slice(2), 16));
+          } catch {
+            return match;
+          }
+        })
+        // Fix double backslashes
+        .replace(/\\\\/g, "\\")
+        // Fix escaped quotes
+        .replace(/\\"/g, '"')
+        .replace(/\\'/g, "'")
+        // Fix problematic control characters
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        // Fix malformed Unicode escapes
+        .replace(/\\u[0-9a-fA-F]{0,4}[^\d]/g, '')
+        // Normalize whitespace
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
       
       console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
       
@@ -2201,6 +2222,14 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         questions = JSON.parse(cleanedJson);
       } catch (firstParseError) {
         console.warn('[generateQuestions] First parse attempt failed, trying aggressive cleaning...');
+        cleanedJson = cleanedJson
+          // Remove all backslashes except in valid escape sequences
+          .replace(/\\[^"\\\/bfnrtu]/g, '')
+          // Fix quotes
+          .replace(/[""]/g, '"')
+          // Remove any remaining control characters
+          .replace(/[\x00-\x1F\x7F]/g, '')
+          .trim();
         
         
         questions = JSON.parse(cleanedJson);
