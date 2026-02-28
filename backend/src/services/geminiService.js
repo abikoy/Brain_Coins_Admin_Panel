@@ -2249,26 +2249,37 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     const hasGarbageCharacters = (text, lang) => {
       if (!text) return false;
 
+      // First, check if text contains valid LaTeX - if so, be more lenient
+      const hasLaTeX = /\\[a-zA-Z]+|\\[^a-zA-Z]|\$[^$]*\$/.test(text);
+      
       if (lang === 'Sinhala') {
         // Check for common garbage patterns in Sinhala
         const garbagePatterns = [
-          // Allow LaTeX patterns first
-          /(?<!\\)(?:[a-zA-Z]{3,})(?!\\frac|\\times|\\div|\\sqrt|\\left|\\right|\\begin|\\end|\\frac|\\sqrt|\\times|\\div|\\left|\\right|\\begin|\\end)/, // Latin letters not in LaTeX
           /[;%`]/,        // Common garbage symbols
           /msró|fkd|uqyq|hehs|lshkq|,efõ|wdOdr|odrh|wrh|jQ|mßud|iQ;%|ksjer|fiù/i
         ];
+        
+        // If LaTeX is present, only check for obvious garbage symbols
+        if (hasLaTeX) {
+          return /[;%`]/.test(text);
+        }
+        
         return garbagePatterns.some(pattern => pattern.test(text));
       }
 
       if (lang === 'Tamil') {
         // Check for common garbage patterns in Tamil
         const garbagePatterns = [
-          // Allow LaTeX patterns first
-          /(?<!\\)(?:[a-zA-Z]{3,})(?!\\frac|\\times|\\div|\\sqrt|\\left|\\right|\\begin|\\end|\\frac|\\sqrt|\\times|\\div|\\left|\\right|\\begin|\\end)/, // Latin letters not in LaTeX
           /[;%`¸£©÷ø¨]/,  // Common garbage symbols
           /USP|Á\|õh|Gs÷P|÷Áõ®|Euõµn|Po¨|ö\´|_¸UP|Âv|©hUøP|£¯ß£kzv/i, // Known Tamil garbage
           /[©£÷ø¨õ]{5,}/ // Too many Tamil-looking garbage chars in sequence
         ];
+        
+        // If LaTeX is present, only check for obvious garbage symbols
+        if (hasLaTeX) {
+          return /[;%`¸£©÷ø¨]/.test(text);
+        }
+        
         return garbagePatterns.some(pattern => pattern.test(text));
       }
 
@@ -3152,7 +3163,14 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      questions = JSON.parse(jsonStr);
+      // LaTeX-safe JSON cleaning (same as generateQuestions)
+      let cleanedJson = jsonStr
+        // Fix double-escaped backslashes only
+        .replace(/\\\\/g, "\\")
+        // Remove control characters only
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        .trim();
+      questions = JSON.parse(cleanedJson);
       console.log("Respoded json:jsonStr", jsonStr);
       if (!Array.isArray(questions)) {
         throw new Error('Expected an array of questions');
