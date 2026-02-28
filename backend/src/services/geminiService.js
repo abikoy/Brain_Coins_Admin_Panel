@@ -3164,8 +3164,9 @@ IMPORTANT: Respect the exact question type counts requested above!`;
       jsonText.match(/\[[\s\S]*\]/);
 
     if (!jsonMatch) {
+      const error = new Error('No valid JSON array found in response');
       await logGeminiParsingError(
-        new Error('No valid JSON array found in response'),
+        error,
         {
           apiEndpoint: 'generateContent',
           prompt: prompt.substring(0, 500),
@@ -3176,7 +3177,35 @@ IMPORTANT: Respect the exact question type counts requested above!`;
           questionCount: count
         }
       );
+      throw error;
+    }
+
+    let questions;
+    try {
+      const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
+      // LaTeX-safe JSON cleaning (same as generateQuestions)
+      let cleanedJson = jsonStr
+        // Fix double-escaped backslashes only
+        .replace(/\\\\/g, "\\")
+        // Remove control characters only
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        .trim();
+      questions = JSON.parse(cleanedJson);
+      if (!Array.isArray(questions)) throw new Error('Expected an array of questions');
+    } catch (parseError) {
       console.error('[Backend Gemini] JSON parse error:', parseError);
+      await logGeminiParsingError(
+        parseError,
+        {
+          apiEndpoint: 'generateContent',
+          prompt: prompt.substring(0, 500),
+          responseText: text.substring(0, 1000),
+          fileType: mimeType,
+          language,
+          questionTypes: types,
+          questionCount: count
+        }
+      );
       throw new Error(`Failed to parse questions: ${parseError.message}`);
     }
 
