@@ -2161,7 +2161,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    console.log("response from generated question from gemini:", response);
+    console.log("response from generated question from gemini:", text);
     console.log('[generateQuestions] Gemini response received, length:', text?.length || 0);
 
     // Parse JSON response
@@ -3157,8 +3157,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     const text = response.text();
     console.log("response from gemini generating question from gemini:",text);
     // Parse JSON response with better error handling
-    let jsonText = text.trim();
-
+    let jsonText = text.trim(); 
     // Try to extract JSON from markdown code blocks
     const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/) ||
       jsonText.match(/\[[\s\S]*\]/);
@@ -3183,13 +3182,26 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      // LaTeX-safe JSON cleaning (same as generateQuestions)
+      // Enhanced JSON cleaning for Unicode characters
       let cleanedJson = jsonStr
         // Fix double-escaped backslashes only
         .replace(/\\\\/g, "\\")
-        // Remove control characters only
+        // Remove control characters but preserve Unicode
         .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        // Fix common Unicode escape issues
+        .replace(/\\u([0-9a-fA-F]{4})/g, (match, code) => {
+          try {
+            return String.fromCharCode(parseInt(code, 16));
+          } catch {
+            return match;
+          }
+        })
+        // Handle escaped newlines and quotes in Unicode text
+        .replace(/\\n/g, '\\n')
+        .replace(/\\"/g, '\\"')
         .trim();
+      
+      console.log('[Backend Gemini] Cleaned JSON preview:', cleanedJson.substring(0, 200));
       questions = JSON.parse(cleanedJson);
       if (!Array.isArray(questions)) throw new Error('Expected an array of questions');
     } catch (parseError) {
