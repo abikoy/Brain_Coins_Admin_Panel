@@ -1,7 +1,7 @@
-
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fastJsonParse from 'fast-json-parse';
 import {
   logGeminiApiError,
   logGeminiParsingError,
@@ -3182,27 +3182,26 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      // Enhanced JSON cleaning for Unicode characters
+      // LaTeX-safe JSON cleaning - ultra comprehensive
       let cleanedJson = jsonStr
-        // Fix double-escaped backslashes only
-        .replace(/\\\\/g, "\\")
-        // Remove control characters but preserve Unicode
-        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-        // Fix common Unicode escape issues
-        .replace(/\\u([0-9a-fA-F]{4})/g, (match, code) => {
-          try {
-            return String.fromCharCode(parseInt(code, 16));
-          } catch {
-            return match;
-          }
-        })
-        // Handle escaped newlines and quotes in Unicode text
-        .replace(/\\n/g, '\\n')
-        .replace(/\\"/g, '\\"')
-        .trim();
+  .replace(/\$\\\\/g, '$\\\\')
+  .replace(/(?<!\$)\\\\/g, '\\\\\\\\')
+  .replace(/\$(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '$\\\\$1')
+  .replace(/\$(?!\\)([^$\s]+)(?=\$)/g, (match, content) => {
+    // Fix common LaTeX commands without backslashes
+    return '$' + content.replace(/(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '\\\\$1') + '$';
+  });
       
-      console.log('[Backend Gemini] Cleaned JSON preview:', cleanedJson.substring(0, 200));
-      questions = JSON.parse(cleanedJson);
+      
+      console.log('[Backend Gemini] Cleaned JSON preview:', cleanedJson);
+      // Try fast-json-parse first for better error handling
+      try {
+        questions = JSON.parse(cleanedJson);
+      } catch (fastParseError) {
+        console.warn('[Backend Gemini] Fast JSON parse failed, trying native JSON.parse:', fastParseError.message);
+        questions = fastJsonParse(cleanedJson);
+      }
+      
       if (!Array.isArray(questions)) throw new Error('Expected an array of questions');
     } catch (parseError) {
       console.error('[Backend Gemini] JSON parse error:', parseError);
