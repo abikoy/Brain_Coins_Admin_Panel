@@ -3182,24 +3182,29 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       let jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-
-      // Escape backslashes that are followed by letters (LaTeX commands)
-      // But preserve backslashes that are part of JSON escape sequences
-      jsonStr = jsonStr.replace(/\\([a-zA-Z])/g, '\\\\$1');
-
-      // Handle special case: backslashes before braces that are part of LaTeX
-      jsonStr = jsonStr.replace(/\\([{}])/g, '\\\\$1');
-
+      
+      // LaTeX-safe JSON cleaning - ultra comprehensive
       let cleanedJson = jsonStr
+        .replace(/\$\\\\/g, '$\\\\')
+        .replace(/(?<!\$)\\\\/g, '\\\\\\\\')
+        .replace(/\$(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '$\\\\$1')
+        .replace(/\$(?!\\)([^$\s]+)(?=\$)/g, (match, content) => {
+          // Fix common LaTeX commands without backslashes
+          return '$' + content.replace(/(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '\\\\$1') + '$';
+        })
+        // Remove control characters
         .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
         .trim();
-
-      console.log('[Backend Gemini] Cleaned JSON preview:', cleanedJson);
+      
+      console.log('[Backend Gemini] Cleaned JSON preview (first 200 chars):', cleanedJson.substring(0, 200));
+      console.log('[Backend Gemini] JSON length:', cleanedJson.length);
+      console.log('[Backend Gemini] Error position 1414 context:', cleanedJson.substring(1400, 1430));
       // Try fast-json-parse first for better error handling
       try {
         questions = JSON.parse(cleanedJson);
       } catch (fastParseError) {
         console.warn('[Backend Gemini] Fast JSON parse failed, trying native JSON.parse:', fastParseError.message);
+// ... (rest of the code remains the same)
         questions = fastJsonParse(cleanedJson);
       }
 
