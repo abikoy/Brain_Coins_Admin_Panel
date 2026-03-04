@@ -2187,12 +2187,12 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     }
 
     console.log('[generateQuestions] JSON match found, parsing...');
-    
+
     let questions;
     try {
       // Clean JSON string to handle common escape character issues
       let cleanedJson = jsonMatch[0];
-         cleanedJson = cleanedJson
+      cleanedJson = cleanedJson
         // Fix common escape sequences
         .replace(/\\u[\d]{4}/g, (match) => {
           try {
@@ -2214,9 +2214,9 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         .replace(/[ \t]+/g, ' ')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
-      
+
       console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
-      
+
       // Try parsing with fallback for malformed JSON
       try {
         questions = JSON.parse(cleanedJson);
@@ -2230,11 +2230,11 @@ IMPORTANT: Respect the exact question type counts requested above!`;
           // Remove any remaining control characters
           .replace(/[\x00-\x1F\x7F]/g, '')
           .trim();
-        
-        
+
+
         questions = JSON.parse(cleanedJson);
       }
-      
+
       console.log('[generateQuestions] ✅ Parsed questions count:', questions?.length || 0);
     } catch (parseError) {
       console.error('[generateQuestions] ❌ CRITICAL ERROR:', {
@@ -2247,10 +2247,10 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         questionCount: options.count,
         contentLength: content?.length || 0
       });
-      
+
       // Log the problematic JSON for debugging
       console.error('[generateQuestions] Problematic JSON:', jsonMatch[0].substring(0, 500));
-      
+
       await logGeminiParsingError(
         parseError,
         {
@@ -2271,19 +2271,19 @@ IMPORTANT: Respect the exact question type counts requested above!`;
 
       // First, check if text contains valid LaTeX - if so, be more lenient
       const hasLaTeX = /\\[a-zA-Z]+|\\[^a-zA-Z]|\$[^$]*\$/.test(text);
-      
+
       if (lang === 'Sinhala') {
         // Check for common garbage patterns in Sinhala
         const garbagePatterns = [
           /[;%`]/,        // Common garbage symbols
           /msró|fkd|uqyq|hehs|lshkq|,efõ|wdOdr|odrh|wrh|jQ|mßud|iQ;%|ksjer|fiù/i
         ];
-        
+
         // If LaTeX is present, only check for obvious garbage symbols
         if (hasLaTeX) {
           return /[;%`]/.test(text);
         }
-        
+
         return garbagePatterns.some(pattern => pattern.test(text));
       }
 
@@ -2294,12 +2294,12 @@ IMPORTANT: Respect the exact question type counts requested above!`;
           /USP|Á\|õh|Gs÷P|÷Áõ®|Euõµn|Po¨|ö\´|_¸UP|Âv|©hUøP|£¯ß£kzv/i, // Known Tamil garbage
           /[©£÷ø¨õ]{5,}/ // Too many Tamil-looking garbage chars in sequence
         ];
-        
+
         // If LaTeX is present, only check for obvious garbage symbols
         if (hasLaTeX) {
           return /[;%`¸£©÷ø¨]/.test(text);
         }
-        
+
         return garbagePatterns.some(pattern => pattern.test(text));
       }
 
@@ -3150,14 +3150,14 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     packTitle: packTitle ? `"${packTitle}"` : 'not provided',
     packDescription: packDescription ? `"${packDescription.substring(0, 50)}${packDescription.length > 50 ? '...' : ''}"` : 'not provided'
   });
-  
+
   try {
     const result = await model.generateContent([prompt, imagePart]);
     const response = await result.response;
     const text = response.text();
-    console.log("response from gemini generating question from gemini:",text);
+    console.log("response from gemini generating question from gemini:", text);
     // Parse JSON response with better error handling
-    let jsonText = text.trim(); 
+    let jsonText = text.trim();
     // Try to extract JSON from markdown code blocks
     const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/) ||
       jsonText.match(/\[[\s\S]*\]/);
@@ -3181,18 +3181,19 @@ IMPORTANT: Respect the exact question type counts requested above!`;
 
     let questions;
     try {
-      const jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      // LaTeX-safe JSON cleaning - ultra comprehensive
+      let jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
+
+      // Escape backslashes that are followed by letters (LaTeX commands)
+      // But preserve backslashes that are part of JSON escape sequences
+      jsonStr = jsonStr.replace(/\\([a-zA-Z])/g, '\\\\$1');
+
+      // Handle special case: backslashes before braces that are part of LaTeX
+      jsonStr = jsonStr.replace(/\\([{}])/g, '\\\\$1');
+
       let cleanedJson = jsonStr
-  .replace(/\$\\\\/g, '$\\\\')
-  .replace(/(?<!\$)\\\\/g, '\\\\\\\\')
-  .replace(/\$(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '$\\\\$1')
-  .replace(/\$(?!\\)([^$\s]+)(?=\$)/g, (match, content) => {
-    // Fix common LaTeX commands without backslashes
-    return '$' + content.replace(/(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '\\\\$1') + '$';
-  });
-      
-      
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        .trim();
+
       console.log('[Backend Gemini] Cleaned JSON preview:', cleanedJson);
       // Try fast-json-parse first for better error handling
       try {
@@ -3201,7 +3202,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         console.warn('[Backend Gemini] Fast JSON parse failed, trying native JSON.parse:', fastParseError.message);
         questions = fastJsonParse(cleanedJson);
       }
-      
+
       if (!Array.isArray(questions)) throw new Error('Expected an array of questions');
     } catch (parseError) {
       console.error('[Backend Gemini] JSON parse error:', parseError);
