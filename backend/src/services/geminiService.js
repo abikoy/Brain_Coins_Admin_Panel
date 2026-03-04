@@ -1846,6 +1846,11 @@ You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provid
   Example: $(2^3)^4 = 2^{12}$ (you may show: $(2^3)^4 = 2^{3 \\times 4} = 2^{12}$)
 - Use LaTeX for ALL operators: $a^m a^n$, $a^m div a^n$
 - If you cannot follow this notation, regenerate the question.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ 📌 IMPORTANT: For all LaTeX commands, ALWAYS use double backslashes (\\) instead of single backslashes (). Never write single backslashes in LaTeX - always use double backslashes to ensure proper JSON escaping.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 GLOBAL RULES (MUST FOLLOW):
  You MUST output ONLY valid JSON. No markdown. No backticks. No extra text.
@@ -2879,8 +2884,10 @@ ${subject === 'Mathematics' ? `
    - This applies to: "question_text", "correct_answer", "options", and "explanation".
    - Example MCQ Options: ["$x = 5$", "$x = 10$", "$x = 15$", "$x = 20$"]
    - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
-📌 MATHEMATICS FRACTION RULES (MANDATORY)
 
+ 📌 IMPORTANT: For all LaTeX commands, ALWAYS use double backslashes (\\) instead of single backslashes (). Never write single backslashes in LaTeX - always use double backslashes to ensure proper JSON escaping.
+
+ 📌 MATHEMATICS FRACTION RULES (MANDATORY)
 ALL fractions MUST be written in proper LaTeX format.
 EVERY fraction MUST be wrapped in $...$ delimiters.
 
@@ -3182,21 +3189,16 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     let questions;
     try {
       let jsonStr = (jsonMatch[1] || jsonMatch[0]).trim();
-      
-      // LaTeX-safe JSON cleaning - ultra comprehensive
+
+      // LaTeX-safe JSON cleaning - simplified to prevent over-escaping
       let cleanedJson = jsonStr
-        .replace(/\$\\\\/g, '$\\\\')
-        .replace(/(?<!\$)\\\\/g, '\\\\\\\\')
-        .replace(/\$(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '$\\\\$1')
-        .replace(/\$(?!\\)([^$\s]+)(?=\$)/g, (match, content) => {
-          // Fix common LaTeX commands without backslashes
-          return '$' + content.replace(/(log_|sqrt|pi|frac|alpha|beta|gamma|delta|theta|lambda|mu|sigma|phi|omega|times|div|leq|geq|neq|approx|infty|in|subset|supset|cup|cap|emptyset|mathbb)/g, '\\\\$1') + '$';
-        })
+        // Only fix the most common LaTeX command issues
+        .replace(/\$(log_|sqrt|pi|frac)(?=[^$])/g, '$\\\\$1')
         // Remove control characters
         .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
         .trim();
-      
-      console.log('[Backend Gemini] Cleaned JSON preview (first 200 chars):', cleanedJson.substring(0, 200));
+
+      console.log('[Backend Gemini] Cleaned JSON preview (first 200 chars):', cleanedJson);
       console.log('[Backend Gemini] JSON length:', cleanedJson.length);
       console.log('[Backend Gemini] Error position 1414 context:', cleanedJson.substring(1400, 1430));
       // Try fast-json-parse first for better error handling
@@ -3204,7 +3206,7 @@ IMPORTANT: Respect the exact question type counts requested above!`;
         questions = JSON.parse(cleanedJson);
       } catch (fastParseError) {
         console.warn('[Backend Gemini] Fast JSON parse failed, trying native JSON.parse:', fastParseError.message);
-// ... (rest of the code remains the same)
+        // ... (rest of the code remains the same)
         questions = fastJsonParse(cleanedJson);
       }
 
