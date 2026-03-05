@@ -1850,7 +1850,23 @@ You are EduQuestLab, a multilingual pedagogy-aware generator. Analyze the provid
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
  📌 IMPORTANT: For all LaTeX commands, ALWAYS use double backslashes (\\) instead of single backslashes (). Never write single backslashes in LaTeX - always use double backslashes to ensure proper JSON escaping.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+ ⚠️ CRITICAL LATEX TEXT RULE: 
+NEVER place Tamil, Sinhala, or any non-Latin characters inside \text{} commands. 
+Flutter LaTeX renderer cannot render Unicode text inside \text{}.
+ 
+✅ CORRECT: Use English text only inside \text{}
+- \text{Find the value} ✅
+- \text{Calculate} ✅
+ 
+❌ INCORRECT: Never use Tamil/Sinhala inside \text{}
+- \text{மதிப்பு கண்டுபிடி} ❌
+- \text{අගය සොයන්න} ❌
+ 
+✅ ALTERNATIVE: Use plain text outside LaTeX for native languages
+- "மதிப்பு கண்டுபிடி" (outside LaTeX) ✅
+- "අගය සොයන්න" (outside LaTeX) ✅
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 GLOBAL RULES (MUST FOLLOW):
  You MUST output ONLY valid JSON. No markdown. No backticks. No extra text.
@@ -1918,24 +1934,9 @@ Example- $\\sqrt{20}$
 • Plain text: 3/4, 2/3, a/b
 • Unicode: ¾, ½, ⅓ (without $...$)
 • Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
- UNITS AND MEASUREMENTS (MANDATORY)
-- ALL units (cm, m, kg, g, etc.) MUST use LaTeX \\text{} command
-- Format: $\\text{unit}$ inside math expressions
-- Examples: $8 \\text{ cm}$, $5 \\text{ kg}$, $10 \\text{ m}^2$
-- Areas: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
-- Volumes: $125 \\text{ cm}^3$, $1000 \\text{ m}^3$
+
  
-❌ PROHIBITED UNIT FORMATS:
-- $8 ext{ cm}$ (wrong command)
-- $5 cm$ (missing LaTeX)
-- $8\\text{cm}$ (missing space)
- 
-✅ CORRECT UNIT EXAMPLES:
-- Length: $8 \\text{ cm}$, $5 \\text{ m}$
-- Area: $40 \\text{ cm}^2$, $100 \\text{ m}^2$
-- Volume: $125 \\text{ cm}^3$
-- Weight: $2 \\text{ kg}$, $500 \\text{ g}$
- 
+
 
 🔸 ANGLES
 • Angle symbols (∠) are strictly forbidden
@@ -2197,28 +2198,13 @@ IMPORTANT: Respect the exact question type counts requested above!`;
     try {
       // Clean JSON string to handle common escape character issues
       let cleanedJson = jsonMatch[0];
-      cleanedJson = cleanedJson
-        // Fix common escape sequences
-        .replace(/\\u[\d]{4}/g, (match) => {
-          try {
-            return String.fromCharCode(parseInt(match.slice(2), 16));
-          } catch {
-            return match;
-          }
-        })
-        // Fix double backslashes
-        .replace(/\\\\/g, "\\")
-        // Fix escaped quotes
-        .replace(/\\"/g, '"')
-        .replace(/\\'/g, "'")
-        // Fix problematic control characters
+      cleanedJson = cleanedJson.replace(/\$(log_|sqrt|pi|frac)(?=[^$])/g, '$\\\\$1')
+        // Remove control characters
         .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
-        // Fix malformed Unicode escapes
-        .replace(/\\u[0-9a-fA-F]{0,4}[^\d]/g, '')
-        // Normalize whitespace
-        .replace(/[ \t]+/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
         .trim();
+
+      // Only fix the most common LaTeX command issues
+
 
       console.log('[generateQuestions] Cleaned JSON length:', cleanedJson.length);
 
@@ -2886,7 +2872,21 @@ ${subject === 'Mathematics' ? `
    - Example FIIB Options: ["$\\frac{1}{2}$", "$\\frac{1}{4}$", "$\\frac{3}{4}$"]
 
  📌 IMPORTANT: For all LaTeX commands, ALWAYS use double backslashes (\\) instead of single backslashes (). Never write single backslashes in LaTeX - always use double backslashes to ensure proper JSON escaping.
-
+⚠️ CRITICAL LATEX TEXT RULE: 
+NEVER place Tamil, Sinhala, or any non-Latin characters inside \text{} commands. 
+Flutter LaTeX renderer cannot render Unicode text inside \text{}.
+ 
+✅ CORRECT: Use English text only inside \text{}
+- \text{Find the value} ✅
+- \text{Calculate} ✅
+ 
+❌ INCORRECT: Never use Tamil/Sinhala inside \text{}
+- \text{மதிப்பு கண்டுபிடி} ❌
+- \text{අගය සොයන්න} ❌
+ 
+✅ ALTERNATIVE: Use plain text outside LaTeX for native languages
+- "மதிப்பு கண்டுபிடி" (outside LaTeX) ✅
+- "අගය සොයන්න" (outside LaTeX) ✅
  📌 MATHEMATICS FRACTION RULES (MANDATORY)
 ALL fractions MUST be written in proper LaTeX format.
 EVERY fraction MUST be wrapped in $...$ delimiters.
