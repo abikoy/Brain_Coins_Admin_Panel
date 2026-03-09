@@ -19,7 +19,7 @@ import {
 import contentManagementService, { updateQuestion, deleteQuestion } from '../api/contentManagementService';
 import { getSubjects } from '../api/subjectService';
 import { getLearningPacks } from '../api/learningPackService';
-import { uploadQuestionDiagram } from '../api/questionDiagramService';
+import { uploadQuestionDiagram, deleteQuestionDiagram } from '../api/questionDiagramService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import Latex from 'react-latex-next';
 import 'katex/dist/katex.min.css';
@@ -114,8 +114,18 @@ const QuestionEditor = () => {
       correct_answer: question.correct_answer || question.answer || '',
       explanation: question.explanation || question.explanations || '',
       language: question.language || 'English',
-      blooms_taxonomy: question.blooms_taxonomy || question.bloom_level || 'Remember'
+      blooms_taxonomy: question.blooms_taxonomy || question.bloom_level || 'Remember',
+      diagram_path: question.diagram_path || null,
+      has_diagram: question.has_diagram || false
     });
+    
+    // Set existing diagram preview if available
+    if (question.diagram_path && question.has_diagram) {
+      setDiagramPreview(question.diagram_path);
+    } else {
+      setDiagramPreview(null);
+    }
+    
     setIsEditModalOpen(true);
   };
 
@@ -203,9 +213,36 @@ const QuestionEditor = () => {
     reader.readAsDataURL(file);
   };
 
-  const removeDiagram = () => {
+  const removeDiagram = async () => {
+    // Only show confirmation if there's an existing diagram
+    if (editingQuestion.has_diagram && !diagramFile) {
+      if (!confirm('You are about to delete the diagram of this question. This action cannot be undone. Continue?')) {
+        return;
+      }
+      
+      try {
+        // Call API to delete diagram from database
+        await deleteQuestionDiagram(editingQuestion.id);
+        setToast({ message: 'Diagram deleted successfully', type: 'success' });
+      } catch (error) {
+        console.error('Error deleting diagram:', error);
+        setToast({ message: 'Failed to delete diagram', type: 'error' });
+        return;
+      }
+    }
+    
+    // Clear diagram state
     setDiagramFile(null);
     setDiagramPreview(null);
+    
+    // Clear existing diagram from editing question
+    if (editingQuestion) {
+      setEditingQuestion({ 
+        ...editingQuestion, 
+        diagram_path: null, 
+        has_diagram: false 
+      });
+    }
   };
 
   // Handle option changes
@@ -443,6 +480,12 @@ const QuestionEditor = () => {
                         {question.language}
                       </Badge>
                     )}
+                    {question.has_diagram && (
+                      <Badge variant="outline" className="text-xs flex items-center gap-1">
+                        <ImageIcon className="h-3 w-3" />
+                        Diagram
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center space-x-1">
                     {question.is_active ? (
@@ -632,7 +675,12 @@ const QuestionEditor = () => {
                 <label className="block text-sm font-semibold mb-2 text-gray-700 flex items-center gap-2">
                   <ImageIcon className="h-5 w-5 text-green-600" />
                   Diagram (Optional)
+                  {editingQuestion.has_diagram && !diagramFile && (
+                    <Badge variant="success" className="text-xs">Has Diagram</Badge>
+                  )}
                 </label>
+                
+                {/* Show existing diagram or upload new one */}
                 {!diagramPreview ? (
                   <div className="flex items-center gap-2">
                     <input
@@ -649,20 +697,36 @@ const QuestionEditor = () => {
                       <Plus className="h-4 w-4" />
                       Choose Image
                     </label>
+                    {editingQuestion.has_diagram && (
+                      <span className="text-sm text-gray-500">or replace existing diagram</span>
+                    )}
                   </div>
                 ) : (
                   <div className="relative">
                     <img
                       src={diagramPreview}
-                      alt="Diagram preview"
+                      alt={diagramPreview}
                       className="max-w-full h-auto max-h-64 rounded-lg border-2 border-gray-200"
                     />
-                    <button
-                      onClick={removeDiagram}
-                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                    <div className="absolute top-2 right-2 flex gap-2">
+                      <button
+                        onClick={removeDiagram}
+                        className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors"
+                        title="Remove diagram"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {editingQuestion.diagram_path && !diagramFile && (
+                      <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                        Current diagram
+                      </div>
+                    )}
+                    {diagramFile && (
+                      <div className="absolute bottom-2 left-2 bg-green-600 bg-opacity-75 text-white px-2 py-1 rounded text-xs">
+                        New diagram (will replace current)
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
