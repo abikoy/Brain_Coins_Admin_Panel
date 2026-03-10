@@ -1082,6 +1082,11 @@ GLOBAL LATEX REQUIREMENT:
 - This applies to ALL bullet points in the summary.
 - Example: "The expression $a^m \\times a^n = a^{m+n}$ shows the product rule"
 - Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
+
+ ⚠️ CRITICAL LATEX TEXT RULE: 
+NEVER place Tamil, Sinhala, or any non-Latin characters inside \text{} commands. 
+Flutter LaTeX renderer cannot render Unicode text inside \text{}.
+ 
 📌 MATHEMATICS LATEX NOTATION (STRICT)
 - ALL math expressions MUST be wrapped in $...$ delimiters
 - Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
@@ -1280,6 +1285,12 @@ GLOBAL LATEX REQUIREMENT:
 - This applies to ALL bullet points in the summary.
 - Example: "The expression $a^m \\times a^n = a^{m+n}$ shows the product rule"
 - Example: "Fractions like $\\frac{3}{4}$ must use LaTeX format"
+
+ ⚠️ CRITICAL LATEX TEXT RULE: 
+NEVER place Tamil, Sinhala, or any non-Latin characters inside \text{} commands. 
+Flutter LaTeX renderer cannot render Unicode text inside \text{}.
+ 
+
 📌 MATHEMATICS LATEX NOTATION (STRICT)
 - ALL math expressions MUST be wrapped in $...$ delimiters
 - Use LaTeX superscripts: $a^m$, $a^n$, $2^3$, $5^2$, $2^{12}$
