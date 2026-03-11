@@ -1946,38 +1946,34 @@ Example- $\\sqrt{20}$
 • Unicode: ¾, ½, ⅓ (without $...$)
 • Blanks inside LaTeX: $\\frac{4}{___}$, $\\frac{___}{5}$ (use plain text for blanks)
 
- 
-
-
 🔸 ANGLES
-• Angle symbols (∠) are strictly forbidden
-• Use hat notation on the vertex letter only
-━━━━━━━━━━━━━━━━━━━━━━
-🔸 TRIANGLES
-• Triangle symbols (△, \\triangle) are strictly forbidden
-Write only in words:
-• Triangle ABC
-• The triangle formed by points A, B and C
-🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
+- Angle symbols (∠) are strictly forbidden
+- Use LaTeX hat notation: \hat{A} for angle at vertex A
+- Example: \hat{A} represents the angle at point A
 
+━━━━━━━━━━━━━━━━━━━━━━
+🔸 TRIANGLES  
+- Triangle symbols (△, \triangle) are strictly forbidden
+- Write only in words:
+  - Triangle ABC
+  - The triangle formed by points A, B and C
+
+🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
 ❌ ∠ ❌ △ ❌ ⟂ ❌ ∥ ❌ → ❌ \overline{AB} ❌ AB̅ ❌ \widehat{ABC}
 
 🔸 PERPENDICULAR & PARALLEL
 ❌ AB ⟂ CD
 ❌ AB ∥ CD
-
 ✅ Write in words only:
- AB is perpendicular to CD
- AB is parallel to CD
+  - AB is perpendicular to CD
+  - AB is parallel to CD
 
 🔸 LINE SEGMENTS & RAYS
-
-❌ \\overline{AB}
-❌ \\overrightarrow{AB}
-
+❌ \overline{AB}
+❌ \overrightarrow{AB}
 ✅ Write in words:
- Line segment AB
- Ray AB
+  - Line segment AB
+  - Ray AB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 MATHEMATICS FIIB STRUCTURAL RULES (CRITICAL)
 
