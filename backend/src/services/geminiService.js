@@ -1103,35 +1103,36 @@ EVERY fraction MUST be wrapped in $...$ delimiters.
 ❌ PROHIBITED:
 - Plain text: 3/4, 2/3, a/b
 - Unicode: ¾, ½, ⅓ (without $...$)
-🔸 ANGLES
-• Angle symbols (∠) are strictly forbidden
-• Use hat notation on the vertex letter only
-━━━━━━━━━━━━━━━━━━━━━━
-🔸 TRIANGLES
-• Triangle symbols (△, \\triangle) are strictly forbidden
-Write only in words:
-• Triangle ABC
-• The triangle formed by points A, B and C
-🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
 
+
+🔸 ANGLES
+- Angle symbols (∠) are strictly forbidden
+- Use LaTeX hat notation: \hat{A} for angle at vertex A
+- Example: \hat{A} represents the angle at point A
+
+━━━━━━━━━━━━━━━━━━━━━━
+🔸 TRIANGLES  
+- Triangle symbols (△, \triangle) are strictly forbidden
+- Write only in words:
+  - Triangle ABC
+  - The triangle formed by points A, B and C
+
+🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
 ❌ ∠ ❌ △ ❌ ⟂ ❌ ∥ ❌ → ❌ \overline{AB} ❌ AB̅ ❌ \widehat{ABC}
 
 🔸 PERPENDICULAR & PARALLEL
 ❌ AB ⟂ CD
 ❌ AB ∥ CD
-
 ✅ Write in words only:
- AB is perpendicular to CD
- AB is parallel to CD
+  - AB is perpendicular to CD
+  - AB is parallel to CD
 
 🔸 LINE SEGMENTS & RAYS
-
-❌ \\overline{AB}
-❌ \\overrightarrow{AB}
-
+❌ \overline{AB}
+❌ \overrightarrow{AB}
 ✅ Write in words:
- Line segment AB
- Ray AB
+  - Line segment AB
+  - Ray AB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
 ${subject === 'English Language' ? `
@@ -2931,36 +2932,34 @@ Example- $\\sqrt{20}$
 - Volume: $125 \\text{ cm}^3$
 - Weight: $2 \\text{ kg}$, $500 \\text{ g}$
  
-
 🔸 ANGLES
-• Angle symbols (∠) are strictly forbidden
-• Use hat notation on the vertex letter only
-━━━━━━━━━━━━━━━━━━━━━━
-🔸 TRIANGLES
-• Triangle symbols (△, \\triangle) are strictly forbidden
-Write only in words:
-• Triangle ABC
-• The triangle formed by points A, B and C
-🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
+- Angle symbols (∠) are strictly forbidden
+- Use LaTeX hat notation: \hat{A} for angle at vertex A
+- Example: \hat{A} represents the angle at point A
 
+━━━━━━━━━━━━━━━━━━━━━━
+🔸 TRIANGLES  
+- Triangle symbols (△, \triangle) are strictly forbidden
+- Write only in words:
+  - Triangle ABC
+  - The triangle formed by points A, B and C
+
+🔸 PROHIBITED GEOMETRY SYMBOLS (ABSOLUTE BAN)
 ❌ ∠ ❌ △ ❌ ⟂ ❌ ∥ ❌ → ❌ \overline{AB} ❌ AB̅ ❌ \widehat{ABC}
 
 🔸 PERPENDICULAR & PARALLEL
 ❌ AB ⟂ CD
 ❌ AB ∥ CD
-
 ✅ Write in words only:
- AB is perpendicular to CD
- AB is parallel to CD
+  - AB is perpendicular to CD
+  - AB is parallel to CD
 
 🔸 LINE SEGMENTS & RAYS
-
-❌ \\overline{AB}
-❌ \\overrightarrow{AB}
-
+❌ \overline{AB}
+❌ \overrightarrow{AB}
 ✅ Write in words:
- Line segment AB
- Ray AB
+  - Line segment AB
+  - Ray AB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 MATHEMATICS FIIB STRUCTURAL RULES (CRITICAL)
 
