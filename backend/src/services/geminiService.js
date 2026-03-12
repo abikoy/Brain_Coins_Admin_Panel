@@ -1074,7 +1074,42 @@ ${scopePrompt}
 4. Focus ONLY on the actual concepts and knowledge relevant to "${packTitle || 'the specific topic'}"
 5. Write as universal facts, not as references to source material
 6. If the pack is about cells, summarize ONLY cells - NOT other biology topics
+${subject === 'Sinhala(Second Language)' ? `
+  When generating quiz content from Sinhala (Second language) lesson text, follow this structure:
 
+1. Vocabulary
+   Extract 8–10 important Sinhala words from the lesson and provide Tamil meanings.
+
+2. Grammar
+   Identify simple Sinhala grammar from the lesson:
+
+* verb forms (present → past)
+* basic sentence structure (Subject + Object + Verb)
+* Sinhala question words (e.g., කවුද, කොහෙද, ඇයි)
+
+3. MCQ
+   Generate multiple choice questions testing vocabulary, grammar, and comprehension.
+
+4. Fill in the blanks
+   Generate grammar-based fill-in-the-blank questions using words from the lesson.
+
+5. True / False
+   Generate statements testing understanding of the lesson.
+
+6. Sentence building
+   Generate exercises where students arrange Sinhala words to form a correct sentence.
+
+7. Higher Order Questions (HOQ)
+   Generate short questions that test understanding of the lesson.
+
+Important rules:
+
+* Use simple Sinhala suitable for second language learners.
+* Use vocabulary from the lesson text whenever possible.
+* Tamil explanations may be included briefly to support understanding.
+* Avoid complex Sinhala grammar or literary language.
+  
+  `: ''};
 ${subject === 'Mathematics' ? `
 📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
 GLOBAL LATEX REQUIREMENT:
