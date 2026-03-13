@@ -1075,15 +1075,25 @@ ${scopePrompt}
 5. Write as universal facts, not as references to source material
 6. If the pack is about cells, summarize ONLY cells - NOT other biology topics
 ${subject === 'Sinhala(Second Language)' ? `
-  When generating summary content from Sinhala (Second language) lesson text, follow this structure:
-Identify simple Sinhala grammar from the learning pack:
-* verb forms (present → past)
-* basic sentence structure (Subject + Object + Verb)
-* Sinhala question words (e.g., කවුද, කොහෙද, ඇයි)
-Generate  bullets  that focus on  vocabulary, grammar, and comprehension.
-Generate summary bullets where students arrange Sinhala words to form a correct sentence.
-
-  
+ This is NOT a translation task.
+  This is NOT a comprehension/history summary.
+ 
+Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can use to teach Sinhala.
+ 
+Therefore override generic language rules only for producing TEACHER/LEARNER summary content:
+- Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
+  - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
+  - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
+  - (Usage) Collocations/phrases — one-line note and a 1-line example.
+  - (Practice) Short learner prompt (non-memory) like a sentence-correction, fill-in-the-blank, or paraphrase task (one line).
+  - (Activity) One suggested classroom/home activity (one line).
+ 
+- Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
+ 
+If selected language is Tamil/Sinhala:
+- Bullets MUST be mostly Sinhala; you MAY add small Tamil hint words in parentheses for difficult words only (e.g., නාම පද (பெயர்ச்சொல்), ක්‍රියා පද (வினைச்சொல்)).
+If selected language is Sinhala:
+- Bullets Must be strictly in full Sinhala
   `: ''};
 ${subject === 'Mathematics' ? `
 📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
@@ -1290,15 +1300,25 @@ ${packDescription ? `SPECIFIC CONTEXT: ${packDescription}` : ''}
 - Focus ONLY on the actual concepts and knowledge related to "${packTitle || 'the specified focus area'}"
 
 ${subject === 'Sinhala(Second Language)' ? `
-  When generating summary content from Sinhala (Second language) lesson text, follow this structure:
-Identify simple Sinhala grammar from the learning pack:
-* verb forms (present → past)
-* basic sentence structure (Subject + Object + Verb)
-* Sinhala question words (e.g., කවුද, කොහෙද, ඇයි)
-Generate  bullets  that focus on  vocabulary, grammar, and comprehension.
-Generate summary bullets where students arrange Sinhala words to form a correct sentence.
-
-  
+ This is NOT a translation task.
+  This is NOT a comprehension/history summary.
+ 
+Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can use to teach Sinhala.
+ 
+Therefore override generic language rules only for producing TEACHER/LEARNER summary content:
+- Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
+  - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
+  - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
+  - (Usage) Collocations/phrases — one-line note and a 1-line example.
+  - (Practice) Short learner prompt (non-memory) like a sentence-correction, fill-in-the-blank, or paraphrase task (one line).
+  - (Activity) One suggested classroom/home activity (one line).
+ 
+- Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
+ 
+If selected language is Tamil/Sinhala:
+- Bullets MUST be mostly Sinhala; you MAY add small Tamil hint words in parentheses for difficult words only (e.g., නාම පද (பெயர்ச்சொல்), ක්‍රියා පද (வினைச்சொல்)).
+If selected language is Sinhala:
+- Bullets Must be strictly in full Sinhala
   `: ''};
 
   
@@ -1941,39 +1961,40 @@ If ANY answer is NO, you MUST re-read the image and try again.
 ⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
 ${subject === 'Sinhala(Second Language)' ? `
-  When generating quiz content from Sinhala (Second language) lesson text, follow this structure:
+This is NOT a translation task.
+This is NOT a comprehension/history question generator.
 
-1. Vocabulary
-   Extract 8–10 important Sinhala words from the lesson and provide Tamil meanings.
+Goal: Teach Sinhala language using the chapter.
 
-2. Grammar
-   Identify simple Sinhala grammar from the lesson:
+Therefore override all language rules:
 
-* verb forms (present → past)
-* basic sentence structure (Subject + Object + Verb)
-* Sinhala question words (e.g., කවුද, කොහෙද, ඇයි)
+For Tamil/Sinhala medium students:
+- Question MUST be mixed: Sinhala sentence + small Tamil hints
+- Options MUST be Sinhala
+- Explanation MUST be Tamil
+- Never produce full Tamil question
+- Never translate entire question
+- Never ask factual/story questions (who, when, where, names)
 
-3. MCQ
-   Generate multiple choice questions testing vocabulary, grammar, and comprehension.
+You are generating Sinhala learning exercises, not subject knowledge questions.
 
-4. Fill in the blanks
-   Generate grammar-based fill-in-the-blank questions using words from the lesson.
+If output becomes 100% Tamil → it is WRONG.
+If question asks about story facts → it is WRONG.
 
-5. True / False
-   Generate statements testing understanding of the lesson.
+Focus on:
+- grammar
+- vocabulary
+- usage
+- reference words
+- sentence correction
+- meaning in context
 
-6. Sentence building
-   Generate exercises where students arrange Sinhala words to form a correct sentence.
-
-7. Higher Order Questions (HOQ)
-   Generate short questions that test understanding of the lesson.
-
-Important rules:
-
-* Use simple Sinhala suitable for second language learners.
-* Use vocabulary from the lesson text whenever possible.
-* Tamil explanations may be included briefly to support understanding.
-* Avoid complex Sinhala grammar or literary language.
+- The "SINHALA SUBJECT LANGUAGE SUPPORT RULE" applies ONLY if subject is exactly "Sinhala Language".
+- This mode should generate **Sinhala-learning style** quizzes: EASY difficulty focusing on **vocabulary**, **grammar**, and short **comprehension** items (practice-style questions useful for learners).
+- Avoid memory-based comprehension questions. Do NOT ask for exact page/paragraph/date/figure recalls — focus on grammar, vocabulary, usage, and meaning.
+- If the selected language is Sinhala: Questions and options must be 100% Sinhala; explanations must be in Sinhala.
+- If the selected language is Tamil (for Sinhala Language only): Questions must be mostly Sinhala; add small Tamil hint words in brackets for difficult words only (e.g., විලාසය (நடைமுறை) / කාලය (காலம்)). Do NOT translate the full sentence. Options must remain Sinhala. Explanations must be fully in Tamil.
+- For all other subjects, DO NOT apply these Sinhala-subject constraints; follow subject-specific rules and the selected language settings.
   
   `: ''};
 ${subject === 'Mathematics' ? `
@@ -2928,39 +2949,40 @@ If ANY answer is NO, you MUST re-read the image and try again.
 ` : ''}
 
 ${subject === 'Sinhala(Second Language)' ? `
-  When generating quiz content from Sinhala (Second language) lesson text, follow this structure:
+ This is NOT a translation task.
+This is NOT a comprehension/history question generator.
 
-1. Vocabulary
-   Extract 8–10 important Sinhala words from the lesson and provide Tamil meanings.
+Goal: Teach Sinhala language using the chapter.
 
-2. Grammar
-  Identify simple Sinhala grammar from the lesson:
+Therefore override all language rules:
 
-* verb forms (present → past)
-* basic sentence structure (Subject + Object + Verb)
-* Sinhala question words (e.g., කවුද, කොහෙද, ඇයි)
+For Tamil/Sinhala medium students:
+- Question MUST be mixed: Sinhala sentence + small Tamil hints
+- Options MUST be Sinhala
+- Explanation MUST be Tamil
+- Never produce full Tamil question
+- Never translate entire question
+- Never ask factual/story questions (who, when, where, names)
 
-3. MCQ
-   Generate multiple choice questions testing vocabulary, grammar, and comprehension.
+You are generating Sinhala learning exercises, not subject knowledge questions.
 
-4. Fill in the blanks
-   Generate grammar-based fill-in-the-blank questions using words from the lesson.
+If output becomes 100% Tamil → it is WRONG.
+If question asks about story facts → it is WRONG.
 
-5. True / False
-   Generate statements testing understanding of the lesson.
+Focus on:
+- grammar
+- vocabulary
+- usage
+- reference words
+- sentence correction
+- meaning in context
 
-6. Sentence building
-   Generate exercises where students arrange Sinhala words to form a correct sentence.
-
-7. Higher Order Questions (HOQ)
-   Generate short questions that test understanding of the lesson.
-
-Important rules:
-
-* Use simple Sinhala suitable for second language learners.
-* Use vocabulary from the lesson text whenever possible.
-* Tamil explanations may be included briefly to support understanding.
-* Avoid complex Sinhala grammar or literary language.
+- The "SINHALA SUBJECT LANGUAGE SUPPORT RULE" applies ONLY if subject is exactly "Sinhala Language".
+- This mode should generate **Sinhala-learning style** quizzes: EASY difficulty focusing on **vocabulary**, **grammar**, and short **comprehension** items (practice-style questions useful for learners).
+- Avoid memory-based comprehension questions. Do NOT ask for exact page/paragraph/date/figure recalls — focus on grammar, vocabulary, usage, and meaning.
+- If the selected language is Sinhala: Questions and options must be 100% Sinhala; explanations must be in Sinhala.
+- If the selected language is Tamil (for Sinhala Language only): Questions must be mostly Sinhala; add small Tamil hint words in brackets for difficult words only (e.g., විලාසය (நடைமுறை) / කාලය (காலம்)). Do NOT translate the full sentence. Options must remain Sinhala. Explanations must be fully in Tamil.
+- For all other subjects, DO NOT apply these Sinhala-subject constraints; follow subject-specific rules and the selected language settings.
   
   `: ''};
 
