@@ -1075,25 +1075,27 @@ ${scopePrompt}
 5. Write as universal facts, not as references to source material
 6. If the pack is about cells, summarize ONLY cells - NOT other biology topics
 ${subject === 'Sinhala(Second Language)' ? `
- This is NOT a translation task.
+  This is NOT a translation task.
   This is NOT a comprehension/history summary.
  
 Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can use to teach Sinhala.
  
-Therefore override generic language rules only for producing TEACHER/LEARNER summary content:
-- Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
-  - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
-  - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
-  - (Usage) Collocations/phrases — one-line note and a 1-line example.
-  - (Practice) Short learner prompt (non-memory) like a sentence-correction, fill-in-the-blank, or paraphrase task (one line).
-  - (Activity) One suggested classroom/home activity (one line).
+ Bullets MUST be written predominantly in Sinhala (Sinhala letters). Each bullet: 8–18 words.
+- Do NOT translate full sentences or produce bullets entirely in the native language.
+
+  - You MAY include **at most one short native hint** in parentheses per bullet (1–3 native words) — e.g., නාම පද (பெயர்ச்சொல்).
+  - **Do NOT** use full native sentences; keep any native text to tiny hints only. Bullets MUST be written predominantly in Sinhala (Sinhala letters). Each bullet: 8–18 words.
+- Do NOT translate full sentences or produce bullets entirely in the native language.
+ 
+ FOCUS ONLY ON:
+   - VOCABULARY - Key words/phrases with definitions + example
+   - GRAMMAR - Important rules/structures + example  
+   - USAGE - Collocations, common phrases + example
  
 - Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
  
-If selected language is Tamil/Sinhala:
 - Bullets MUST be mostly Sinhala; you MAY add small Tamil hint words in parentheses for difficult words only (e.g., නාම පද (பெயர்ச்சொல்), ක්‍රියා පද (வினைச்சொல்)).
-If selected language is Sinhala:
-- Bullets Must be strictly in full Sinhala
+
   `: ''};
 ${subject === 'Mathematics' ? `
 📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
@@ -1305,20 +1307,21 @@ ${subject === 'Sinhala(Second Language)' ? `
  
 Goal: Produce a learner-focused SUMMARY of the learning pack that teachers can use to teach Sinhala.
  
-Therefore override generic language rules only for producing TEACHER/LEARNER summary content:
-- Output 5-8 concise, learner-oriented bullet points (each 8-18 words) that help teach the unit. Each bullet should be one of the following types (label the type in parentheses):
-  - (Vocabulary) Word — short meaning (one phrase) and one short example sentence.
-  - (Grammar) Rule — one-line explanation and one short example sentence using the concept.
-  - (Usage) Collocations/phrases — one-line note and a 1-line example.
-  - (Practice) Short learner prompt (non-memory) like a sentence-correction, fill-in-the-blank, or paraphrase task (one line).
-  - (Activity) One suggested classroom/home activity (one line).
+ Bullets MUST be written predominantly in Sinhala (Sinhala letters). Each bullet: 8–18 words.
+- Do NOT translate full sentences or produce bullets entirely in the native language.
+  - You MAY include **at most one short native hint** in parentheses per bullet (1–3 native words) — e.g., නාම පද (பெயர்ச்சொல்).
+  - **Do NOT** use full native sentences; keep any native text to tiny hints only. Bullets MUST be written predominantly in Sinhala (Sinhala letters). Each bullet: 8–18 words.
+- Do NOT translate full sentences or produce bullets entirely in the native language.
+ 
+ FOCUS ONLY ON:
+   - VOCABULARY - Key words/phrases with definitions + example
+   - GRAMMAR - Important rules/structures + example  
+   - USAGE - Collocations, common phrases + example
  
 - Do NOT include factual/story comprehension (who/when/where/names) or ask for page/paragraph/figure recalls. Avoid memory-based prompts — focus on grammar, vocabulary, usage, and meaning.
  
-If selected language is Tamil/Sinhala:
 - Bullets MUST be mostly Sinhala; you MAY add small Tamil hint words in parentheses for difficult words only (e.g., නාම පද (பெயர்ச்சொல்), ක්‍රියා පද (வினைச்சொல்)).
-If selected language is Sinhala:
-- Bullets Must be strictly in full Sinhala
+
   `: ''};
 
   
