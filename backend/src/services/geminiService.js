@@ -1984,6 +1984,8 @@ You are generating Sinhala learning exercises, not subject knowledge questions.
 If output becomes 100% Tamil → it is WRONG.
 If question asks about story facts → it is WRONG.
 
+Convert story sentences into language-learning questions, not story memory questions.
+
 Focus on:
 - grammar
 - vocabulary
@@ -2971,6 +2973,8 @@ You are generating Sinhala learning exercises, not subject knowledge questions.
 
 If output becomes 100% Tamil → it is WRONG.
 If question asks about story facts → it is WRONG.
+
+Convert story sentences into language-learning questions, not story memory questions.
 
 Focus on:
 - grammar
