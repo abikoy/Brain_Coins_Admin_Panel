@@ -1964,17 +1964,14 @@ If ANY answer is NO, you MUST re-read the image and try again.
 ⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
 ${subject === 'Sinhala(Second Language)' ? `
-This is NOT a translation task.
+ This is NOT a translation task.
 This is NOT a comprehension/history question generator.
 
 Goal: Teach Sinhala language using the chapter.
 
-Therefore override all language rules:
-
-For Tamil/Sinhala medium students:
 - Question MUST be mixed: Sinhala sentence + small Tamil hints
 - Options MUST be Sinhala
-- Explanation MUST be Tamil
+- Explanation MUST be fully Tamil (MANDATORY - no exceptions)
 - Never produce full Tamil question
 - Never translate entire question
 - Never ask factual/story questions (who, when, where, names)
@@ -1998,10 +1995,11 @@ Focus on:
 - This mode should generate **Sinhala-learning style** quizzes: EASY difficulty focusing on **vocabulary**, **grammar**, and short **comprehension** items (practice-style questions useful for learners).
 - Avoid memory-based comprehension questions. Do NOT ask for exact page/paragraph/date/figure recalls — focus on grammar, vocabulary, usage, and meaning.
 - If the selected language is Sinhala: Questions and options must be 100% Sinhala; explanations must be in Sinhala.
-- If the selected language is Tamil (for Sinhala Language only): Questions must be mostly Sinhala; add small Tamil hint words in brackets for difficult words only (e.g., විලාසය (நடைமுறை) / කාලය (காலம்)). Do NOT translate the full sentence. Options must remain Sinhala. Explanations must be fully in Tamil.
-- For all other subjects, DO NOT apply these Sinhala-subject constraints; follow subject-specific rules and the selected language settings.
+- If the selected language is Tamil (for Sinhala Language only): Questions must be mostly Sinhala; add small Tamil hint words in brackets for difficult words only (e.g., විලාසය (நடைமுறை) / කාලය (காலம்)). Do NOT translate the full sentence. Options must remain Sinhala. **Explanations MUST be 100% Tamil regardless of the selected language.**
+- For all other subjects, DO NOT apply these Sinhala-subject constraints; follow subject-specific rules and selected language settings.
   
   `: ''};
+  
 ${subject === 'Mathematics' ? `
 📌 UNIVERSAL MATHEMATICS FORMATTING (STRICT)
 
@@ -2959,12 +2957,9 @@ This is NOT a comprehension/history question generator.
 
 Goal: Teach Sinhala language using the chapter.
 
-Therefore override all language rules:
-
-For Tamil/Sinhala medium students:
 - Question MUST be mixed: Sinhala sentence + small Tamil hints
 - Options MUST be Sinhala
-- Explanation MUST be Tamil
+- Explanation MUST be fully Tamil (MANDATORY - no exceptions)
 - Never produce full Tamil question
 - Never translate entire question
 - Never ask factual/story questions (who, when, where, names)
@@ -2988,8 +2983,8 @@ Focus on:
 - This mode should generate **Sinhala-learning style** quizzes: EASY difficulty focusing on **vocabulary**, **grammar**, and short **comprehension** items (practice-style questions useful for learners).
 - Avoid memory-based comprehension questions. Do NOT ask for exact page/paragraph/date/figure recalls — focus on grammar, vocabulary, usage, and meaning.
 - If the selected language is Sinhala: Questions and options must be 100% Sinhala; explanations must be in Sinhala.
-- If the selected language is Tamil (for Sinhala Language only): Questions must be mostly Sinhala; add small Tamil hint words in brackets for difficult words only (e.g., විලාසය (நடைமுறை) / කාලය (காலம்)). Do NOT translate the full sentence. Options must remain Sinhala. Explanations must be fully in Tamil.
-- For all other subjects, DO NOT apply these Sinhala-subject constraints; follow subject-specific rules and the selected language settings.
+- If the selected language is Tamil (for Sinhala Language only): Questions must be mostly Sinhala; add small Tamil hint words in brackets for difficult words only (e.g., විලාසය (நடைமுறை) / කාලය (காலம்)). Do NOT translate the full sentence. Options must remain Sinhala. **Explanations MUST be 100% Tamil regardless of the selected language.**
+- For all other subjects, DO NOT apply these Sinhala-subject constraints; follow subject-specific rules and selected language settings.
   
   `: ''};
 
