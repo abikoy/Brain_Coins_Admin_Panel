@@ -65,22 +65,23 @@ const PremiumManagementDialog = ({ student, isOpen, onClose, onSuccess }) => {
         try {
             setLoading(true);
 
-            // CORRECT: Call createManualSubscription with plan data
-            const result = await analyticsService.createManualSubscription(
-                student.id,
-                formData.amount,
-                formData.currency,
-                formData.plan_type,    // Use the plan data from your form
-                formData.interval,
-                formData.product_id
-            );
+            // Manually set premium status by updating the profile.
+            // This avoids relying on auth.user records and keeps the admin flow simple.
+            const premiumUntil = new Date();
+            if (formData.interval === 'monthly') {
+                premiumUntil.setMonth(premiumUntil.getMonth() + 1);
+            } else if (formData.interval === 'yearly') {
+                premiumUntil.setFullYear(premiumUntil.getFullYear() + 1);
+            }
+
+            const result = await analyticsService.updateStudentPremiumStatus(student.id, true, premiumUntil.toISOString());
 
             if (result.success) {
                 onSuccess?.(result.data);
                 onClose();
             }
         } catch (error) {
-            console.error('Error creating subscription:', error);
+            console.error('Error updating premium status:', error);
             alert(`Error: ${error.message}`);
         } finally {
             setLoading(false);
@@ -110,7 +111,11 @@ const PremiumManagementDialog = ({ student, isOpen, onClose, onSuccess }) => {
 
     const calculateExpiry = () => {
         const expiry = new Date();
-        expiry.setMonth(expiry.getMonth() + formData.months);
+        if (formData.interval === 'monthly') {
+            expiry.setMonth(expiry.getMonth() + 1);
+        } else if (formData.interval === 'yearly') {
+            expiry.setFullYear(expiry.getFullYear() + 1);
+        }
         return expiry.toLocaleDateString();
     };
 

@@ -458,8 +458,9 @@ class AnalyticsController {
       const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(id);
       
       if (authError) {
-        console.log('⚠️ Could not get auth user, trying alternative approach...');
-        // If we can't get auth user, we'll skip the payment record
+        // Not all profiles are backed by a Supabase auth user (e.g. admin-created profiles).
+        // That's okay; we can still create a subscription record and update premium status.
+        console.debug('Could not find an auth user (supabase.auth.users) for this profile id. Skipping payment record creation.', { authError });
       }
 
       // 2. Create payment record only if we have a valid auth user
@@ -468,7 +469,7 @@ class AnalyticsController {
         const { data: paymentData, error: paymentError } = await supabase
           .from('payments')
           .insert({
-            user_id: authUser.user.id, // Use auth.users ID
+            user_id: id, // Use auth.users ID
             product_id: product_id || `manual_${plan_type}_${interval}`,
             amount: amount,
             currency: currency.toLowerCase(),
