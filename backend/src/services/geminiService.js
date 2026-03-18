@@ -1963,6 +1963,56 @@ If ANY answer is NO, you MUST re-read the image and try again.
 ⚠️ If you generate garbage, the user will receive FEWER questions than requested!
 ⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
+
+${subject != 'Sinhala(Second Language)' || subject != 'Mathematics' || subject != 'English Language' ? `
+  When generating questions from the lesson text, follow these rules:
+
+1. Generate questions in Sri Lankan exam paper style.
+
+2. Focus on:
+
+* concepts
+* explanations
+* definitions
+* processes
+* diagrams
+* scientific understanding
+* reasoning
+
+3. Do NOT generate questions that ask:
+
+* person names mentioned in the lesson
+* place names mentioned in the lesson
+* author names
+* story characters
+
+4. Avoid questions like:
+
+* "Who said this?"
+* "Where did this happen?"
+* "What is the name of the person/place in the lesson?"
+
+5. Instead generate questions that test:
+
+* understanding of the concept
+* application of knowledge
+* reasoning
+* explanation of processes
+
+6. Question types allowed:
+
+* Multiple Choice Questions (MCQ)
+* Fill in the blanks
+* True / False
+* Short answer questions
+* Diagram labeling (if diagrams exist)
+
+7. Ensure questions are suitable for Sri Lankan school exam standards.
+
+8. Use only information from the lesson text but focus on learning concepts rather than memorizing names.
+
+Return questions clearly formatted for exam paper style.
+  `: ''}
 ${subject === 'Sinhala(Second Language)' ? `
  This is NOT a translation task.
 This is NOT a comprehension/history question generator.
@@ -2950,6 +3000,56 @@ If ANY answer is NO, you MUST re-read the image and try again.
 ⚠️ If you generate garbage, the user will receive FEWER questions than requested!
 ⚠️ DOUBLE-CHECK every character before responding!
 ` : ''}
+
+${subject != 'Sinhala(Second Language)' || subject != 'Mathematics' || subject != 'English Language' ? `
+  When generating questions from the lesson text, follow these rules:
+
+1. Generate questions in Sri Lankan exam paper style.
+
+2. Focus on:
+
+* concepts
+* explanations
+* definitions
+* processes
+* diagrams
+* scientific understanding
+* reasoning
+
+3. Do NOT generate questions that ask:
+
+* person names mentioned in the lesson
+* place names mentioned in the lesson
+* author names
+* story characters
+
+4. Avoid questions like:
+
+* "Who said this?"
+* "Where did this happen?"
+* "What is the name of the person/place in the lesson?"
+
+5. Instead generate questions that test:
+
+* understanding of the concept
+* application of knowledge
+* reasoning
+* explanation of processes
+
+6. Question types allowed:
+
+* Multiple Choice Questions (MCQ)
+* Fill in the blanks
+* True / False
+* Short answer questions
+* Diagram labeling (if diagrams exist)
+
+7. Ensure questions are suitable for Sri Lankan school exam standards.
+
+8. Use only information from the lesson text but focus on learning concepts rather than memorizing names.
+
+Return questions clearly formatted for exam paper style.
+  `: ''}
 
 ${subject === 'Sinhala(Second Language)' ? `
  This is NOT a translation task.
