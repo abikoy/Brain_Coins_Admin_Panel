@@ -52,12 +52,10 @@ const StudentListTable = ({ students, onManagePremium, onEditStudent }) => {
                   <tr key={student.id} className="border-b border-gray-100 hover:bg-gradient-glass transition-colors">
                     <td className="px-3 sm:px-4 py-3">
                       <div className="flex items-center space-x-2 sm:space-x-3">
-                        <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gradient-primary flex items-center justify-center flex-shrink-0">
-                          {student.isPremium ? (
-                            <Crown className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400" />
-                          ) : (
+                        <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-[rgb(147,51,234)] flex items-center justify-center flex-shrink-0">
+                        
                             <User className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                          )}
+                         
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1">
@@ -102,7 +100,7 @@ const StudentListTable = ({ students, onManagePremium, onEditStudent }) => {
                     <td className="px-3 sm:px-4 py-3">
                       <div className="flex items-center space-x-1">
                         <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
-                        <span className="font-semibold text-royal-purple text-sm sm:text-base">
+                        <span className="font-semibold text-[rgb(147,51,234)] text-sm sm:text-base">
                           {Math.round(score)}
                         </span>
                       </div>

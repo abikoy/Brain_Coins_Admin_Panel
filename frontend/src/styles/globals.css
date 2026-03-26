@@ -12,20 +12,18 @@
     --radius: 0.5rem;
   }
 
-  * {
-    @apply border-border;
-  }
+
 
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+
+    font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  
-  /* Apply Sora font to all elements */
+
+  /* Apply Inter font to all elements */
   * {
-    font-family: 'Sora', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
 }
 
@@ -82,6 +80,7 @@
       transform: translateX(100%);
       opacity: 0;
     }
+
     to {
       transform: translateX(0);
       opacity: 1;

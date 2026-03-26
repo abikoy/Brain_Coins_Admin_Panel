@@ -22,11 +22,11 @@ const Button = React.forwardRef(({
 
   const variants = {
 
-    default: "bg-gradient-primary text-white hover:opacity-90",
+    default: "bg-[rgb(147,51,234)] text-white hover:bg-[rgb(120,41,187)]",
 
     outline: "border-2 border-royal-purple text-royal-purple hover:bg-royal-purple hover:text-white",
 
-    ghost: "hover:bg-gradient-glass text-royal-purple",
+    ghost: "hover:bg-gray-100 text-[rgb(147,51,234)]",
 
     secondary: "bg-electric-cyan text-white hover:opacity-90",
 
