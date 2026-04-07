@@ -1,8 +1,10 @@
 import React from 'react';
 import { ToggleLeft, ToggleRight, Book, Edit } from 'lucide-react';
 
-const SubjectsTable = ({ subjects, onToggleStatus, onEditSubject, currentLanguageFilter }) => {
-  if (!subjects.length) {
+const SubjectsTable = ({ subjects, onToggleStatus, onEditSubject }) => {
+  console.log('Subjects passed:', subjects);  // Added console.log to log the passed subjects
+
+  if (!subjects || !subjects.length) {
     return (
       <div className="text-center py-8 text-gray-500">
         <Book className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -18,7 +20,6 @@ const SubjectsTable = ({ subjects, onToggleStatus, onEditSubject, currentLanguag
           <tr className="border-b border-gray-200">
             <th className="text-left py-3 px-4 font-medium text-gray-600">Subject</th>
             <th className="text-left py-3 px-4 font-medium text-gray-600">Languages</th>
-
             <th className="text-left py-3 px-4 font-medium text-gray-600">Status</th>
             <th className="text-left py-3 px-4 font-medium text-gray-600">Actions</th>
           </tr>
@@ -29,9 +30,7 @@ const SubjectsTable = ({ subjects, onToggleStatus, onEditSubject, currentLanguag
               <td className="py-3 px-4">
                 <div>
                   <p className="font-medium">
-                    {currentLanguageFilter === 'Sinhala' && subject.name_si ? subject.name_si :
-                     currentLanguageFilter === 'Tamil' && subject.name_ta ? subject.name_ta :
-                     subject.name || 'No name'}
+                    {subject.name || 'No name'}
                   </p>
                   {subject.description && (
                     <p className="text-sm text-gray-500 truncate max-w-xs">
@@ -42,18 +41,11 @@ const SubjectsTable = ({ subjects, onToggleStatus, onEditSubject, currentLanguag
               </td>
               <td className="py-3 px-4">
                 <div className="text-sm text-gray-600">
-                  {currentLanguageFilter ? (
-                    <span>{currentLanguageFilter}</span>
-                  ) : (
-                    <>
-                      {subject.name && <span>English</span>}
-                      {subject.name_si && <span>{subject.name ? ', ' : ''}Sinhala</span>}
-                      {subject.name_ta && <span>{(subject.name || subject.name_si) ? ', ' : ''}Tamil</span>}
-                    </>
-                  )}
+                  {subject.name && <span>English</span>}
+                  {subject.name_si && <span>{subject.name ? ', ' : ''}Sinhala</span>}
+                  {subject.name_ta && <span>{(subject.name || subject.name_si) ? ', ' : ''}Tamil</span>}
                 </div>
               </td>
-
               <td className="py-3 px-4">
                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                   subject.is_active 

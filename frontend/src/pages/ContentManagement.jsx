@@ -97,7 +97,7 @@ const ContentManagement = ({ onNavigate }) => {
             // Subjects table always shows ALL subjects without filtering
             const subjectsFilters = {
                 page: paginationOptions.subjectsPage || pagination.subjects.currentPage,
-                limit: 14 // 14 items per page
+                limit: 1000 // Show all subjects on one page
             };
 
             const packsFilters = {
