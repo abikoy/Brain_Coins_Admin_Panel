@@ -11,6 +11,9 @@ import StudentEditModal from '../components/analytics/StudentEditModal';
 const Analytics = () => {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [students, setStudents] = useState([]);
+  const [studentsPage, setStudentsPage] = useState(1);
+  const [studentsTotalPages, setStudentsTotalPages] = useState(1);
+  const [studentsTotal, setStudentsTotal] = useState(0);
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,6 +27,8 @@ const Analytics = () => {
     student: null
   });
   // Fetch analytics data using the service
+  const STUDENTS_PER_PAGE = 20;
+
   const fetchAnalyticsData = async () => {
     try {
       setRefreshing(true);
@@ -31,12 +36,14 @@ const Analytics = () => {
       // Fetch all data in parallel using the service
       const [statsResult, studentsResult, progressResult] = await Promise.all([
         analyticsService.getDashboardStats(),
-        analyticsService.getStudents({ limit: 50 }),
+        analyticsService.getStudents({ page: studentsPage, limit: STUDENTS_PER_PAGE }),
         analyticsService.getStudentProgress(timeRange) // Use selected timeRange
       ]);
 
       setAnalyticsData(statsResult);
       setStudents(studentsResult.students || []);
+      setStudentsTotal(studentsResult.total || 0);
+      setStudentsTotalPages(studentsResult.totalPages || 1);
 
       // Transform progress data into recent activity
       const transformedActivity = progressResult.slice(0, 5).map(progress => ({
@@ -98,9 +105,14 @@ const Analytics = () => {
   const closeStudentEditModal = () => {
     setStudentEditModal({ isOpen: false, student: null });
   };
+
+  useEffect(() => {
+    setStudentsPage(1);
+  }, [timeRange]);
+
   useEffect(() => {
     fetchAnalyticsData();
-  }, [timeRange]); // Re-fetch when timeRange changes
+  }, [timeRange, studentsPage]); // Re-fetch when timeRange or page changes
 
   // Format time ago function
   const formatTimeAgo = (timestamp) => {
@@ -245,7 +257,12 @@ const Analytics = () => {
           </Button>
         </div>
         <StudentListTable 
-          students={students} 
+          students={students}
+          currentPage={studentsPage}
+          totalPages={studentsTotalPages}
+          totalItems={studentsTotal}
+          itemsPerPage={STUDENTS_PER_PAGE}
+          onPageChange={(page) => setStudentsPage(page)}
           onManagePremium={handleManagePremium}
           onEditStudent={handleEditStudent}
         />

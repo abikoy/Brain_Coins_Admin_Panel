@@ -1,9 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import Badge from '../ui/Badge';
+import Pagination from '../ui/Pagination';
 import { User, TrendingUp, Crown, Edit3, Edit, Search } from 'lucide-react';
 import Button from '../ui/Button';
 
-const StudentListTable = ({ students, onManagePremium, onEditStudent }) => {
+const StudentListTable = ({
+  students,
+  currentPage = 1,
+  totalPages = 1,
+  totalItems = 0,
+  itemsPerPage = 20,
+  onPageChange,
+  onManagePremium,
+  onEditStudent
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filter students based on search term
@@ -254,6 +264,13 @@ const StudentListTable = ({ students, onManagePremium, onEditStudent }) => {
           </table>
         </div>
       </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        itemsPerPage={itemsPerPage}
+        onPageChange={onPageChange}
+      />
     </div>
   );
 };

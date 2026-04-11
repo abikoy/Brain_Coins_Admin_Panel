@@ -63,7 +63,7 @@ export const getDashboardAnalytics = async () => {
  */
 export const getStudents = async (options = {}) => {
   try {
-    const { page = 1, limit = 50, search = '', premiumOnly = false } = options;
+    const { page = 1, limit = 1000, search = '', premiumOnly = false } = options;
     
     const url = new URL(`${API_BASE_URL}/analytics/students`);
     url.searchParams.set('page', page);
