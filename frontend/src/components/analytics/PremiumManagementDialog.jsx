@@ -65,23 +65,22 @@ const PremiumManagementDialog = ({ student, isOpen, onClose, onSuccess }) => {
         try {
             setLoading(true);
 
-            // Manually set premium status by updating the profile.
-            // This avoids relying on auth.user records and keeps the admin flow simple.
-            const premiumUntil = new Date();
-            if (formData.interval === 'monthly') {
-                premiumUntil.setMonth(premiumUntil.getMonth() + 1);
-            } else if (formData.interval === 'yearly') {
-                premiumUntil.setFullYear(premiumUntil.getFullYear() + 1);
-            }
-
-            const result = await analyticsService.updateStudentPremiumStatus(student.id, true, premiumUntil.toISOString());
+            // Create manual subscription for the student
+            const result = await analyticsService.createManualSubscription(
+                student.id,
+                formData.amount,
+                formData.currency,
+                formData.plan_type,
+                formData.interval,
+                formData.product_id
+            );
 
             if (result.success) {
                 onSuccess?.(result.data);
                 onClose();
             }
         } catch (error) {
-            console.error('Error updating premium status:', error);
+            console.error('Error creating manual subscription:', error);
             alert(`Error: ${error.message}`);
         } finally {
             setLoading(false);
