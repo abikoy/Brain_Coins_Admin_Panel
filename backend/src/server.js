@@ -1,7 +1,5 @@
 import express from 'express';
 
-import cors from 'cors';
-
 import dotenv from 'dotenv';
 
 import questionRoutes from './routes/question.routes.js';
@@ -25,42 +23,6 @@ dotenv.config();
 const app = express();
 
 const PORT = process.env.PORT || 5001;
-
-
-
-// CORS configuration for frontend domains
-
-const allowedOrigins = [
-
-    'http://localhost:3000',
-
-    'https://braincoins.vercel.app'
-
-];
-
-
-
-app.use(cors({
-
-    origin: (origin, callback) => {
-
-        // Allow requests with no origin (like mobile apps or curl)
-
-        if (!origin) return callback(null, true);
-
-        if (allowedOrigins.includes(origin)) {
-
-            return callback(null, true);
-
-        }
-
-        return callback(new Error('Not allowed by CORS'));
-
-    },
-
-    credentials: true
-
-}));
 
 
 
